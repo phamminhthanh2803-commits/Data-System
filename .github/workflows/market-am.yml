@@ -73,13 +73,14 @@ jobs:
           rclone lsd "$RCLONE_REMOTE" > /dev/null
 
       - name: Keo du lieu tu Drive (chi thu muc slot can)
+        id: down
         run: python sync_data.py down --hub market-data --slot AM --only "$ONLY"
 
       - name: Chay pipeline market-data AM
         run: python market-data/run_slot.py --slot AM --only "$ONLY"
 
-      - name: Day du lieu len Drive (luon chay, ke ca buoc loi)
-        if: always()
+      - name: Day du lieu len Drive (ke ca khi pipeline loi, NHUNG chi khi da keo xuong OK)
+        if: always() && steps.down.outcome == 'success'
         run: python sync_data.py up --hub market-data --slot AM --only "$ONLY"
 
       - name: Trang thai

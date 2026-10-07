@@ -22,6 +22,8 @@ import sys
 from dataclasses import dataclass, field
 
 HUB_ENV = {"market-data": "MD_ROOT", "shipping": "SHIP_ROOT", "bctc": "BCTC_ROOT", "hah": "HAH_DIR"}
+LAPTOP_DATA = {"market-data": "D:/pipeline-data/market-data", "shipping": "D:/pipeline-data/shipping", "bctc": "D:/bctc",
+               "hah": "D:/pipeline-data/hah"}   # cay du lieu laptop (mo hinh cloud); bctc van la goc (nganh-ck Excel)
 HUB_SRC = {"market-data": "D:/market-data", "shipping": "D:/shipping", "bctc": "D:/bctc",
            "hah": "D:/Database/Logistics/HAH"}                      # nguon goc tren laptop (seed lan dau)
 DRIVE_LIMIT_MB = 4000
@@ -48,7 +50,11 @@ class Folder:
         return f"{self.hub}/{self.path}" if self.path else self.hub
 
     def local_root(self) -> str:
-        base = os.environ.get(HUB_ENV[self.hub]) or HUB_SRC[self.hub]
+        # Laptop (Windows, khong CLOUD=1) ma chua dat env -> D:\pipeline-data\<hub>, KHONG BAO GIO la cay goc D:\<hub>
+        # (07/10/2026: chay `sync_data.py app` tay khong env da copy Drive de len D:\shipping goc - vo hai nhung sai y).
+        base = os.environ.get(HUB_ENV[self.hub])
+        if not base:
+            base = HUB_SRC[self.hub] if (os.environ.get("CLOUD") == "1" or os.name != "nt") else LAPTOP_DATA[self.hub]
         return os.path.normpath(os.path.join(base, self.path)) if self.path else os.path.normpath(base)
 
     def src_root(self) -> str:

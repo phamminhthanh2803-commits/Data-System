@@ -22,8 +22,8 @@ beautifulsoup4==4.14.3
 lxml==6.1.3
 cryptography==48.0.0         # bond-pivot pull_tpcp_curve.py (x509 HNX)
 # ---- nguon du lieu
-# vnstock (4.x) da rut khoi PyPI, chi fs-extractor (chay tay o laptop) can -> KHONG cai tren cloud
-# vnai: phu thuoc vnstock, cung bo (laptop: pip install vnai==2.4.8)
+vnstock==4.0.4
+vnai==2.4.8                  # phu thuoc vnstock; GHIM < 2.6 (vnai 2.6 tu ghi ~/.claude/CLAUDE.md; runner da dat VNSTOCK_DISABLE_AGENT_SETUP=1)
 yfinance==1.4.1
 tvdatafeed @ git+https://github.com/rongardF/tvdatafeed.git@e6f6aaa7de439ac6e454d9b26d2760ded8dc4923   # index-fetcher tv_history.py
 # ---- app Streamlit (market-data/app, shipping/port-tracker)

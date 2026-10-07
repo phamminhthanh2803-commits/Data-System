@@ -5,7 +5,6 @@ BONG SEN,Lotus Port,,general,HO CHI MINH,BẾN CẢNG BÔNG SEN
 BẾN PHAO BP1 - ITC CÁI MÉP,Bến Phao Bp1 - Itc Cái Mép,,buoy,CAI MEP,BẾN PHAO BP1 - ITC CÁI MÉP
 BẾN PHAO BP2 - ITC CÁI MÉP,Bến Phao Bp2 - Itc Cái Mép,,buoy,CAI MEP,BẾN PHAO BP2 - ITC CÁI MÉP
 BẾN PHAO BP3 - ITC CÁI MÉP,Bến Phao Bp3 - Itc Cái Mép,,buoy,CAI MEP,BẾN PHAO BP3 - ITC CÁI MÉP
-BẾN PHAO CÔNG TY LONG BEACH,Bến Phao Công Ty Long Beach,,buoy,HO CHI MINH,BẾN PHAO CÔNG TY LONG BEACH
 BẾN PHAO HẢI LONG/CÔNG TY CỔ PHẦN VẬN TẢI VÀ GIAO NHẬN HẢI LONG,Bến Phao Hải Long/Công Ty Cổ Phần Vận Tả,,buoy,HO CHI MINH,BẾN PHAO HẢI LONG/CÔNG TY CỔ PHẦN VẬN TẢI VÀ GIAO NHẬN HẢI LONG
 BẾN PHAO TCT ĐƯỜNG SÔNG MIỀN NAM,Bến Phao Tct Đường Sông Miền Nam,,buoy,HO CHI MINH,BẾN PHAO TCT ĐƯỜNG SÔNG MIỀN NAM
 BẾN PHAO TRƯỜNG AN,Bến Phao Trường An,,buoy,HO CHI MINH,BẾN PHAO TRƯỜNG AN
@@ -22,21 +21,27 @@ CTY CP NHA RONG,Cty Cp Nha Rong,,buoy,HO CHI MINH,CTY CP NHA RONG
 CTY CPDV VTB HAI VAN,Cty Cpdv Vtb Hai Van,,buoy,HO CHI MINH,CTY CPDV VTB HAI VAN
 CTY FALCON,Cty Falcon,,buoy,HO CHI MINH,CTY FALCON
 CTY TNHH VARD VT,Cty Tnhh Vard Vt,,shipyard,VUNG TAU,CẦU CẢNG CTY TNHH VARD VT
-CÔN ĐẢO - VŨNG TÀU,Côn Đảo - Vũng Tàu,,other,CON DAO,BẾN CẢNG CÔN ĐẢO - VŨNG TÀU
+CÔNG NGHIỆP TÀU THỦY SÀI GÒN,Công Nghiệp Tàu Thủy Sài Gòn,,shipyard,HO CHI MINH,BẾN CẢNG CÔNG NGHIỆP TÀU THỦY SÀI GÒN
 CÔNG TY CỔ PHẦN BẢO VIỆT PHÁT,Công Ty Cổ Phần Bảo Việt Phát,,buoy,HO CHI MINH,CÔNG TY CỔ PHẦN BẢO VIỆT PHÁT
 CÔNG TY CỔ PHẦN HÀNG HẢI PHÚ MỸ,Công Ty Cổ Phần Hàng Hải Phú Mỹ,,general,CAI MEP,CÔNG TY CỔ PHẦN HÀNG HẢI PHÚ MỸ
 CÔNG TY CỔ PHẦN HƯNG THÁI HOLDINGS,Công Ty Cổ Phần Hưng Thái Holdings,,buoy,HO CHI MINH,CÔNG TY CỔ PHẦN HƯNG THÁI HOLDINGS
 CÔNG TY CỔ PHẦN SSV,Công Ty Cổ Phần Ssv,,general,HO CHI MINH,CÔNG TY CỔ PHẦN SSV
+CÔNG TY CỔ PHẦN ĐẦU TƯ LONG THUẬN,Công Ty Cổ Phần Đầu Tư Long Thuận,,buoy,HO CHI MINH,CÔNG TY CỔ PHẦN ĐẦU TƯ LONG THUẬN
 CẢNG DKNK BIỂN ĐÔNG (HẢI THẠCH-MỘC TINH),Cảng Dknk Biển Đông (Hải Thạch-Mộc Tinh),,offshore,MO DAU KHI (ngoai khoi),CẢNG DKNK BIỂN ĐÔNG (HẢI THẠCH-MỘC TINH)
+CẢNG DẦU KHÍ NGOÀI KHƠI SAO VÀNG - ĐẠI NGUYỆT,Cảng Dầu Khí Ngoài Khơi Sao Vàng - Đại N,,offshore,MO DAU KHI (ngoai khoi),CẢNG DẦU KHÍ NGOÀI KHƠI SAO VÀNG - ĐẠI NGUYỆT
+"CẦU CẢNG, Ụ TÀU-CTY ĐÓNG TÀU & DVDK (VT SHIPYARD)","Cầu Cảng, Ụ Tàu-Cty Đóng Tàu & Dvdk (Vt ",,offshore-base,HO CHI MINH,"CẦU CẢNG, Ụ TÀU-CTY ĐÓNG TÀU & DVDK (VT SHIPYARD)"
 DAM PHU MY,Dam Phu My,DPM,general,CAI MEP,BẾN CẢNG ĐẠM VÀ DỊCH VỤ DẦU KHÍ TỔNG HỢP PHÚ MỸ
 GEMALINK,Gemadept,GMD,container,CAI MEP,BẾN CẢNG CÁI MÉP GEMADEPT-TERMINAL LINK
 HYOSUNG VINA CHEMICALS,Hyosung Vina Chemicals,,gas,CAI MEP,HYOSUNG VINA CHEMICALS
 HẢI ĐOÀN 129,Hải Đoàn 129,,other,VUNG TAU,BẾN CẢNG HẢI ĐOÀN 129
+KHO XĂNG DẦU K2,Kho Xăng Dầu K2,,petro,HO CHI MINH,BẾN CẢNG KHO XĂNG DẦU K2
 KHU CÔNG NGHIỆP ĐÔNG XUYÊN,Khu Công Nghiệp Đông Xuyên,,offshore-base,VUNG TAU,CẦU CẢNG KHU CÔNG NGHIỆP ĐÔNG XUYÊN
 KHU VỰC 1 (SÔNG NHÀ BÈ),Khu Vực 1 (Sông Nhà Bè),,buoy,HO CHI MINH,KHU VỰC 1 (SÔNG NHÀ BÈ)
 KHU VỰC 11 (SÔNG SOÀI RẠP),Khu Vực 11 (Sông Soài Rạp),,buoy,HO CHI MINH,KHU VỰC 11 (SÔNG SOÀI RẠP)
+KHU VỰC 12 (SÔNG SOÀI RẠP),Khu Vực 12 (Sông Soài Rạp),,buoy,HO CHI MINH,KHU VỰC 12 (SÔNG SOÀI RẠP)
+KHU VỰC 2 (SÔNG NHÀ BÈ),Khu Vực 2 (Sông Nhà Bè),,buoy,HO CHI MINH,KHU VỰC 2 (SÔNG NHÀ BÈ)
 KHU VỰC 4,Khu Vực 4,,buoy,HO CHI MINH,KHU VỰC 4
-KHU VỰC 6 (KHU VỰC BỜ BĂNG),Khu Vực 6 (Khu Vực Bờ Băng),,buoy,HO CHI MINH,KHU VỰC 6 (KHU VỰC BỜ BĂNG)
+KHU VỰC 8 (SÔNG NGÃ BẢY),Khu Vực 8 (Sông Ngã Bảy),,buoy,HO CHI MINH,KHU VỰC 8 (SÔNG NGÃ BẢY)
 KĐT DL LẤN BIỂN CẦN GIỜ,Kđt Dl Lấn Biển Cần Giờ,,other,CAN GIO,KĐT DL LẤN BIỂN CẦN GIỜ
 LONG AN,Cang QT Long An,,general,HO CHI MINH,BẾN CẢNG QUỐC TẾ LONG AN
 LONG SON,Long Son,,container,LONG SON (VUNG TAU),BẾN CẢNG KHU DV CÔNG NGHIỆP LONG SƠN
@@ -70,7 +75,7 @@ TCCT,Tan Cang Cai Mep,SNP,container,CAI MEP,BẾN CẢNG CONT CÁI MÉP THƯỢN
 TCIT,Tan Cang Cai Mep,SNP,container,CAI MEP,BẾN CẢNG CONT CÁI MÉP THƯỢNG - TCIT
 TCTT,Tan Cang Cai Mep,SNP,container,CAI MEP,BẾN CẢNG CONT QUỐC TẾ CÁI MÉP (TCTT)
 THEP PHU MY,Thep Phu My,,general,CAI MEP,BẾN CẢNG NHÀ MÁY THÉP PHÚ MỸ
-THI VAI TONG HOP,Thi Vai tong hop,,general,CAI MEP,BẾN CẢNG TỔNG HỢP THỊ VẢI (ODA)
+THI VAI TONG HOP,Thi Vai tong hop,,general,CAI MEP,QUỐC TẾ THỊ VẢI
 THUONG CANG VUNG TAU,Thuong cang Vung Tau,,general,VUNG TAU,BẾN CẢNG THƯƠNG CẢNG VT
 TONG KHO NHA BE,Petrolimex,PLX,petro,HO CHI MINH,TỔNG KHO XĂNG DẦU NHÀ BÈ
 TONG KHO XANG DAU 102 MO RONG,Tong Kho Xang Dau 102 Mo Rong,,petro,HO CHI MINH,BEN CANG TONG KHO XANG DAU 102 MO RONG

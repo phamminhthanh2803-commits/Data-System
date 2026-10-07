@@ -158,6 +158,17 @@ _TESS_WIN = os.path.normpath("C:/Program Files/Tesseract-OCR/tesseract.exe")
 pytesseract.pytesseract.tesseract_cmd = os.environ.get("TESSERACT_CMD") or (_TESS_WIN if os.path.exists(_TESS_WIN) else "tesseract")
 
 PDF_DIR = "data/raw/pdfs"
+KEEP_PDF = os.environ.get("BOND_KEEP_PDF") == "1"   # 07/10/2026: OCR xong la xoa PDF (3,4 GB/3.245 file khong dung lai); dat =1 de giu
+
+
+def drop_pdf(fn):
+    """Xoa PDF sau khi text da cache o TXT_DIR (script chi doc cache, khong mo lai PDF)."""
+    if KEEP_PDF or not fn:
+        return
+    try:
+        os.remove(fn)
+    except OSError:
+        pass
 TXT_DIR = "data/raw/pdf_text"
 OUT = "data/processed/arranger_evidence.csv"
 MAX_OCR_PAGES = 10
@@ -294,6 +305,8 @@ def cmd_articles(limit):
                             polite_sleep()
                         txt, _ = extract_text(fn)
                     open(txt_path, "w", encoding="utf-8").write(txt or "")
+                    if txt:
+                        drop_pdf(fn)
                 except Exception as e:
                     print("  fail art %s: %s" % (aid, e), flush=True)
                     continue
@@ -358,6 +371,7 @@ def main():
     todo = [r for r in ttph if r["ma_tp"].strip().upper() not in done]
     # uu tien: (1) PDF da cache (khong ton download), (2) mau ND153 2021-2023
     cached = {f.split("_")[0] for f in os.listdir(PDF_DIR)} if os.path.isdir(PDF_DIR) else set()
+    cached |= {f[:-4].upper() for f in os.listdir(TXT_DIR) if f.endswith(".txt")} if os.path.isdir(TXT_DIR) else set()
     todo.sort(key=lambda r: (0 if r["ma_tp"].strip().upper() in cached else 1,
                              0 if 2021 <= year(r) <= 2023 else 1, year(r) or 9999))
     todo = todo[:args.limit]
@@ -399,6 +413,7 @@ def main():
                     txt, method = extract_text(fn)
                     if txt:
                         open(txt_path, "w", encoding="utf-8").write(txt)
+                        drop_pdf(fn)
         rec["method"] = method
         rec["doc_url"] = url
         if txt:

@@ -32,7 +32,7 @@ from runlib import select_steps  # noqa: E402
 
 WINGET_RCLONE = os.path.join(os.path.expanduser("~"), "AppData", "Local", "Microsoft", "WinGet", "Packages",
                              "Rclone.Rclone_Microsoft.Winget.Source_8wekyb3d8bbwe", "rclone-v1.75.1-windows-amd64", "rclone.exe")
-COMMON = ["--fast-list", "--transfers", "16", "--checkers", "32", "--stats-one-line", "--stats", "60s",
+COMMON = ["-L", "--fast-list", "--transfers", "16", "--checkers", "32", "--stats-one-line", "--stats", "60s",
           "--retries", "5", "--low-level-retries", "20", "--drive-chunk-size", "64M"]
 
 

@@ -74,7 +74,8 @@ FOLDERS: dict[str, Folder] = {f.key: f for f in [
     Folder("market-data", "nso-fetcher", note="NSO PX-Web + Bieu so lieu thang (monthly-reports 134 MB, parse lai moi tuan)"),
     Folder("market-data", "macro-fetcher"),
     Folder("market-data", "vsdc-accounts"),
-    Folder("market-data", "bond-pivot", owner="laptop", drive=False, note="3,5 GB PDF: o lai laptop, buoc bonds chay local thu Hai"),
+    Folder("market-data", "bond-pivot", owner="laptop", exclude=["data/raw/**", "logs/**", "tessdata/**", "output/**"],
+           note="laptop chay buoc bonds thu Hai; len Drive CHI data/processed + config (~45 MB), bo data/raw 3,5 GB PDF"),
     # ---------------- shipping
     Folder("shipping", "VHBS-ConTex"),
     Folder("hah", "", include=["haian-schedule-master.csv", "haian-portcalls.csv", "haian-voyages.csv", "haian-schedule.csv"],

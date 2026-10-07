@@ -37,11 +37,14 @@ try {
     if ($isMon -and -not $NoBond) {
         Write-Log '----- bonds (thu Hai, local) -----'
         $rc = Invoke-Py $md @("$md\run_slot.py", '--slot', 'AM', '--only', 'bonds')
+        Write-Log '----- day len Drive (bond-pivot data/processed, laptop chu, bo data/raw) -----'
+        $rc = Invoke-Py $Repo @("$Repo\sync_data.py", 'up', '--hub', 'market-data', '--slot', 'AM', '--only', 'bonds', '--job', 'laptop')
+        if ($rc -ne 0) { Write-Log "sync up bonds exit $rc" 'WARN' }
     }
 
     # --- day len Drive: chi 2 file valuation-region-*.csv (laptop_up_include trong data_manifest)
     Write-Log '----- day len Drive (valuation-region) -----'
-    $rc = Invoke-Py $Repo @("$Repo\sync_data.py", 'up', '--hub', 'market-data', '--slot', 'PM', '--only', 'valuation-region,bonds', '--job', 'laptop')   # bonds: data/processed bond-pivot (laptop chu) len Drive
+    $rc = Invoke-Py $Repo @("$Repo\sync_data.py", 'up', '--hub', 'market-data', '--slot', 'PM', '--only', 'valuation-region', '--job', 'laptop')
     if ($rc -ne 0) { Write-Log "sync up exit $rc" 'WARN' }
 
     # --- 4. du lieu cho app Streamlit + port-tracker

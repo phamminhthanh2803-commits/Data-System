@@ -1,0 +1,89 @@
+========================================================================
+  HƯỚNG DẪN — ALIBRA SCRAPER
+  Kéo dữ liệu cước vận tải biển (Alibra) từ Google Sheets, tự động hàng tuần
+========================================================================
+
+1. TOOL LÀM GÌ
+------------------------------------------------------------------------
+Tự động tải các bảng giá cước thuê tàu Alibra (dry bulk, tanker, benchmark,
+forward curve) công bố trên Google Sheets, lưu snapshot theo ngày và gộp
+thành các file master (long / wide / archive) để phân tích lịch sử.
+
+Nguồn: 8 sheet Google Sheets (khai báo trong sources.json).
+
+
+2. CÁCH CHẠY
+------------------------------------------------------------------------
+NHANH NHẤT — chạy tay:
+   Double-click  run.ps1
+   (hoặc) powershell -ExecutionPolicy Bypass -File "D:\shipping\alibra-scraper\run.ps1"
+
+run.ps1 sẽ: tìm Python -> chạy fetch.py (tải) -> chạy combine.py (gộp).
+
+TỰ ĐỘNG (Task Scheduler) — ĐANG BẬT:
+   Task     : \AlibraScraper
+   Lịch     : THỨ 2 hàng tuần, 08:00 sáng
+   Điều kiện: cần mạng, timeout 30 phút, không chạy chồng instance.
+
+   Lệnh quản lý (PowerShell):
+     schtasks /Run    /TN "AlibraScraper"     -> chạy thử ngay
+     schtasks /Query  /TN "AlibraScraper" /V  -> xem trạng thái
+     Đăng ký lại từ file: cài qua AlibraScraper.Task.xml (Import trong Task Scheduler)
+
+
+3. CONFIG — sources.json
+------------------------------------------------------------------------
+Mỗi nguồn gồm:
+   label      tên file CSV xuất ra (drybulk_tc_1, tanker_tc_2, ...)
+   category   nhóm (drybulk_weekly_tc, tanker_weekly_tc, benchmark, meta, forward_curve)
+   sheet_id   ID bản publish của Google Sheet
+   gid        ID tab trong sheet
+   note       mô tả
+
+Thêm/bớt nguồn = sửa file này, không cần đụng code.
+
+
+4. OUTPUT
+------------------------------------------------------------------------
+raw\YYYY-MM-DD\*.csv         Snapshot thô theo ngày (giữ nguyên dạng wide từ Sheets).
+                             Nếu hôm nay giống hệt hôm qua -> bỏ qua, không tạo file.
+
+output\master_long.csv           Snapshot MỚI NHẤT, dạng long (dùng nhiều nhất)
+                                 Cột: snapshot_date, category, label, row_key, column, value
+output\master_long_history.csv   APPEND-ONLY: gộp mọi snapshot từng kéo
+output\master_wide.xlsx          Snapshot mới nhất, mỗi label 1 sheet + sheet _meta
+output\master_archive_long.csv   Union mọi snapshot, giữ giá trị mới nhất + cột last_seen_snapshot
+output\master_archive_wide.xlsx  Bản wide của archive
+
+
+5. CÀI ĐẶT (1 lần)
+------------------------------------------------------------------------
+   pip install pandas openpyxl
+Cần: Python 3.7+, Windows + PowerShell, có Internet.
+
+
+6. LỖI THƯỜNG GẶP
+------------------------------------------------------------------------
+- "PermissionError" khi combine: đang MỞ master_long.csv / .xlsx trong Excel.
+  -> Đóng Excel rồi chạy lại.
+- Offline / fetch fail: combine tự fallback dùng snapshot cũ gần nhất (không chết).
+- Task không chạy đúng giờ: máy tắt lúc 08:00 -> chạy bù khi bật máy (nếu bật
+  StartWhenAvailable), hoặc chạy tay bằng schtasks /Run.
+
+
+7. CẤU TRÚC FILE
+------------------------------------------------------------------------
+   run.ps1                  Wrapper chính (tìm Python, chạy fetch + combine)
+   fetch.py                 Tải CSV từ Google Sheets, dedup, lưu raw\
+   combine.py               Melt/pivot raw\ -> output\ (long/wide/archive)
+   sources.json             Khai báo 8 nguồn
+   AlibraScraper.Task.xml   File định nghĩa Task Scheduler (để import lại)
+   raw\                     Snapshot theo ngày
+   output\                  File master dùng cuối cùng
+
+Ghi chú: các file *.log do tool tự sinh khi chạy; xoá được, sẽ tạo lại.
+========================================================================
+
+
+=== CAP NHAT 14/09/2026 - GOP VAO HUB ===
+Thu muc doi ten tu `D:\Alibra scraper` -> `D:\shipping\alibra-scraper`. Task cu `AlibraScraper` (T2 8:00, `AlibraScraper.Task.xml` da xoa) -> nay la buoc `alibra` (thu Hai) trong **Shipping AM 09:00** (`D:\shipping\Run-Shipping.ps1`).

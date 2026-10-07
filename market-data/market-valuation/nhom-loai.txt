@@ -1,0 +1,2 @@
+# Nhom ma loai tru cho adjust.py (1 dong, cach nhau boi dau cach)
+VIC VHM VRE VPL

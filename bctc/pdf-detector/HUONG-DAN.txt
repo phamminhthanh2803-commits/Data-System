@@ -1,0 +1,94 @@
+========================================================================
+  HƯỚNG DẪN — PDF DETECTOR
+  Tự động quét web phân trang, dò PDF, lọc theo từ khoá rồi tải về
+========================================================================
+(Tài liệu kỹ thuật chi tiết + 9 chế độ site xem CONTEXT-HANDOFF.md.)
+
+1. TOOL LÀM GÌ
+------------------------------------------------------------------------
+Quét một trang web phân trang (kiểu ?page=N hoặc /page-{N}/), tìm tất cả
+link PDF, LỌC theo từ khoá (vd "hợp nhất", "công ty mẹ", "kiểm toán"),
+rồi tải về và TỰ ĐỔI TÊN theo chuẩn thống nhất. Chuyên cho báo cáo tài
+chính các công ty chứng khoán VN; hỗ trợ 9 kiểu site (HTML tĩnh, API JSON,
+WordPress, Strapi, Google Drive...).
+
+
+2. CÁCH CHẠY
+------------------------------------------------------------------------
+CÁCH 1 — Hỏi đáp (dễ nhất):
+   Double-click  Chay-PDF-Detector.bat
+   -> nhập: URL gốc, từ khoá CHỌN, từ khoá LOẠI BỎ, khoảng trang.
+
+CÁCH 2 — Dòng lệnh:
+   python pdf_detector.py --url "https://ssi.com.vn/.../bao-cao-tai-chinh" ^
+          --include "hợp nhất,kiểm toán" --exclude "soát xét" --pages 1-14
+
+   Site phân trang kiểu ĐƯỜNG DẪN: nhét {page} vào URL, vd
+   --url "https://tcsc.vn/vi/download/Bao-cao-tai-chinh/page-{page}/"
+
+CÁCH 3 — Chỉ đổi tên PDF đã tải sẵn (không tải lại):
+   Double-click  Doi-ten-file-da-tai.bat   -> hỏi thư mục + mã CK.
+
+
+3. CONFIG (trong pdf_detector.py, khối CONFIG = {...})
+------------------------------------------------------------------------
+   base_url           URL gốc (tool tự gắn ?page=)
+   page_start/end     khoảng trang; end=None -> tự dừng khi hết PDF mới
+   page_param         tên tham số phân trang (mặc định "page")
+   include_keywords   từ khoá CHỌN (rỗng = tải tất cả)
+   include_mode       "any" (khớp 1 từ) | "all" (khớp hết)
+   exclude_keywords   từ khoá LOẠI BỎ (ưu tiên tuyệt đối)
+   out_dir            thư mục lưu (mặc định downloads\)
+   ticker             mã CK; rỗng -> tự đoán từ tên miền
+
+Khớp từ khoá KHÔNG phân biệt dấu/space: "hợp nhất" = "hop-nhat" = "HOPNHAT".
+
+
+4. OUTPUT — downloads\<TICKER>\
+------------------------------------------------------------------------
+Tên file chuẩn:  <LOẠI> - <TICKER> - <KỲ>[ - HN/RIENG][ - KT][ - EN].pdf
+   LOẠI : BCTC | BCTLATTC | CBTT | GiaiTrinh
+   KỲ   : Q1.2026 / H1.2025 / 2025
+   HN   = hợp nhất ; RIENG = riêng/công ty mẹ ; KT = có kiểm toán/soát xét ; EN = bản tiếng Anh
+Ví dụ:  "BCTC - SSI - Q1.2026 - HN.pdf"
+
+File đã tồn tại -> bỏ qua (dùng --overwrite để tải lại).
+
+
+5. CÀI ĐẶT
+------------------------------------------------------------------------
+   pip install requests beautifulsoup4
+   pip install pdfplumber        (tuỳ chọn: đọc trang 1 PDF để phân loại khi tên file vô nghĩa)
+Cần Python 3.x, Internet.
+
+
+6. KÈM THEO — markitdown-tool\  (PDF -> Markdown)
+------------------------------------------------------------------------
+Sau khi tải PDF, dùng tool con này để chuyển PDF sang Markdown (markitdown +
+OCR Tesseract). Hướng dẫn riêng: markitdown-tool\HUONG-DAN.md.
+   Kéo-thả: kéo PDF/thư mục -> thả lên markitdown-tool\Keo-tha-PDF-vao-day.bat
+   Dòng lệnh: python markitdown-tool\pdf2md.py "downloads\SSI" -r
+
+
+7. LƯU Ý / GOTCHA
+------------------------------------------------------------------------
+- 2 trang trống liên tiếp = tự dừng crawl; lỗi 1 trang được thử lại 3 lần.
+- URL tên file là uuid/vô nghĩa -> đọc trang 1 PDF (pdfplumber) để phân loại.
+- CBTT là loại xét CUỐI (vì có site thêm tiền tố CBTT_BCTC_ cho mọi file).
+- Một số site (BSC modal recaptcha, vài tab kafi) không lấy được link -> tool tự bỏ qua.
+- Các site đã test OK: haiants, ssi, vixs, tcsc, hsc, masvn, kafi, vdsc, shs, mbs, bsc, pinetree, bvsc.
+
+
+8. CẤU TRÚC FILE
+------------------------------------------------------------------------
+   pdf_detector.py          Script chính (crawl + lọc + đổi tên + tải)
+   Chay-PDF-Detector.bat    Chạy chính (hỏi đáp)
+   Doi-ten-file-da-tai.bat  Đổi tên hàng loạt PDF đã tải
+   CONTEXT-HANDOFF.md       Tài liệu kỹ thuật chi tiết (9 chế độ site + gotcha)
+   downloads\               PDF đã tải (theo <TICKER>)
+   markitdown-tool\         Tool con PDF -> Markdown
+========================================================================
+
+
+=== CAP NHAT 14/09/2026 - GOP VAO HUB ===
+Thu muc doi sang `D:\bctc\pdf-detector` (cum BCTC). Chuoi 1 lenh tai PDF -> OCR -> CSV: `python D:\bctc\pdf_to_bctc.py --ticker X --url U --include "hợp nhất"`.

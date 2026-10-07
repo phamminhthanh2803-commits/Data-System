@@ -1,0 +1,43 @@
+area,terminal,group,ticker,kind,node,note
+BẾN CẢNG CÁT LÁI (TÂN CẢNG),CAT LAI,Tan Cang Sai Gon,SNP,container,HO CHI MINH,gom ca Tan Cang Phu Huu (ma BN_PH)
+BẾN CẢNG TÂN CẢNG HIỆP PHƯỚC,TAN CANG HIEP PHUOC,Tan Cang Sai Gon,SNP,container,HO CHI MINH,
+BẾN CẢNG CONTAINER QUỐC TẾ SP-ITC,SP-ITC,SP-ITC,,container,HO CHI MINH,
+BẾN CẢNG CONTAINER QUỐC TẾ VIỆT NAM,VICT,VICT,,container,HO CHI MINH,cau V1..V4
+BẾN CẢNG CONTAINER TRUNG TÂM SÀI GÒN (SPCT),SPCT,SPCT,,container,HO CHI MINH,Hiep Phuoc
+BẾN CẢNG BẾN NGHÉ,BEN NGHE,Cang Ben Nghe,,container,HO CHI MINH,cau K15
+BẾN CẢNG SÀI GÒN,SAI GON,Cang Sai Gon,SGP,general,HO CHI MINH,Tan Thuan / Khanh Hoi: K1..K12 + phao
+BẾN CẢNG SÀI GÒN - HIỆP PHƯỚC,SAI GON HIEP PHUOC,Cang Sai Gon,SGP,general,HO CHI MINH,
+BẾN CẢNG TÂN THUẬN ĐÔNG,TAN THUAN DONG,Tan Thuan Dong,,general,HO CHI MINH,
+BẾN CẢNG BÔNG SEN,BONG SEN,Lotus Port,,general,HO CHI MINH,cau K17-K18
+BẾN CẢNG RAU QUẢ,RAU QUA,Cang Rau Qua,,general,HO CHI MINH,cau K16
+PHAO GEMADEPT,PHAO GEMADEPT,Gemadept,GMD,container,HO CHI MINH,ben phao PLxx - tau feeder Gemadept Shipping lam hang tai phao
+BẾN CẢNG QUỐC TẾ LONG AN,LONG AN,Cang QT Long An,,general,HO CHI MINH,
+BẾN CẢNG QUỐC TẾ CÁI MÉP (CMIT),CMIT,Cai Mep,APMT/SGP,container,CAI MEP,
+BẾN CẢNG CÁI MÉP GEMADEPT-TERMINAL LINK,GEMALINK,Gemadept,GMD,container,CAI MEP,
+BẾN CẢNG CONT CÁI MÉP THƯỢNG - TCIT,TCIT,Tan Cang Cai Mep,SNP,container,CAI MEP,
+BẾN CẢNG CONT CÁI MÉP THƯỢNG - TCCT,TCCT,Tan Cang Cai Mep,SNP,container,CAI MEP,
+BẾN CẢNG CONT QUỐC TẾ CÁI MÉP (TCTT),TCTT,Tan Cang Cai Mep,SNP,container,CAI MEP,Tan Cang Cai Mep Thi Vai
+BẾN CẢNG CONTAINER QUỐC TẾ SG-SSA (SSIT),SSIT,Cai Mep,SSA/SGP,container,CAI MEP,
+BẾN CẢNG QUỐC TẾ SÀI GÒN VN (SITV),SITV,SITV,,general,CAI MEP,
+BẾN CẢNG QUỐC TẾ SP-PSA,SP-PSA,SP-PSA,SGP,general,CAI MEP,
+BẾN CẢNG TỔNG HỢP THỊ VẢI (ODA),THI VAI TONG HOP,Thi Vai tong hop,,general,CAI MEP,
+QUỐC TẾ THỊ VẢI,THI VAI TONG HOP,Thi Vai tong hop,,general,CAI MEP,
+TỔNG HỢP CÁI MÉP,TONG HOP CAI MEP,Tong hop Cai Mep,,general,CAI MEP,
+BEN CANG MY XUAN A,MY XUAN A,My Xuan,,general,CAI MEP,
+BẾN CẢNG BARIA SERECE,BARIA SERECE,Baria Serece,,general,CAI MEP,
+BẾN CẢNG ĐẠM VÀ DỊCH VỤ DẦU KHÍ TỔNG HỢP PHÚ MỸ,DAM PHU MY,Dam Phu My,DPM,general,CAI MEP,
+BẾN CẢNG NHÀ MÁY THÉP PHÚ MỸ,THEP PHU MY,Thep Phu My,,general,CAI MEP,
+CẢNG POSCO,POSCO,Posco,,general,CAI MEP,
+POSCO YAMATO VINA,POSCO,Posco,,general,CAI MEP,
+BẾN CẢNG INTERFLOUR CÁI MÉP,INTERFLOUR,Interflour,,general,CAI MEP,
+BẾN CẢNG KHU DV CÔNG NGHIỆP LONG SƠN,LONG SON,Long Son,,container,LONG SON (VUNG TAU),tau feeder GLS / hang to hop hoa dau
+BEN CANG CD TO HOP HOA DAU MIEN NAM VN,HOA DAU LONG SON,Hoa dau Long Son,,petro,LONG SON (VUNG TAU),
+KHU NEO VTAU,NEO VUNG TAU,Khu neo Vung Tau,,anchorage,VUNG TAU,
+KHU NEO SOAI RAP,NEO SOAI RAP,Khu neo Soai Rap,,anchorage,HO CHI MINH,
+KHU NEO NHA BE,NEO NHA BE,Khu neo Nha Be,,anchorage,HO CHI MINH,
+NGOAI PHAO 0,NEO VUNG TAU,Khu neo Vung Tau,,anchorage,VUNG TAU,
+BẾN CẢNG HẠ LƯU PTSC,PTSC VUNG TAU,PTSC,PVS,offshore-base,VUNG TAU,
+BẾN CẢNG VIETSOVPETRO,VIETSOVPETRO,Vietsovpetro,,offshore-base,VUNG TAU,
+BẾN CẢNG THƯƠNG CẢNG VT,THUONG CANG VUNG TAU,Thuong cang Vung Tau,,general,VUNG TAU,
+BẾN CẢNG PVGAS VŨNG TÀU,PV GAS VUNG TAU,PV Gas,GAS,gas,CAI MEP,kho cang PV Gas Thi Vai
+TỔNG KHO XĂNG DẦU NHÀ BÈ,TONG KHO NHA BE,Petrolimex,PLX,petro,HO CHI MINH,

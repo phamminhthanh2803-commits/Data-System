@@ -1,0 +1,6 @@
+ticker,freq,statement_code,row_order,metric,period,value,nganh_L2
+#HƯỚNG DẪN: mỗi dòng = 1 số liệu. Thêm kỳ/mã mới = thêm dòng. Dòng bắt đầu bằng # bị bỏ qua.,,,,,,,
+#BẮT BUỘC: ticker / statement_code (BS,IS,CF,NOTE) / period (Q2/2026 hoặc 2026) / value (Tỷ VND).,,,,,,,
+#metric HOẶC row_order (1 trong 2 - tra theo _chi_tieu_tham_chieu.csv). freq & nganh_L2 để trống cũng được.,,,,,,,
+#VND,Q,IS,,DOANH THU HOẠT ĐỘNG,Q2/2026,1234.5,Dịch vụ tài chính
+#VND,Q,BS,1,TÀI SẢN NGẮN HẠN,Q2/2026,50000,Dịch vụ tài chính

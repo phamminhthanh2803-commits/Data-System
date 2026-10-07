@@ -1,0 +1,345 @@
+﻿bc,row_order,item_id,k,item,key_item,dong_chay,don_vi
+IS,1,sales,1,Doanh thu bán hàng và cung cấp dịch vụ,sales,1,tỷ đồng
+IS,2,sales_deductions,1,Các khoản giảm trừ doanh thu,sales_deductions,1,tỷ đồng
+IS,3,net_sales,1,Doanh thu thuần,net_sales,1,tỷ đồng
+IS,4,cost_of_sales,1,Giá vốn hàng bán,cost_of_sales,1,tỷ đồng
+IS,5,gross_profit,1,Lợi nhuận gộp,gross_profit,1,tỷ đồng
+IS,6,financial_income,1,Doanh thu hoạt động tài chính,financial_income,1,tỷ đồng
+IS,7,financial_expenses,1,Chi phí tài chính,financial_expenses,1,tỷ đồng
+IS,8,interest_expenses,1,Chi phí lãi vay,interest_expenses,1,tỷ đồng
+IS,9,selling_expenses,1,Chi phí bán hàng,selling_expenses,1,tỷ đồng
+IS,10,general_and_admin_expenses,1,Chi phí quản lý doanh nghiệp,general_and_admin_expenses,1,tỷ đồng
+IS,11,operating_profit_loss,1,Lãi/(lỗ) từ hoạt động kinh doanh,operating_profit_loss,1,tỷ đồng
+IS,12,other_incomes,1,Thu nhập khác,other_incomes,1,tỷ đồng
+IS,13,other_expenses,1,Chi phí khác,other_expenses,1,tỷ đồng
+IS,14,net_other_income_expenses,1,"Thu nhập khác, ròng",net_other_income_expenses,1,tỷ đồng
+IS,15,income_from_investments_in_other_entities,1,Lãi/(lỗ) từ công ty liên doanh,income_from_investments_in_other_entities,1,tỷ đồng
+IS,16,net_accounting_profit_loss_before_tax,1,Lãi/(lỗ) trước thuế,net_accounting_profit_loss_before_tax,1,tỷ đồng
+IS,17,business_income_tax_current,1,Thuế thu nhập doanh nghiệp - hiện thời,business_income_tax_current,1,tỷ đồng
+IS,18,business_income_tax_deferred,1,Thuế thu nhập doanh nghiệp - hoãn lại,business_income_tax_deferred,1,tỷ đồng
+IS,19,corporate_income_tax_expenses,1,Chi phí thuế thu nhập doanh nghiệp,corporate_income_tax_expenses,1,tỷ đồng
+IS,20,net_profit_loss_after_tax,1,Lãi/(lỗ) thuần sau thuế,net_profit_loss_after_tax,1,tỷ đồng
+IS,21,minority_interests,1,Lợi ích của cổ đông thiểu số,minority_interests,1,tỷ đồng
+IS,22,attributable_to_parent_company,1,Lợi nhuận của Cổ đông của Công ty mẹ,attributable_to_parent_company,1,tỷ đồng
+IS,23,eps_basic_vnd,1,Lãi cơ bản trên cổ phiếu (VND),eps_basic_vnd,1,VND
+IS,24,eps_diluted_vnd,1,Lãi trên cổ phiếu pha loãng (VND),eps_diluted_vnd,1,VND
+IS,25,gain_loss_from_joint_ventures_from_2015,1,Lãi/(lỗ) từ công ty liên doanh (từ năm 2015),gain_loss_from_joint_ventures_from_2015,1,tỷ đồng
+BS,1,current_assets,1,TÀI SẢN NGẮN HẠN,current_assets,0,tỷ đồng
+BS,2,cash_and_cash_equivalents,1,Tiền và tương đương tiền,cash_and_cash_equivalents,0,tỷ đồng
+BS,3,cash,1,Tiền,cash,0,tỷ đồng
+BS,4,cash_equivalents,1,Các khoản tương đương tiền,cash_equivalents,0,tỷ đồng
+BS,5,short_term_investments,1,Đầu tư ngắn hạn,short_term_investments#1,0,tỷ đồng
+BS,6,short_term_investments,2,Đầu tư ngắn hạn,short_term_investments#2,0,tỷ đồng
+BS,7,provision_for_diminution,1,Dự phòng giảm giá,provision_for_diminution,0,tỷ đồng
+BS,8,accounts_receivable,1,Các khoản phải thu,accounts_receivable,0,tỷ đồng
+BS,9,trade_accounts_receivable,1,Phải thu khách hàng,trade_accounts_receivable,0,tỷ đồng
+BS,10,prepayments_to_suppliers,1,Trả trước người bán,prepayments_to_suppliers,0,tỷ đồng
+BS,11,intercompany_receivables,1,Phải thu nội bộ,intercompany_receivables,0,tỷ đồng
+BS,12,construction_contract_in_progress_receivables,1,Phải thu hợp đồng xây dựng đang thực hiện,construction_contract_in_progress_receivables,0,tỷ đồng
+BS,13,other_receivables,1,Phải thu khác,other_receivables,0,tỷ đồng
+BS,14,provision_for_doubtful_debts,1,Dự phòng nợ khó đòi,provision_for_doubtful_debts,0,tỷ đồng
+BS,15,inventories_net,1,"Hàng tồn kho, ròng",inventories_net,0,tỷ đồng
+BS,16,inventories,1,Hàng tồn kho,inventories,0,tỷ đồng
+BS,17,provision_for_decline_in_inventories,1,Dự phòng giảm giá hàng tồn kho,provision_for_decline_in_inventories,0,tỷ đồng
+BS,18,other_current_assets,1,Tài sản lưu động khác,other_current_assets#1,0,tỷ đồng
+BS,19,short_term_prepayments,1,Chi phí trả trước ngắn hạn,short_term_prepayments,0,tỷ đồng
+BS,20,vat_to_be_claimed,1,Thuế GTGT được khấu trừ,vat_to_be_claimed,0,tỷ đồng
+BS,21,other_taxes_receivable,1,Phải thu thuế khác,other_taxes_receivable,0,tỷ đồng
+BS,22,other_current_assets,2,Tài sản lưu động khác,other_current_assets#2,0,tỷ đồng
+BS,23,long_term_assets,1,TÀI SẢN DÀI HẠN,long_term_assets,0,tỷ đồng
+BS,24,long_term_trade_receivables,1,Phải thu dài hạn,long_term_trade_receivables,0,tỷ đồng
+BS,25,long_term_trade_receivables_from_customers,1,Phải thu khách hàng dài hạn,long_term_trade_receivables_from_customers,0,tỷ đồng
+BS,26,long_term_intercompany_receivables,1,Phải thu nội bộ dài hạn,long_term_intercompany_receivables,0,tỷ đồng
+BS,27,other_long_term_receivables,1,Phải thu dài hạn khác,other_long_term_receivables,0,tỷ đồng
+BS,28,provision_for_doubtful_lt_receivable,1,Dự phòng phải thu dài hạn,provision_for_doubtful_lt_receivable,0,tỷ đồng
+BS,29,fixed_assets,1,Tài sản cố định,fixed_assets,0,tỷ đồng
+BS,30,tangible_fixed_assets,1,GTCL TSCĐ hữu hình,tangible_fixed_assets,0,tỷ đồng
+BS,31,cost,1,Nguyên giá TSCĐ hữu hình,cost#1,0,tỷ đồng
+BS,32,accumulated_depreciation,1,Khấu hao lũy kế TSCĐ hữu hình,accumulated_depreciation#1,0,tỷ đồng
+BS,33,finance_lease_assets,1,GTCL tài sản thuê tài chính,finance_lease_assets,0,tỷ đồng
+BS,34,cost,2,Nguyên giá tài sản thuê tài chính,cost#2,0,tỷ đồng
+BS,35,accumulated_depreciation,2,Khấu hao lũy kế tài sản thuê tài chính,accumulated_depreciation#2,0,tỷ đồng
+BS,36,intangible_fixed_assets,1,GTCL tài sản cố định vô hình,intangible_fixed_assets,0,tỷ đồng
+BS,37,cost,3,Nguyên giá TSCĐ vô hình,cost#3,0,tỷ đồng
+BS,38,accumulated_depreciation,3,Khấu hao lũy kế TSCĐ vô hình,accumulated_depreciation#3,0,tỷ đồng
+BS,39,construction_in_progress_before_2015,1,Xây dựng cơ bản đang dang dở (trước 2015),construction_in_progress_before_2015,0,tỷ đồng
+BS,40,investment_properties,1,Giá trị ròng tài sản đầu tư,investment_properties,0,tỷ đồng
+BS,41,cost,4,Nguyên giá tài sản đầu tư,cost#4,0,tỷ đồng
+BS,42,accumulated_depreciation,4,Khấu hao lũy kế tài sản đầu tư,accumulated_depreciation#4,0,tỷ đồng
+BS,43,long_term_investments,1,Đầu tư dài hạn,long_term_investments,0,tỷ đồng
+BS,44,investments_in_subsidiaries,1,Đầu tư vào các công ty con,investments_in_subsidiaries,0,tỷ đồng
+BS,45,investments_in_associates,1,Đầu tư vào các công ty liên kết,investments_in_associates,0,tỷ đồng
+BS,46,other_long_term_investments,1,Đầu tư dài hạn khác,other_long_term_investments,0,tỷ đồng
+BS,47,provision_for_long_term_investments,1,Dự phòng giảm giá đầu tư dài hạn,provision_for_long_term_investments,0,tỷ đồng
+BS,48,goodwill_before_2015,1,Lợi thế thương mại (trước 2015),goodwill_before_2015,0,tỷ đồng
+BS,49,other_long_term_assets,1,Tài sản dài hạn khác,other_long_term_assets#1,0,tỷ đồng
+BS,50,long_term_prepayments,1,Trả trước dài hạn,long_term_prepayments,0,tỷ đồng
+BS,51,deferred_income_tax_assets,1,Thuế thu nhập hoãn lại,deferred_income_tax_assets,0,tỷ đồng
+BS,52,other_long_term_assets,2,Các tài sản dài hạn khác,other_long_term_assets#2,0,tỷ đồng
+BS,53,total_assets,1,TỔNG CỘNG TÀI SẢN,total_assets,0,tỷ đồng
+BS,54,liabilities,1,NỢ PHẢI TRẢ,liabilities,0,tỷ đồng
+BS,55,current_liabilities,1,Nợ ngắn hạn,current_liabilities,0,tỷ đồng
+BS,56,short_term_borrowings,1,Vay ngắn hạn,short_term_borrowings,0,tỷ đồng
+BS,57,trade_accounts_payable,1,Phải trả người bán,trade_accounts_payable,0,tỷ đồng
+BS,58,advances_from_customers,1,Người mua trả tiền trước,advances_from_customers,0,tỷ đồng
+BS,59,taxes_and_other_payable_to_state_budget,1,Thuế và các khoản phải trả Nhà nước,taxes_and_other_payable_to_state_budget,0,tỷ đồng
+BS,60,payable_to_employees,1,Phải trả người lao động,payable_to_employees,0,tỷ đồng
+BS,61,accrued_expenses,1,Chi phí phải trả,accrued_expenses,0,tỷ đồng
+BS,62,intercompany_payables,1,Phải trả nội bộ,intercompany_payables,0,tỷ đồng
+BS,63,construction_contract_in_progress_payables,1,Phải trả về xây dựng cơ bản,construction_contract_in_progress_payables,0,tỷ đồng
+BS,64,other_payables,1,Phải trả khác,other_payables,0,tỷ đồng
+BS,65,provision_for_st_liabilities,1,Dự phòng các khoản phải trả ngắn hạn,provision_for_st_liabilities,0,tỷ đồng
+BS,66,bonus_and_welfare_funds,1,"Quỹ khen thưởng, phúc lợi",bonus_and_welfare_funds,0,tỷ đồng
+BS,67,long_term_liabilities,1,Nợ dài hạn,long_term_liabilities,0,tỷ đồng
+BS,68,long_term_trade_payables,1,Phải trả nhà cung cấp dài hạn,long_term_trade_payables,0,tỷ đồng
+BS,69,long_term_intercompany_payables,1,Phải trả nội bộ dài hạn,long_term_intercompany_payables,0,tỷ đồng
+BS,70,other_long_term_payables,1,Phải trả dài hạn khác,other_long_term_payables,0,tỷ đồng
+BS,71,long_term_borrowings,1,Vay dài hạn,long_term_borrowings,0,tỷ đồng
+BS,72,deferred_income_tax_liabilities,1,Thuế thu nhập hoãn lại,deferred_income_tax_liabilities,0,tỷ đồng
+BS,73,provision_for_severance_allowances,1,Dự phòng trợ cấp thôi việc,provision_for_severance_allowances,0,tỷ đồng
+BS,74,provision_for_long_term_liabilities,1,Dự phòng các khoản nợ dài hạn,provision_for_long_term_liabilities,0,tỷ đồng
+BS,75,deferred_revenue,1,Doanh thu chưa thực hiện,deferred_revenue,0,tỷ đồng
+BS,76,technology_science_development_fund,1,Quỹ phát triển khoa học công nghệ,technology_science_development_fund,0,tỷ đồng
+BS,77,owners_equity,1,Vốn chủ sở hữu,owners_equity,0,tỷ đồng
+BS,78,capital_and_reserves,1,Vốn và các quỹ,capital_and_reserves,0,tỷ đồng
+BS,79,paid_in_capital,1,Vốn góp,paid_in_capital,0,tỷ đồng
+BS,80,share_premium,1,Thặng dư vốn cổ phần,share_premium,0,tỷ đồng
+BS,81,owners_other_capital,1,Vốn khác,owners_other_capital,0,tỷ đồng
+BS,82,treasury_shares,1,Cổ phiếu quỹ,treasury_shares,0,tỷ đồng
+BS,83,differences_upon_asset_revaluation,1,Chênh lệch đánh giá lại tài sản,differences_upon_asset_revaluation,0,tỷ đồng
+BS,84,foreign_exchange_differences,1,Chênh lệch tỷ giá,foreign_exchange_differences,0,tỷ đồng
+BS,85,investment_and_development_funds,1,Quỹ đầu tư và phát triển,investment_and_development_funds,0,tỷ đồng
+BS,86,financial_reserve_funds,1,Quỹ dự phòng tài chính,financial_reserve_funds,0,tỷ đồng
+BS,87,other_funds,1,Quỹ khác,other_funds,0,tỷ đồng
+BS,88,undistributed_earnings,1,Lãi chưa phân phối,undistributed_earnings,0,tỷ đồng
+BS,89,enterprise_arrangement_fund,1,Quỹ hỗ trợ sắp xếp doanh nghiệp,enterprise_arrangement_fund,0,tỷ đồng
+BS,90,budget_sources_and_other_funds,1,Vốn Ngân sách nhà nước và quỹ khác,budget_sources_and_other_funds#1,0,tỷ đồng
+BS,91,bonus_and_welfare_funds_before_2010,1,"Quỹ khen thưởng, phúc lợi (trước 2010)",bonus_and_welfare_funds_before_2010,0,tỷ đồng
+BS,92,budget_sources_and_other_funds,2,Vốn ngân sách nhà nước và quỹ khác,budget_sources_and_other_funds#2,0,tỷ đồng
+BS,93,minority_interests_before_2015,1,Lợi ích của cổ đông thiểu số,minority_interests_before_2015,0,tỷ đồng
+BS,94,total_resource,1,Tổng cộng nguồn vốn,total_resource,0,tỷ đồng
+BS,95,held_to_maturity_investment,1,Đầu tư nắm giữ đến ngày đáo hạn,held_to_maturity_investment#1,0,tỷ đồng
+BS,96,paid_in_capital_in_wholly_owned_subsidiaries,1,Vốn kinh doanh ở các đơn vị trực thuộc,paid_in_capital_in_wholly_owned_subsidiaries,0,tỷ đồng
+BS,97,shortage_of_current_assets_waiting_for_solution,1,Tài sản thiếu cần xử lý,shortage_of_current_assets_waiting_for_solution,0,tỷ đồng
+BS,98,short_term_loans_receivables,1,Phải thu cho vay ngắn hạn,short_term_loans_receivables,0,tỷ đồng
+BS,99,government_bonds_purchased_for_resale,1,Giao dịch mua bán lại trái phiếu Chính phủ,government_bonds_purchased_for_resale#1,0,tỷ đồng
+BS,100,long_term_prepayments_to_suppliers,1,Trả trước người bán dài hạn,long_term_prepayments_to_suppliers,0,tỷ đồng
+BS,101,long_term_loans_receivables,1,Phải thu cho vay dài hạn,long_term_loans_receivables,0,tỷ đồng
+BS,102,long_term_incomplete_assets,1,Tài sản dở dang dài hạn,long_term_incomplete_assets,0,tỷ đồng
+BS,103,long_term_cost_of_work_in_progress,1,"Chi phí sản xuất, kinh doanh dở dang dài hạn",long_term_cost_of_work_in_progress,0,tỷ đồng
+BS,104,held_to_maturity_investment,2,Đầu tư nắm giữ đến ngày đáo hạn,held_to_maturity_investment#2,0,tỷ đồng
+BS,105,long_term_equipment_material_and_spare_parts,1,"Thiết bị, vật tư, phụ tùng thay thế dài hạn",long_term_equipment_material_and_spare_parts,0,tỷ đồng
+BS,106,short_term_unrealized_revenue,1,Doanh thu chưa thực hiện ngắn hạn,short_term_unrealized_revenue,0,tỷ đồng
+BS,107,price_stabilization_fund,1,Quỹ bình ổn giá,price_stabilization_fund,0,tỷ đồng
+BS,108,government_bonds_purchased_for_resale,2,Giao dịch mua bán lại trái phiếu chính phủ,government_bonds_purchased_for_resale#2,0,tỷ đồng
+BS,109,long_term_advances_from_customers,1,Người mua trả tiền trước dài hạn,long_term_advances_from_customers,0,tỷ đồng
+BS,110,long_term_accrued_expenses,1,Chi phí phải trả dài hạn,long_term_accrued_expenses,0,tỷ đồng
+BS,111,intra_company_payables_for_operating_capital_received,1,Phải trả nội bộ về vốn kinh doanh,intra_company_payables_for_operating_capital_received,0,tỷ đồng
+BS,112,convertible_bonds,1,Trái phiếu chuyển đổi,convertible_bonds,0,tỷ đồng
+BS,113,preferred_shares,1,Cổ phiếu ưu đãi,preferred_shares,0,tỷ đồng
+BS,114,common_shares,1,Cổ phiếu phổ thông,common_shares,0,tỷ đồng
+BS,115,conversion_options_on_convertible_bonds,1,Quyền chọn chuyển đổi trái phiếu,conversion_options_on_convertible_bonds,0,tỷ đồng
+BS,116,beginning_accumulated_undistributed_earnings,1,LNST chưa phân phối lũy kế đến cuối kỳ trước,beginning_accumulated_undistributed_earnings,0,tỷ đồng
+BS,117,current_period_undistributed_earnings,1,LNST chưa phân phối kỳ này,current_period_undistributed_earnings,0,tỷ đồng
+BS,118,construction_in_progress,1,Xây dựng cơ bản đang dở dang,construction_in_progress,0,tỷ đồng
+BS,119,goodwill,1,Lợi thế thương mại,goodwill,0,tỷ đồng
+BS,120,minority_interests,1,Lợi ích cổ đông không kiểm soát,minority_interests,0,tỷ đồng
+BS,121,funds_used_for_fixed_asset_acquisitions,1,Nguồn kinh phí đã hình thành TSCĐ,funds_used_for_fixed_asset_acquisitions,0,tỷ đồng
+CF,1,net_profit_loss_before_tax,1,Lợi nhuận/(lỗ) trước thuế,net_profit_loss_before_tax,1,tỷ đồng
+CF,2,depreciation_and_amortization,1,Khấu hao TSCĐ và BĐSĐT,depreciation_and_amortization,1,tỷ đồng
+CF,3,provisions,1,Chi phí dự phòng,provisions,1,tỷ đồng
+CF,4,unrealized_foreign_exchange_gain_loss,1,Lãi/lỗ chênh lệch tỷ giá hối đoái do đánh giá lại các khoản mục tiền tệ có gốc ngoại tệ,unrealized_foreign_exchange_gain_loss,1,tỷ đồng
+CF,5,profit_loss_from_liquidating_fixed_assets,1,Lãi/(lỗ) từ thanh lý tài sản cố định,profit_loss_from_liquidating_fixed_assets,1,tỷ đồng
+CF,6,profit_loss_from_investing_activities,1,(Lãi)/lỗ từ hoạt động đầu tư,profit_loss_from_investing_activities,1,tỷ đồng
+CF,7,interest_expense,1,Chi phí lãi vay,interest_expense,1,tỷ đồng
+CF,8,interest_income_and_dividend,1,Thu lãi và cổ tức,interest_income_and_dividend,1,tỷ đồng
+CF,9,operating_profit_loss_before_changes_in_working_capital,1,Lợi nhuận/(lỗ) từ hoạt động kinh doanh trước những thay đổi vốn lưu động,operating_profit_loss_before_changes_in_working_capital,1,tỷ đồng
+CF,10,increase_decrease_in_receivables,1,(Tăng)/giảm các khoản phải thu,increase_decrease_in_receivables,1,tỷ đồng
+CF,11,increase_decrease_in_inventories,1,(Tăng)/giảm hàng tồn kho,increase_decrease_in_inventories,1,tỷ đồng
+CF,12,increase_decrease_in_payables,1,Tăng/(giảm) các khoản phải trả,increase_decrease_in_payables,1,tỷ đồng
+CF,13,increase_decrease_in_prepaid_expenses,1,(Tăng)/giảm chi phí trả trước,increase_decrease_in_prepaid_expenses,1,tỷ đồng
+CF,14,interest_paid,1,Tiền lãi vay đã trả,interest_paid,1,tỷ đồng
+CF,15,corporate_income_tax_paid,1,Thuế thu nhập doanh nghiệp đã nộp,corporate_income_tax_paid,1,tỷ đồng
+CF,16,other_receipts_from_operating_activities,1,Tiền thu khác từ hoạt động kinh doanh,other_receipts_from_operating_activities,1,tỷ đồng
+CF,17,other_payments_on_operating_activities,1,Tiền chi khác cho hoạt động kinh doanh,other_payments_on_operating_activities,1,tỷ đồng
+CF,18,net_cash_inflows_outflows_from_operating_activities,1,Lưu chuyển tiền tệ ròng từ các hoạt động sản xuất kinh doanh,net_cash_inflows_outflows_from_operating_activities,1,tỷ đồng
+CF,19,purchases_of_fixed_assets_and_other_long_term_assets,1,"Tiền chi để mua sắm, xây dựng TSCĐ và các tài sản dài hạn khác",purchases_of_fixed_assets_and_other_long_term_assets,1,tỷ đồng
+CF,20,proceeds_from_disposal_of_fixed_assets,1,"Tiền thu từ thanh lý, nhượng bán TSCĐ và các tài sản dài hạn khác",proceeds_from_disposal_of_fixed_assets,1,tỷ đồng
+CF,21,loans_granted_purchases_of_debt_instruments,1,"Tiền chi cho vay, mua các công cụ nợ của đơn vị khác",loans_granted_purchases_of_debt_instruments,1,tỷ đồng
+CF,22,collection_of_loans_proceeds_from_sales_of_debts_instruments,1,"Tiền thu hồi cho vay, bán lại các công cụ nợ của đơn vị khác",collection_of_loans_proceeds_from_sales_of_debts_instruments,1,tỷ đồng
+CF,23,investments_in_other_entities,1,Tiền chi đầu tư góp vốn vào đơn vị khác,investments_in_other_entities,1,tỷ đồng
+CF,24,proceeds_from_divestment_in_other_entities,1,Tiền thu hồi đầu tư góp vốn vào đơn vị khác,proceeds_from_divestment_in_other_entities,1,tỷ đồng
+CF,25,dividends_and_interest_received,1,"Tiền thu lãi cho vay, cổ tức và lợi nhuận được chia",dividends_and_interest_received,1,tỷ đồng
+CF,26,net_cash_inflows_outflows_from_investing_activities,1,Lưu chuyển tiền thuần từ hoạt động đầu tư,net_cash_inflows_outflows_from_investing_activities,1,tỷ đồng
+CF,27,proceeds_from_issue_of_shares,1,"Tiền thu từ phát hành cổ phiếu, nhận vốn góp của chủ sở hữu",proceeds_from_issue_of_shares,1,tỷ đồng
+CF,28,payments_for_share_returns_and_repurchases,1,"Tiền chi trả vốn góp cho các chủ sở hữu, mua lại cổ phiếu của doanh nghiệp đã phát hành",payments_for_share_returns_and_repurchases,1,tỷ đồng
+CF,29,proceeds_from_loans,1,Tiền thu được các khoản đi vay,proceeds_from_loans,1,tỷ đồng
+CF,30,repayment_of_loans,1,Tiền trả nợ gốc vay,repayment_of_loans,1,tỷ đồng
+CF,31,finance_lease_principal_payments,1,Tiền trả nợ gốc thuê tài chính,finance_lease_principal_payments,1,tỷ đồng
+CF,32,dividends_paid,1,"Cổ tức, lợi nhuận đã trả cho chủ sở hữu",dividends_paid,1,tỷ đồng
+CF,33,interests_dividends_profits_received,1,Tiền lãi đã nhận,interests_dividends_profits_received,1,tỷ đồng
+CF,34,net_cash_inflows_outflows_from_financing_activities,1,Lưu chuyển tiền thuần từ hoạt động tài chính,net_cash_inflows_outflows_from_financing_activities,1,tỷ đồng
+CF,35,net_increase_in_cash_and_cash_equivalents,1,Lưu chuyển tiền thuần trong kỳ,net_increase_in_cash_and_cash_equivalents,1,tỷ đồng
+CF,36,cash_and_cash_equivalents_at_the_beginning_of_period,1,Tiền và tương đương tiền đầu kỳ,cash_and_cash_equivalents_at_the_beginning_of_period,1,tỷ đồng
+CF,37,effect_of_foreign_exchange_differences,1,Ảnh hưởng của thay đổi tỷ giá hối đoái quy đổi ngoại tệ,effect_of_foreign_exchange_differences,1,tỷ đồng
+CF,38,cash_and_cash_equivalents_at_the_end_of_period,1,Tiền và tương đương tiền cuối kỳ,cash_and_cash_equivalents_at_the_end_of_period,1,tỷ đồng
+CF,39,amortization_of_goodwill,1,Phân bổ lợi thế thương mại,amortization_of_goodwill,1,tỷ đồng
+CF,40,other_adjustments,1,Các khoản điều chỉnh khác,other_adjustments,1,tỷ đồng
+CF,41,increase_decrease_in_trading_securities,1,(Tăng)/giảm chứng khoán kinh doanh,increase_decrease_in_trading_securities,1,tỷ đồng
+NOTE,1,noc1,1,Tiền và tương đương tiền,noc1,0,tỷ đồng
+NOTE,2,noc2,1,Tiền mặt,noc2,0,tỷ đồng
+NOTE,3,noc3,1,Tiền gửi Ngân hàng,noc3,0,tỷ đồng
+NOTE,4,noc4,1,Tiền đang chuyển,noc4,0,tỷ đồng
+NOTE,5,noc5,1,Tiền và tương đương tiền,noc5,0,tỷ đồng
+NOTE,6,noc6,1,Đầu tư tài chính NH,noc6,0,tỷ đồng
+NOTE,7,noc7,1,Chứng khoán đầu tư ngắn hạn,noc7,0,tỷ đồng
+NOTE,8,noc8,1,Đầu tư NH khác,noc8,0,tỷ đồng
+NOTE,9,noc9,1,Dự phòng giảm giá ĐTNH,noc9,0,tỷ đồng
+NOTE,10,noc10,1,Phải thu ngắn hạn khác,noc10,0,tỷ đồng
+NOTE,11,noc11,1,Phải thu về cổ phần hóa,noc11,0,tỷ đồng
+NOTE,12,noc12,1,Phải thu về cổ tức và lợi nhuận được chia,noc12,0,tỷ đồng
+NOTE,13,noc13,1,Phải thu người lao động,noc13,0,tỷ đồng
+NOTE,14,noc14,1,Phải thu khác,noc14,0,tỷ đồng
+NOTE,15,noc15,1,Hàng tồn kho,noc15,0,tỷ đồng
+NOTE,16,noc16,1,Hàng mua đang đi đường,noc16,0,tỷ đồng
+NOTE,17,noc17,1,"Nguyên liệu, vật liệu",noc17,0,tỷ đồng
+NOTE,18,noc18,1,"Công cụ, dụng cụ",noc18,0,tỷ đồng
+NOTE,19,noc19,1,"Chi phí SX, KD dở dang",noc19,0,tỷ đồng
+NOTE,20,noc20,1,Thành phẩm,noc20,0,tỷ đồng
+NOTE,21,noc21,1,Hàng hóa,noc21,0,tỷ đồng
+NOTE,22,noc22,1,Hàng gửi đi bán,noc22,0,tỷ đồng
+NOTE,23,noc23,1,Hàng hoá kho bảo thuế,noc23,0,tỷ đồng
+NOTE,24,noc24,1,Hàng hoá bất động sản,noc24,0,tỷ đồng
+NOTE,25,noc25,1,Tài sản ngắn hạn khác,noc25,0,tỷ đồng
+NOTE,26,noc26,1,Tạm ứng,noc26,0,tỷ đồng
+NOTE,27,noc27,1,Tài sản thiếu chờ xử lý,noc27,0,tỷ đồng
+NOTE,28,noc28,1,"Cầm cố, ký quỹ, ký cược NH",noc28,0,tỷ đồng
+NOTE,29,noc29,1,Khác,noc29,0,tỷ đồng
+NOTE,30,noc30,1,Phải thu dài hạn khác,noc30,0,tỷ đồng
+NOTE,31,noc31,1,"Ký quỹ, ký cược dài hạn",noc31,0,tỷ đồng
+NOTE,32,noc32,1,Các khoản tiền nhận ủy thác,noc32,0,tỷ đồng
+NOTE,33,noc33,1,Cho vay không có lãi,noc33,0,tỷ đồng
+NOTE,34,noc34,1,Phải thu dài hạn khác,noc34,0,tỷ đồng
+NOTE,35,noc35,1,Nguyên giá TSCĐHH,noc35,0,tỷ đồng
+NOTE,36,noc36,1,Nguyên giá đầu kỳ,noc36,0,tỷ đồng
+NOTE,37,noc37,1,Tăng trong kỳ,noc37,0,tỷ đồng
+NOTE,38,noc38,1,Giảm trong kỳ,noc38,0,tỷ đồng
+NOTE,39,noc39,1,Hao mòn TSCĐHH,noc39,0,tỷ đồng
+NOTE,40,noc40,1,Đầu kỳ,noc40,0,tỷ đồng
+NOTE,41,noc41,1,Tăng trong kỳ,noc41,0,tỷ đồng
+NOTE,42,noc42,1,Giảm trong kỳ,noc42,0,tỷ đồng
+NOTE,43,noc43,1,Nguyên giá TSCĐ TTC,noc43,0,tỷ đồng
+NOTE,44,noc44,1,Nguyên giá đầu kỳ,noc44,0,tỷ đồng
+NOTE,45,noc45,1,Tăng trong kỳ,noc45,0,tỷ đồng
+NOTE,46,noc46,1,Giảm trong kỳ,noc46,0,tỷ đồng
+NOTE,47,noc47,1,Hao mòn TSCĐ TTC,noc47,0,tỷ đồng
+NOTE,48,noc48,1,Đầu kỳ,noc48,0,tỷ đồng
+NOTE,49,noc49,1,Tăng trong kỳ,noc49,0,tỷ đồng
+NOTE,50,noc50,1,Giảm trong kỳ,noc50,0,tỷ đồng
+NOTE,51,noc51,1,Nguyên giá TSCĐVH,noc51,0,tỷ đồng
+NOTE,52,noc52,1,Nguyên giá đầu kỳ,noc52,0,tỷ đồng
+NOTE,53,noc53,1,Tăng trong kỳ,noc53,0,tỷ đồng
+NOTE,54,noc54,1,Giảm trong kỳ,noc54,0,tỷ đồng
+NOTE,55,noc55,1,Hao mòn TSCĐVH,noc55,0,tỷ đồng
+NOTE,56,noc56,1,Đầu kỳ,noc56,0,tỷ đồng
+NOTE,57,noc57,1,Tăng trong kỳ,noc57,0,tỷ đồng
+NOTE,58,noc58,1,Giảm trong kỳ,noc58,0,tỷ đồng
+NOTE,59,noc59,1,Đầu tư dài hạn khác,noc59,0,tỷ đồng
+NOTE,60,noc60,1,Đầu tư cổ phiếu,noc60,0,tỷ đồng
+NOTE,61,noc61,1,Đầu tư trái phiếu,noc61,0,tỷ đồng
+NOTE,62,noc62,1,"Đầu tư tín phiếu, kỳ phiếu",noc62,0,tỷ đồng
+NOTE,63,noc63,1,Cho vay dài hạn,noc63,0,tỷ đồng
+NOTE,64,noc64,1,Đầu tư dài hạn khác,noc64,0,tỷ đồng
+NOTE,65,noc65,1,Vay và nợ ngắn hạn,noc65,0,tỷ đồng
+NOTE,66,noc66,1,Vay ngắn hạn,noc66,0,tỷ đồng
+NOTE,67,noc67,1,Vay dài hạn đến hạn trả,noc67,0,tỷ đồng
+NOTE,68,noc68,1,Các khoản phải trả về Thuế,noc68,0,tỷ đồng
+NOTE,69,noc69,1,Thuế GTGT,noc69,0,tỷ đồng
+NOTE,70,noc70,1,Thuế TTĐB,noc70,0,tỷ đồng
+NOTE,71,noc71,1,Thuế XNK,noc71,0,tỷ đồng
+NOTE,72,noc72,1,Thuế TNDN,noc72,0,tỷ đồng
+NOTE,73,noc73,1,Thuế TNCN,noc73,0,tỷ đồng
+NOTE,74,noc74,1,Thuế Tài nguyên,noc74,0,tỷ đồng
+NOTE,75,noc75,1,Thuế nhà đất và tiền thuê đất,noc75,0,tỷ đồng
+NOTE,76,noc76,1,Các loại thuế khác,noc76,0,tỷ đồng
+NOTE,77,noc77,1,"Các khoản phí, lệ phí khác",noc77,0,tỷ đồng
+NOTE,78,noc78,1,Chi phí phải trả,noc78,0,tỷ đồng
+NOTE,79,noc79,1,Trích trước CP lương nghỉ phép,noc79,0,tỷ đồng
+NOTE,80,noc80,1,Chi phí SCL TSCĐ,noc80,0,tỷ đồng
+NOTE,81,noc81,1,Chi phí trong thời gian ngừng KD,noc81,0,tỷ đồng
+NOTE,82,noc82,1,Khác,noc82,0,tỷ đồng
+NOTE,83,noc83,1,Phải trả phải nộp khác,noc83,0,tỷ đồng
+NOTE,84,noc84,1,Tài sản thừa chờ XL,noc84,0,tỷ đồng
+NOTE,85,noc85,1,Kinh phí công đoàn,noc85,0,tỷ đồng
+NOTE,86,noc86,1,Bảo hiểm xã hội,noc86,0,tỷ đồng
+NOTE,87,noc87,1,Bảo hiểm y tế,noc87,0,tỷ đồng
+NOTE,88,noc88,1,Bảo hiểm thất nghiệp,noc88,0,tỷ đồng
+NOTE,89,noc89,1,Phải trả về CPH,noc89,0,tỷ đồng
+NOTE,90,noc90,1,"Nhận ký quỹ, ký cược NH",noc90,0,tỷ đồng
+NOTE,91,noc91,1,Doanh thu chưa thực hiện,noc91,0,tỷ đồng
+NOTE,92,noc92,1,Khác,noc92,0,tỷ đồng
+NOTE,93,noc93,1,Vay Dài hạn,noc93,0,tỷ đồng
+NOTE,94,noc94,1,Vay ngân hàng,noc94,0,tỷ đồng
+NOTE,95,noc95,1,Vay đối tượng khác,noc95,0,tỷ đồng
+NOTE,96,noc96,1,Trái phiếu phát hành,noc96,0,tỷ đồng
+NOTE,97,noc97,1,Thuê tài chính,noc97,0,tỷ đồng
+NOTE,98,noc98,1,Nợ dài hạn khác,noc98,0,tỷ đồng
+NOTE,99,noc99,1,Vốn chủ sở hữu,noc99,0,tỷ đồng
+NOTE,100,noc100,1,Vốn góp của nhà nước,noc100,0,tỷ đồng
+NOTE,101,noc101,1,Vốn đầu tư của đối tượng khác,noc101,0,tỷ đồng
+NOTE,102,noc102,1,Doanh thu,noc102,1,tỷ đồng
+NOTE,103,noc103,1,Doanh thu bán hàng,noc103,1,tỷ đồng
+NOTE,104,noc104,1,Doanh thu cung cấp dịch vụ,noc104,1,tỷ đồng
+NOTE,105,noc105,1,Doanh thu hợp đồng xây dựng,noc105,1,tỷ đồng
+NOTE,106,noc106,1,Giảm trừ doanh thu,noc106,1,tỷ đồng
+NOTE,107,noc107,1,Chiết khấu thương mại,noc107,1,tỷ đồng
+NOTE,108,noc108,1,Giảm giá hàng bán,noc108,1,tỷ đồng
+NOTE,109,noc109,1,Hàng bán bị trả lại,noc109,1,tỷ đồng
+NOTE,110,noc110,1,Thuế GTGT phải nộp,noc110,1,tỷ đồng
+NOTE,111,noc111,1,Thuế tiêu thụ đặc biệt,noc111,1,tỷ đồng
+NOTE,112,noc112,1,Thuế xuất khẩu,noc112,1,tỷ đồng
+NOTE,113,noc113,1,Giá vốn,noc113,1,tỷ đồng
+NOTE,114,noc114,1,Giá vốn hàng hóa đã bán,noc114,1,tỷ đồng
+NOTE,115,noc115,1,Giá vốn thành phẩm đã bán,noc115,1,tỷ đồng
+NOTE,116,noc116,1,Giá vốn của dịch vụ cung cấp,noc116,1,tỷ đồng
+NOTE,117,noc117,1,"Giá trị còn lại, chi phí nhượng bán, Thanh lý BĐS đầu tư đã bán",noc117,1,tỷ đồng
+NOTE,118,noc118,1,Chi phí kinh doanh BĐS đầu tư,noc118,1,tỷ đồng
+NOTE,119,noc119,1,"Hao hụt, mất mát hàng tồn kho",noc119,1,tỷ đồng
+NOTE,120,noc120,1,Các khoản chi phí vượt mức bình thường,noc120,1,tỷ đồng
+NOTE,121,noc121,1,Dự phòng,noc121,1,tỷ đồng
+NOTE,122,noc122,1,Doanh thu tài chính,noc122,1,tỷ đồng
+NOTE,123,noc123,1,"Lãi tiền gửi, tiền cho vay",noc123,1,tỷ đồng
+NOTE,124,noc124,1,"Lãi đầu tư trái phiếu, kỳ phiếu, tín phiếu",noc124,1,tỷ đồng
+NOTE,125,noc125,1,"Cổ tức, lợi nhuận được chia",noc125,1,tỷ đồng
+NOTE,126,noc126,1,Lãi bán ngoại tệ,noc126,1,tỷ đồng
+NOTE,127,noc127,1,Lãi chênh lệch tỷ giá đã thực hiện,noc127,1,tỷ đồng
+NOTE,128,noc128,1,Lãi chênh lệch tỷ giá chưa thực hiện,noc128,1,tỷ đồng
+NOTE,129,noc129,1,Lãi bán hàng trả chậm,noc129,1,tỷ đồng
+NOTE,130,noc130,1,Doanh thu hoạt động tài chính khác,noc130,1,tỷ đồng
+NOTE,131,noc131,1,Chi phí tài chính,noc131,1,tỷ đồng
+NOTE,132,noc132,1,Lãi tiền vay,noc132,1,tỷ đồng
+NOTE,133,noc133,1,"Chiết khấu thanh toán, lãi bán hàng trả chậm",noc133,1,tỷ đồng
+NOTE,134,noc134,1,"Lỗ do thanh lý các khoản đầu tư ngắn hạn, dài hạn",noc134,1,tỷ đồng
+NOTE,135,noc135,1,Lỗ bán ngoại tệ,noc135,1,tỷ đồng
+NOTE,136,noc136,1,Lỗ chênh lệch tỷ giá đã thực hiện,noc136,1,tỷ đồng
+NOTE,137,noc137,1,Lỗ chênh lệch tỷ giá chưa thực hiện,noc137,1,tỷ đồng
+NOTE,138,noc138,1,"Dự phòng giảm giá các khoản đầu tư ngắn hạn, dài hạn",noc138,1,tỷ đồng
+NOTE,139,noc139,1,Chi phí tài chính khác,noc139,1,tỷ đồng
+NOTE,140,noc140,1,Chi phí sản xuất theo yếu tố,noc140,1,tỷ đồng
+NOTE,141,noc141,1,"Chi phí nguyên liệu, vật liệu",noc141,1,tỷ đồng
+NOTE,142,noc142,1,Chi phí nhân công,noc142,1,tỷ đồng
+NOTE,143,noc143,1,Chi phí khấu hao tài sản cố định,noc143,1,tỷ đồng
+NOTE,144,noc144,1,Chi phí dịch vụ mua ngoài,noc144,1,tỷ đồng
+NOTE,145,noc145,1,Chi phí khác bằng tiền,noc145,1,tỷ đồng
+NOTE,146,noc147,1,Giá gốc Lợi thế thương mại,noc147,0,tỷ đồng
+NOTE,147,noc148,1,Số dư đầu kỳ,noc148,0,tỷ đồng
+NOTE,148,noc149,1,Tăng trong kỳ,noc149,0,tỷ đồng
+NOTE,149,noc150,1,Giảm trong kỳ,noc150,0,tỷ đồng
+NOTE,150,noc151,1,Phân bổ Lũy kế,noc151,0,tỷ đồng
+NOTE,151,noc152,1,Số dư đầu kỳ,noc152,0,tỷ đồng
+NOTE,152,noc153,1,Tăng trong kỳ,noc153,0,tỷ đồng
+NOTE,153,noc154,1,Giảm trong kỳ,noc154,0,tỷ đồng
+NOTE,154,noc155,1,"Lãi từ bán, thanh lý các khoản đầu tư",noc155,1,tỷ đồng
+NOTE,155,noc156,1,Đầu tư nắm giữ đến ngày đáo hạn,noc156,0,tỷ đồng
+NOTE,156,noc157,1,Đầu tư ngắn hạn,noc157,0,tỷ đồng
+NOTE,157,noc158,1,Đầu tư dài hạn,noc158,0,tỷ đồng

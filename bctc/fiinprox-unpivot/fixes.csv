@@ -1,0 +1,14 @@
+ticker,freq,statement_code,row_order,period,gia_tri_sai,gia_tri_dung
+#Bảng sửa lỗi NGUỒN FiinProX - pipeline tự áp mỗi lần chạy (file mới xuất lại vẫn được sửa).,,,,,,
+#Chỉ sửa khi giá trị hiện tại KHỚP gia_tri_sai (nếu FiinProX tự sửa nguồn thì không đụng).,,,,,,
+#gia_tri_sai để trống = luôn ép về gia_tri_dung.,,,,,,
+HD Securities,Q,NOTE,102,Q1/2026,60185871.188,60185.871188
+HD Securities,Q,NOTE,110,Q1/2026,43685670.642,43685.670642
+Maybank Securities,Q,NOTE,105,Q3/2018,41277.45030483,4.127745030483
+Navibank Securities,Q,NOTE,98,Q4/2022,3601.321372363,0.3601321372363
+Viet Securities,Q,NOTE,106,Q2/2018,3683.786502131,3.683786502131
+"#TCX Q1/2026: FiinProX ghi OCI AFS = LNST (1.147,6 tỷ) -> tổng thu nhập toàn diện nhân đôi; số đúng theo BCTC TCBS (VCI API + delta BS152): OCI AFS -12,1 tỷ",,,,,,
+TCX,Q,IS,75,Q1/2026,1147.633429,-12.093836
+TCX,Q,IS,77,Q1/2026,1147.633429,-12.093836
+TCX,Q,IS,84,Q1/2026,2295.266859,1135.539593
+TCX,Q,IS,86,Q1/2026,2295.266859,1135.539593

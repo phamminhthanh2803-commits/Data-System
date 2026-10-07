@@ -1,0 +1,24 @@
+# keepalive — GitHub tu TAT cron (schedule) neu repo khong co commit nao trong 60 ngay.
+# Workflow nay commit rong moi 30 ngay (ngay 1 va 16 hang thang, 0:00 UTC) de lich khong bi tat. Khong anh huong code.
+name: Keepalive
+
+on:
+  schedule:
+    - cron: "0 0 1,16 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Commit rong de giu cron
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "keepalive: giu lich cron $(date -u +%Y-%m-%d)"
+          git push

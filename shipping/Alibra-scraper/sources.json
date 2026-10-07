@@ -1,0 +1,60 @@
+{
+  "sources": [
+    {
+      "label": "drybulk_tc_1",
+      "category": "drybulk_weekly_tc",
+      "sheet_id": "2PACX-1vSm3hFo3WpdJQ86FaGIy-S151biJvr2J31-kbmYmO9kOwJ2sDjbz-v8ooNpsufCepZS0tCUavO5iUrI",
+      "gid": 779118968,
+      "note": "Dry bulk weekly TC rates (HANDYSIZE/SMAX-ULTRA/PANAMAX/CAPESIZE), USD/day"
+    },
+    {
+      "label": "drybulk_tc_2",
+      "category": "drybulk_weekly_tc",
+      "sheet_id": "2PACX-1vSm3hFo3WpdJQ86FaGIy-S151biJvr2J31-kbmYmO9kOwJ2sDjbz-v8ooNpsufCepZS0tCUavO5iUrI",
+      "gid": 409746990,
+      "note": "Dry bulk weekly TC rates - second basin/series"
+    },
+    {
+      "label": "tanker_tc_1",
+      "category": "tanker_weekly_tc",
+      "sheet_id": "2PACX-1vSm3hFo3WpdJQ86FaGIy-S151biJvr2J31-kbmYmO9kOwJ2sDjbz-v8ooNpsufCepZS0tCUavO5iUrI",
+      "gid": 137918187,
+      "note": "Tanker weekly TC rates (HANDY/MR/LR1/LR2/AFRA/SUEZ/VLCC), USD/day"
+    },
+    {
+      "label": "tanker_tc_2",
+      "category": "tanker_weekly_tc",
+      "sheet_id": "2PACX-1vSm3hFo3WpdJQ86FaGIy-S151biJvr2J31-kbmYmO9kOwJ2sDjbz-v8ooNpsufCepZS0tCUavO5iUrI",
+      "gid": 1501135879,
+      "note": "Tanker weekly TC rates - second basin/series"
+    },
+    {
+      "label": "benchmark_atl_pac",
+      "category": "benchmark",
+      "sheet_id": "2PACX-1vQk6073LStJEfzv418WKYluN2zykXon3KL58hPVNnqoOPiZVhBVzBCi9QnnAETwm_QbMvltcNCuzTzH",
+      "gid": 1944138367,
+      "note": "TC benchmark 6M/1Y/2Y, by ATL & PAC basin"
+    },
+    {
+      "label": "benchmark_long_term",
+      "category": "benchmark",
+      "sheet_id": "2PACX-1vQk6073LStJEfzv418WKYluN2zykXon3KL58hPVNnqoOPiZVhBVzBCi9QnnAETwm_QbMvltcNCuzTzH",
+      "gid": 1458966001,
+      "note": "TC benchmark 1Y/2Y/3Y/5Y long term"
+    },
+    {
+      "label": "data_timestamp",
+      "category": "meta",
+      "sheet_id": "2PACX-1vQk6073LStJEfzv418WKYluN2zykXon3KL58hPVNnqoOPiZVhBVzBCi9QnnAETwm_QbMvltcNCuzTzH",
+      "gid": 92942855,
+      "note": "Last updated date stamp"
+    },
+    {
+      "label": "forward_curves_tce",
+      "category": "forward_curve",
+      "sheet_id": "2PACX-1vQkGGniHOjjs_0booelgLP3pGwySZLvMLskYlJCxNLcq6uf9EaH50Wcpob87lH7xw",
+      "gid": 1196769730,
+      "note": "Forward TCE curves by voyage route (VLCC TD3C, SUEZMAX TD20, etc.)"
+    }
+  ]
+}

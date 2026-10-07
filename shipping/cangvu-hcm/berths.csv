@@ -1,0 +1,43 @@
+pattern,terminal,group,ticker,kind,note
+^C\.?LAI|CAT LAI|CÁT LÁI|^BP\d+-CL|^TCCL,CAT LAI,Tan Cang Sai Gon,SNP,container,Cang Cat Lai (SNP); BPx-CL = ben phao Cat Lai
+^TCHP|TAN CANG HIEP PHUOC|TÂN CẢNG HIỆP PHƯỚC,TAN CANG HIEP PHUOC,Tan Cang Sai Gon,SNP,container,
+\bTCIT\b,TCIT,Tan Cang Cai Mep,SNP,container,Tan Cang - Cai Mep International Terminal
+\bTCTT\b|\bTCCT\b|TAN CANG CAI MEP THI VAI,TCTT,Tan Cang Cai Mep,SNP,container,Tan Cang Cai Mep Thi Vai
+\bCMIT\b,CMIT,Cai Mep,APMT/SGP,container,Cai Mep International Terminal
+\bSSIT\b|SG-SSA,SSIT,Cai Mep,SSA/SGP,container,SSIT (SSA - Saigon Port)
+GEMADEPT-?TERMINAL|GEMALINK|\bGML\b,GEMALINK,Gemadept,GMD,container,Cang Gemalink Cai Mep (Gemadept - CMA Terminals)
+^SP-?ITC,SP-ITC,SP-ITC,,container,Cang container quoc te SP-ITC (Cat Lai)
+^VICT|^V\d+$|CONTAINER QUỐC TẾ VIỆT NAM,VICT,VICT,,container,Vietnam International Container Terminal (cau V1..V4)
+^SPCT|\bSPCT\b,SPCT,SPCT,,container,Saigon Premier Container Terminal (Hiep Phuoc)
+^BN_PH|PHÚ HỮU|PHU HUU|^P\.HUU,PHU HUU,Cang Ben Nghe,,container,Ben Nghe - Phu Huu (container + hang roi)
+^K1[0-9][A-Z]?\d?$|BẾN NGHÉ|BEN NGHE,BEN NGHE,Cang Ben Nghe,,container,K12/K15 = cau Ben Nghe
+^K[0-9]$|KHÁNH HỘI|KHANH HOI|CẢNG SÀI GÒN$|CANG SAI GON$|NHÀ RỒNG,SAI GON,Cang Sai Gon,SGP,general,Cang Sai Gon (Khanh Hoi/Nha Rong)
+SÀI GÒN - HIỆP PHƯỚC|SAI GON - HIEP PHUOC|SG-HP|SGHP|^H\.PHUOC,SAI GON HIEP PHUOC,Cang Sai Gon,SGP,general,
+SP-?PSA,SP-PSA,SP-PSA,SGP,general,
+\bSITV\b,SITV,SITV,,general,Saigon International Terminals Vietnam (Thi Vai)
+QT THỊ VẢI|TỔNG HỢP THỊ VẢI|TONG HOP THI VAI|TỔNG HỢP CÁI MÉP|TONG HOP CAI MEP,THI VAI TONG HOP,Thi Vai tong hop,,general,cau cang quoc te Thi Vai (ODA) / tong hop Cai Mep
+PTSC PHÚ MỸ|PTSC PHU MY|HẠ LƯU PTSC|HA LUU PTSC|^HL PTSC|THƯỢNG LƯU PTSC|TL PTSC|PHÂN CẢNG DVDK|PHAN CANG DVDK|^PVC-MS|ĐÔNG XUYÊN|DONG XUYEN,PTSC VUNG TAU,PTSC,PVS,offshore-base,can cu dich vu dau khi PTSC / KCN Dong Xuyen
+^VSPT|VIETSOVPETRO|VSP\b,VIETSOVPETRO,Vietsovpetro,,offshore-base,
+^MỎ |^MO |TE GIAC TRANG|RỒNG ĐÔI|RONG DOI|CHIM SAO|HAI THACH|SAO VÀNG|SAO VANG|BẠCH HỔ|BACH HO|ĐẠI HÙNG|DAI HUNG|RẠNG ĐÔNG|RANG DONG|NGOÀI KHƠI|NGOAI KHOI|^H0\d$|^H1\d$|^H2\d$|^F\d+$,MO DAU KHI,Mo dau khi ngoai khoi,,offshore,tau dich vu / FSO/FPSO ngoai khoi
+BARIA SERECE|BARIA-SERECE,BARIA SERECE,Baria Serece,,general,
+POSCO|THÉP PHÚ MỸ|THEP PHU MY|VINA KYOEI|\bSMC\b|PHÚ MỸ|PHU MY,PHU MY,Phu My (thep/dam/tong hop),,general,cac ben KCN Phu My
+PVGAS|PV GAS|HYOSUNG|ELF GAS|\bLPG\b,PV GAS / HOA DAU,Gas & hoa dau,GAS,gas,PV Gas Vung Tau / Hyosung / Elf Gas
+MỸ XUÂN|MY XUAN,MY XUAN,My Xuan,,general,
+LONG SƠN|LONG SON,LONG SON,Long Son,,general,KCN Long Son
+LONG AN,LONG AN,Cang QT Long An,,general,
+BÔNG SEN|BONG SEN|LOTUS,BONG SEN,Lotus Port,,general,
+^SOWATCO|^TL-?\d+$,SOWATCO / THI VAI,Sowatco,,general,ben Sowatco / cau TL (hang roi + container noi dia)
+^PL\d+|PHAO GEMADEPT,PHAO GEMADEPT,Gemadept,GMD,anchorage,ben phao Gemadept (PLxx)
+^BP-?SR|^SR-?\d+|SOÀI RẠP|SOAI RAP,SOAI RAP,Khu neo/phao Soai Rap,,anchorage,ben phao / khu neo Soai Rap
+^NB-?\d+|NHÀ BÈ|NHA BE|^BTL|^B\.TT|^B\.PM|^BTB,PHAO NHA BE,Ben phao Nha Be,,anchorage,ben phao khu vuc Nha Be / song Long Tau
+^BP\d+|BEN PHAO|BẾN PHAO,PHAO,Ben phao,,anchorage,
+NEO VT|NGOAI PHAO|KHU NEO|NEO ĐẬU|NEO DAU|^NEO|VŨNG TÀU$|VUNG TAU$|HOA TIÊU|^BO BANG,NEO VUNG TAU,Khu neo Vung Tau,,anchorage,khu neo Vung Tau / vung don tra hoa tieu / Bo Bang
+CẦN GIỜ|CAN GIO|^CG-\d+,CAN GIO,Can Gio,,other,khu lan bien Can Gio (tau cong trinh)
+TIEN GIANG|TIỀN GIANG|^NV LUỒNG|NV LUONG|TRUNG CHUYỂN NV|^GG-?\d+,NAO VET / BAI DO,Nao vet - bai do,,other,tau nao vet luong / bai do bun
+BEN DAM|BẾN ĐẦM|CÔN ĐẢO|CON DAO,CON DAO,Con Dao,,other,
+XĂNG DẦU|XANG DAU|PETRO|^VK102|NAVIOIL|HYDROCARBON|PETEC|TỔNG KHO|TONG KHO|^K2$|CALTEX|SHELL|ESSO|PVOIL|B20NR|CALOFIC|^HL\s?\d+$|CÙ LAO TÀO|CU LAO TAO|TKXD|KHO XD,XANG DAU,Xang dau / hoa chat,,petro,cau cang xang dau Nha Be / Cai Mep / Cu Lao Tao / Ha Loc
+CHINFON|XMCP|XI MĂNG|XI MANG|^FICO|SCC-VN|^XMTL|HẠ LONG|HA LONG|NGHIỀN|NGHIEN,XI MANG,Xi mang/clinker,,general,
+ĐÓNG TÀU|DONG TAU|BA SON|SỬA TÀU|SUA TAU|SHIPYARD|HẢI MINH|HAI MINH|VARD|^U MAR|^U SSIC|^U\.|^B MAR|SÀN NÂNG|NMTB|^X51,DONG TAU,Dong tau / sua chua,,shipyard,
+HĐ 129|HD 129|HẢI ĐOÀN|HAI DOAN,HAI DOAN 129,Hai quan,,other,
+HÀ LỘC|HA LOC,HA LOC,Ha Loc,,petro,
+VẠN AN|VAN AN,VAN AN,Van An,,petro,hoa chat long

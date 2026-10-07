@@ -1,0 +1,95 @@
+========================================================================
+  HƯỚNG DẪN — md2bctc
+  Chuyển BCTC dạng Markdown (OCR, mẫu CTCK B0x) -> CSV long-format
+========================================================================
+(Tài liệu kỹ thuật chi tiết hơn xem README.md trong cùng thư mục.)
+
+1. TOOL LÀM GÌ
+------------------------------------------------------------------------
+Đọc file Báo cáo tài chính đã OCR sang Markdown (.md) của công ty chứng
+khoán, bóc tách số liệu thành CSV long-format để tra cứu / SQL / lookup.
+Hỗ trợ 3 mẫu thông tư:
+   TT210/2016 (mới)  — Báo cáo tình hình tài chính
+   TT95-96/2008 (cũ) — Bảng cân đối kế toán
+   TT226/2010        — Báo cáo tỷ lệ an toàn tài chính (CAR)
+Dùng regex thuần, KHÔNG cần thư viện ngoài.
+
+
+2. CÁCH CHẠY
+------------------------------------------------------------------------
+NHANH NHẤT — kéo-thả:
+   Kéo 1 hoặc nhiều file .md  ->  thả lên  KEO-THA_FILE_MD_VAO_DAY.bat
+   Kết quả cộng dồn vào bctc_master.csv + bctc_notes.csv.
+
+DÒNG LỆNH:
+   python md2bctc.py "đường_dẫn\file.md" [--ticker SSI] [--year 2016]
+                     [--outdir D:\bctc\md2bctc\output] [--wide] [--no-notes]
+
+   --ticker    mã CK (mặc định đoán từ tên thư mục cha)
+   --year      năm tài chính (mặc định đọc từ ngày trong báo cáo)
+   --wide      xuất thêm file _wide.csv dễ đọc vào output\
+   --no-notes  bỏ qua trích thuyết minh (chạy nhanh hơn)
+
+
+3. INPUT — file .md
+------------------------------------------------------------------------
+Markdown chứa bảng (pipe | hoặc tab), có marker trang <!-- trang N -->.
+Mỗi dòng số liệu gồm: mã số (3-4 chữ số) + tên chỉ tiêu + số tiền VND
+(+ số thuyết minh nếu có). Tool chịu được nhiều lỗi OCR phổ biến:
+số âm (567.890) -> -567890; dấu ngăn sai; khoảng trắng trong số;
+double-dot 9..598 -> 9598; ký tự rác § -> 5.
+
+
+4. OUTPUT — 2 file cộng dồn (long-format)
+------------------------------------------------------------------------
+bctc_master.csv  — 4 báo cáo chính (B01-B04). 16 cột:
+   ticker, fiscal_year, period_label, consolidated, currency, statement,
+   ma_so, chi_tieu, thuyet_minh, period, period_desc, value, flag, quality,
+   raw, source_file
+   - statement: balance_sheet / income_statement / cash_flow /
+                cash_flow_client / equity_changes / safety_ratio
+   - period   : current (kỳ này) / prior (kỳ trước) / col1..N (bảng rộng)
+   - quality  : clean (tin được) / dirty (có dấu hiệu lỗi)
+   - flag     : formula_mismatch, check_n_amount, huge_value, b04_besteffort...
+
+bctc_notes.csv   — Thuyết minh (B05-B06). 15 cột:
+   ...note_no, note_no_raw, note_title, chi_tieu, period, value, flag, quality...
+
+UPSERT theo source_file: chạy lại cùng file -> cập nhật, không nhân đôi dòng.
+output\*_wide.csv: chỉ tạo khi dùng --wide.
+
+
+5. KIỂM TRA CHẤT LƯỢNG (tự động)
+------------------------------------------------------------------------
+- Cân đối kế toán: Tổng tài sản = Nợ phải trả (300) + Vốn CSH (400). Lệch -> in cảnh báo.
+- Công thức nhúng: nhãn như (270=100+200) -> kiểm tra value tổng = Σ con; lệch
+  -> gắn flag formula_mismatch (giúp khoanh vùng lỗi OCR).
+- Lọc nhanh: mở CSV, lọc quality=dirty hoặc cột flag != rỗng để soát lại.
+
+Test thủ công:
+   python test_all.py           Quét mọi .md trong folder, in bảng đối chiếu
+   python test_consistency.py   Kiểm tra chéo YoY / nội bộ / công thức
+
+
+6. CÀI ĐẶT
+------------------------------------------------------------------------
+Chỉ cần Python 3.6+ (thư viện chuẩn, KHÔNG cần pip install).
+
+
+7. GIỚI HẠN / LƯU Ý
+------------------------------------------------------------------------
+- B04 (biến động VCSH): chỉ best-effort, mọi dòng gắn dirty (cờ b04_besteffort).
+- Số thuyết minh OCR sai kiểu 40->10, 47->17 KHÔNG tự sửa -> đối chiếu note_title.
+- File không phải BCTC -> ra 0 dòng (bình thường).
+- 2 dấu cách liền = ranh giới cột; 1 dấu cách = ngăn nghìn (tránh nối nhầm cột).
+
+
+8. CẤU TRÚC FILE
+------------------------------------------------------------------------
+   md2bctc.py                    Script chính (parse .md -> CSV)
+   KEO-THA_FILE_MD_VAO_DAY.bat   Kéo-thả nhiều .md để chạy hàng loạt
+   README.md                     Tài liệu chi tiết
+   test_all.py / test_consistency.py  Script kiểm tra
+   bctc_master.csv / bctc_notes.csv   File dữ liệu cộng dồn (GIỮ)
+   output\                       File _wide.csv (nếu dùng --wide)
+========================================================================

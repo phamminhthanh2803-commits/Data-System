@@ -1,0 +1,106 @@
+========================================================================
+  HƯỚNG DẪN — BCTI SCRAPER  (cập nhật 2026-09-08)
+  Kéo CHỈ SỐ GIÁ CƯỚC TÀU BIỂN (giá + MA + Bollinger) từ stockq.org
+========================================================================
+
+1. TOOL LÀM GÌ
+------------------------------------------------------------------------
+Tải dữ liệu lịch sử 8 CHỈ SỐ GIÁ CƯỚC VẬN TẢI BIỂN từ stockq.org.
+Mỗi chỉ số 1 file CSV: giá đóng cửa, MA 20/60/120, dải Bollinger.
+
+   Hàng khô : BDI (Baltic Dry), BCI (Capesize), BPI (Panamax),
+              BSI (Supramax), BHI (Handysize)
+   Tàu dầu  : BCTI (Clean Tanker), BDTI (Dirty Tanker)
+   Container: SCFI (Shanghai Containerized Freight Index — dữ liệu THEO TUẦN)
+
+(Trước 2026-09-08 tool kéo 220 chỉ số đủ loại; danh sách cũ vẫn giữ ở
+ tickers-all.csv, cần mã nào thì truyền thẳng: scrape_bcti.py SPX VIX)
+
+NGUỒN (đổi từ 2026-08-12 — stockq đổi kiến trúc chart):
+   Loader  : https://en.stockq.org/index/js/{TICKER}_sma.js  (chứa biến dataFiles)
+   Dữ liệu : https://www.stockq.org/index/chart-data.php?id={TICKER}
+             &type=sma|dev&range=1m|3m|6m|1y|2y|5y
+   ⚠ BẮT BUỘC gửi header Referer = https://en.stockq.org/index/{TICKER}.htm
+     (thiếu Referer -> HTTP 403). Tool tự đọc dataFiles trong loader nên nếu
+     stockq đổi tham số v=... thì vẫn chạy đúng.
+
+
+2. CÁCH CHẠY
+------------------------------------------------------------------------
+CHẠY TẤT CẢ (8 chỉ số giá cước):
+   python D:\shipping\BCTI-scraper\scrape_bcti.py ALL
+   (hoặc) double-click  run_scraper.bat
+
+CHẠY VÀI MÃ (nhanh):
+   python D:\shipping\BCTI-scraper\scrape_bcti.py BDI SCFI
+
+TỰ ĐỘNG (Task Scheduler):
+   Lịch: mỗi ngày 22:00, gọi run_scraper.bat
+   Chạy thử: schtasks /Run /TN "BCTI-Scraper"
+
+Thời gian: ~1,5-2 phút cho 8 mã (mỗi mã kéo đủ 6 range × 2 loại sma/dev).
+
+
+3. INPUT — tickers.csv
+------------------------------------------------------------------------
+8 mã giá cước (9 dòng = 1 header + 8 data). 3 cột:
+   ticker , name , category
+Ví dụ:
+   BDI,Baltic Dry Index,Freight - Dry bulk
+   SCFI,Shanghai Containerized Freight Index,Freight - Container
+
+Chế độ ALL đọc danh sách này. Muốn thêm chỉ số -> thêm dòng.
+Danh sách 220 mã cũ: tickers-all.csv (chỉ để tra cứu, ALL không đọc file này).
+
+
+4. OUTPUT
+------------------------------------------------------------------------
+Mỗi mã 1 file: {TICKER}.csv (đặt ngay trong D:\shipping\BCTI-scraper\).
+Cột:
+   date , price , ma20 , ma60 , ma120 , avg , upper , lower
+- date  : YYYY-MM-DD
+- price : giá đóng cửa
+- ma20/60/120 : trung bình trượt
+- avg/upper/lower : dải Bollinger
+Dữ liệu từ ~2021. ma120 chỉ có ~2 năm gần nhất với vài mã (range 5y của nguồn
+bị cắt cột MA120) — tool đã kéo range NGẮN trước, DÀI sau để giữ tối đa MA120.
+Từ 2026-08 nguồn làm tròn còn ~4 chữ số có nghĩa (1302,4 -> 1302) — số cũ hơn
+trong CSV vẫn giữ nguyên độ chính xác cũ.
+
+Logic UPSERT: chạy lại chỉ MERGE ngày mới vào CSV cũ, không ghi đè toàn bộ.
+Log mỗi lần chạy in: added=N (ngày mới), updated=M. Cuối tuần/lễ ra 0/0 là bình thường.
+
+
+5. CÀI ĐẶT
+------------------------------------------------------------------------
+Chỉ cần Python 3.9+ (dùng thư viện chuẩn, KHÔNG cần pip install gì).
+
+
+6. LỖI THƯỜNG GẶP
+------------------------------------------------------------------------
+- FETCH ERROR        : mất mạng khi tải -> chạy lại hoặc đợi lần chạy sau.
+- PARSE ERROR        : stockq đổi cấu trúc trang (hiếm) -> cần sửa regex trong code.
+- SKIP: no data      : mã có trong list nhưng stockq không track -> bỏ qua, bình thường.
+  ⚠ Nếu THẤY HÀNG LOẠT "SKIP: no data" (như sự cố 12/08-08/09/2026, 219/220 mã)
+    thì gần như chắc chắn nguồn đổi endpoint, KHÔNG phải hết dữ liệu. Task
+    Scheduler vẫn báo rc=0 trong trường hợp này -> phải mở scrape.log để biết.
+- Xoá mã khỏi tickers.csv KHÔNG xoá file CSV cũ -> tự xoá file {TICKER}.csv nếu muốn dọn.
+
+
+7. CẤU TRÚC FILE
+------------------------------------------------------------------------
+   scrape_bcti.py     Script chính (fetch JS -> parse -> upsert CSV)
+   run_scraper.bat    Wrapper gọi "python scrape_bcti.py ALL" (cho Task Scheduler)
+   tickers.csv        Danh sách 8 mã giá cước (input của chế độ ALL)
+   tickers-all.csv    Danh sách 220 mã cũ (lưu trữ, không dùng khi chạy ALL)
+   {TICKER}.csv       File dữ liệu output (GIỮ — đây là data). 212 file của các
+                      chỉ số không phải giá cước vẫn nằm đây, dữ liệu đến 08/2026;
+                      xoá/chuyển thư mục tuỳ ý, tool không đụng tới nữa.
+   scrape_bcti.py.bak-20260908   Bản script trước khi sửa endpoint (có thể xoá)
+
+Ghi chú: scrape.log do tool tự sinh; xoá được, sẽ tạo lại.
+========================================================================
+
+
+=== CAP NHAT 14/09/2026 - GOP VAO HUB ===
+Task cu `BCTI-Scraper` 22:00 (`run_scraper.bat`) -> nay la buoc `bcti` trong **Shipping PM 22:00** (`D:\shipping\Run-Shipping.ps1 -Slot PM`). Chay tay: `powershell -File D:\shipping\Run-Shipping.ps1 -Slot PM -Only bcti`.

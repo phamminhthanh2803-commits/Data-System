@@ -1,0 +1,165 @@
+﻿node_id,node_name,series_id,series_name,unit,freq,source,status,note
+N01,Lai suat USD,us_sofr,SOFR qua dem,%/nam,D,FRED,auto,fred.stlouisfed.org/graph/fredgraph.csv?id=SOFR
+N01,Lai suat USD,us_effr,Fed funds hieu luc (EFFR),%/nam,D,FRED,auto,
+N01,Lai suat USD,us_fed_target_upper,Tran lai suat muc tieu Fed,%/nam,D,FRED,auto,DFEDTARU
+N01,Lai suat USD,us_tbill_4w,Tin phieu KB My 4 tuan,%/nam,D,FRED,auto,DTB4WK
+N01,Lai suat USD,us_tbill_3m,Tin phieu KB My 3 thang,%/nam,D,FRED,auto,DTB3
+N01,Lai suat USD,us_ust_2y,Trai phieu KB My 2 nam,%/nam,D,FRED,auto,DGS2
+N01,Lai suat USD,us_ust_10y,Trai phieu KB My 10 nam,%/nam,D,FRED,auto,DGS10
+N01,Lai suat USD,us_dxy_broad,Chi so USD (broad),diem,W,FRED,auto,DTWEXBGS - tre ~1 tuan
+N02,Dong von ngoai sinh,fii_net_val,Khoi ngoai mua rong toan TT,ty VND,D,VNDirect,auto,gop tu index-fetcher flows-master
+N02,Dong von ngoai sinh,trade_balance,Can can thuong mai hang hoa,trieu USD,M,IMF/macro-fetcher,auto,gop tu D:/macro-fetcher
+N02,Dong von ngoai sinh,exports,Xuat khau hang hoa FOB,trieu USD,M,IMF/macro-fetcher,auto,
+N02,Dong von ngoai sinh,imports,Nhap khau hang hoa CIF,trieu USD,M,IMF/macro-fetcher,auto,
+N02,Dong von ngoai sinh,fdi_disbursed,FDI giai ngan luy ke,ty USD,M,NSO,manual,chua co API mo - nhap tay
+N02,Dong von ngoai sinh,fdi_registered,Von FDI dang ky cap moi (luy ke),trieu USD,M,dulieukinhte,auto,
+N02,Dong von ngoai sinh,remittance,Kieu hoi,ty USD,Q,NHNN,manual,cong bo roi rac
+N03,Noi rang buoc va nguon,policy_refinance,Lai suat tai cap von,%/nam,D,SBV,auto,sbv.gov.vn/lai-suat1
+N03,Noi rang buoc va nguon,policy_rediscount,Lai suat tai chiet khau,%/nam,D,SBV,auto,sbv.gov.vn/lai-suat1
+N03,Noi rang buoc va nguon,ldr_cap,Tran LDR quy dinh,%,E,TT,auto,TT 22/2019 - 85% tu 01/01/2020; lo trinh trong src_caps.py
+N03,Noi rang buoc va nguon,sfl_cap,Tran von ngan han cho vay trung dai han,%,E,TT,auto,TT 25/2026 - 40% tu 01/07/2026; lo trinh trong src_caps.py
+N03,Noi rang buoc va nguon,sfl_system,Ty le von ngan han cho vay trung dai han (thuc te),%,M,SBV,auto,archive trang thong ke - theo thang
+N03,Noi rang buoc va nguon,sfl_soe,Ty le von ngan han cho vay TDH - NHTM Nha nuoc,%,M,SBV,auto,
+N03,Noi rang buoc va nguon,sfl_jsc,Ty le von ngan han cho vay TDH - NHTM co phan,%,M,SBV,auto,
+N04,Ty gia USD/VND,fx_central,Ty gia trung tam,VND/USD,D,SBV,auto,sbv.gov.vn/ty-gia
+N04,Ty gia USD/VND,fx_band_ceiling,Tran bien do +5%,VND/USD,D,derived,derived,fx_central*1.05
+N04,Ty gia USD/VND,fx_band_floor,San bien do -5%,VND/USD,D,derived,derived,fx_central*0.95
+N04,Ty gia USD/VND,fx_vcb_buy_cash,VCB mua tien mat,VND/USD,D,Vietcombank,auto,
+N04,Ty gia USD/VND,fx_vcb_transfer,VCB mua chuyen khoan,VND/USD,D,Vietcombank,auto,
+N04,Ty gia USD/VND,fx_vcb_sell,VCB ban,VND/USD,D,Vietcombank,auto,
+N04,Ty gia USD/VND,fx_vcb_sell_vs_ceiling,VCB ban so voi tran bien do,%,D,derived,derived,cham tran = ~0
+N04,Ty gia USD/VND,fx_imf_eop,Ty gia VND/USD cuoi ky (IMF),VND/USD,M,IMF/macro-fetcher,auto,doi chieu voi VCB
+N04,Ty gia USD/VND,fx_free_buy,Ty gia cho den - mua vao,VND/USD,D,dulieukinhte,auto,
+N04,Ty gia USD/VND,fx_free_sell,Ty gia cho den - ban ra,VND/USD,D,dulieukinhte,auto,
+N04,Ty gia USD/VND,fx_free_vs_vcb,Chenh ty gia cho den so voi VCB ban,VND,D,dulieukinhte,auto,am = cho den thap hon NH
+N05,NHNN hut bom,omo_win_7d_vol,OMO mua ky han 7 ngay,ty VND,D,SBV,auto,
+N05,NHNN hut bom,omo_win_7d_rate,Lai suat trung thau OMO 7 ngay,%/nam,D,SBV,auto,
+N05,NHNN hut bom,omo_win_14d_vol,OMO mua ky han 14 ngay,ty VND,D,SBV,auto,
+N05,NHNN hut bom,omo_win_14d_rate,Lai suat trung thau OMO 14 ngay,%/nam,D,SBV,auto,
+N05,NHNN hut bom,omo_win_91d_vol,OMO mua ky han 91 ngay,ty VND,D,SBV,auto,
+N05,NHNN hut bom,bill_issue_vol,Tin phieu NHNN phat hanh (hut),ty VND,D,SBV,auto,trang chao ban tin phieu - chi cong bo khi co dot
+N05,NHNN hut bom,omo_net,Bom rong = OMO trung thau - tin phieu,ty VND,D,derived,derived,
+N05,NHNN hut bom,omo_outstanding,Reverse repo dang luu hanh (bom),ty VND,D,FiinProX,auto,so du OMO dang luu hanh
+N05,NHNN hut bom,bill_outstanding,Tin phieu NHNN luu hanh (am = hut),ty VND,D,FiinProX,auto,FiinProX ghi SO AM
+N05,NHNN hut bom,omo_net_outstanding,Bom rong dang luu hanh,ty VND,D,derived,derived,omo_outstanding + bill_outstanding
+N05,NHNN hut bom,omo_win_total,Khoi luong trung thau OMO,ty VND,D,SBV/dulieukinhte,auto,
+N05,NHNN hut bom,omo_maturity_total,Khoi luong OMO dao han,ty VND,D,dulieukinhte,auto,
+N05,NHNN hut bom,omo_net_daily,Bom/hut rong trong ngay,ty VND,D,dulieukinhte,auto,trung thau tru dao han
+N06,NHNN ban forward,fx_sbv_sell_ref,Gia ban USD tham chieu So GD NHNN,VND/USD,D,SBV,auto,muc chan tren thuc te khi NHNN ban can thiep
+N06,NHNN ban forward,fx_sbv_buy_ref,Gia mua USD tham chieu So GD NHNN,VND/USD,D,SBV,auto,
+N06,NHNN ban forward,fx_reserves,Du tru ngoai hoi (gom vang),trieu USD,M,IMF/macro-fetcher,auto,ban can thiep thi du tru giam
+N06,NHNN ban forward,fx_import_cover,Du tru ngoai hoi tinh theo thang nhap khau,thang,M,derived,derived,thong le duoi 3 thang la mong
+N07,Swap point,swap_on,Chenh lai suat qua dem VND-USD,diem %,D,derived,derived,ib_on - us_sofr
+N07,Swap point,swap_1m,Chenh lai suat 1 thang VND-USD,diem %,D,derived,derived,ib_1m - us_tbill_4w
+N07,Swap point,swap_3m,Chenh lai suat 3 thang VND-USD,diem %,D,derived,derived,ib_3m - us_tbill_3m
+N08,Lai suat TT2,ib_on,LNH binh quan qua dem,%/nam,D,SBV,auto,sbv.gov.vn/lai-suat1
+N08,Lai suat TT2,ib_1w,LNH binh quan 1 tuan,%/nam,D,SBV,auto,
+N08,Lai suat TT2,ib_2w,LNH binh quan 2 tuan,%/nam,D,SBV,auto,
+N08,Lai suat TT2,ib_1m,LNH binh quan 1 thang,%/nam,D,SBV,auto,
+N08,Lai suat TT2,ib_3m,LNH binh quan 3 thang,%/nam,D,SBV,auto,
+N08,Lai suat TT2,ib_6m,LNH binh quan 6 thang,%/nam,D,SBV,auto,
+N08,Lai suat TT2,ib_9m,LNH binh quan 9 thang,%/nam,D,SBV,auto,
+N08,Lai suat TT2,ib_1y,LNH binh quan 1 nam,%/nam,D,FiinProX,auto,nguon ngung cong bo tu 09/2012
+N08,Lai suat TT2,ib_curve_1m_on,Do doc TT2 1 thang - qua dem,diem %,D,derived,derived,cang duong = cang cang thanh khoan ky han
+N08,Lai suat TT2,ib_spread_policy,LNH qua dem - lai suat tai cap von,diem %,D,derived,derived,>0 = he thong thieu VND
+N09,Nguon TT2,ib_vol_on,Doanh so LNH qua dem,ty VND,D,SBV,auto,
+N09,Nguon TT2,ib_vol_1w,Doanh so LNH 1 tuan,ty VND,D,SBV,auto,
+N09,Nguon TT2,ib_vol_1m,Doanh so LNH 1 thang,ty VND,D,SBV,auto,
+N09,Nguon TT2,ib_vol_2w,Doanh so LNH 2 tuan,ty VND,D,FiinProX,auto,
+N09,Nguon TT2,ib_vol_3m,Doanh so LNH 3 thang,ty VND,D,FiinProX,auto,
+N09,Nguon TT2,ib_vol_6m,Doanh so LNH 6 thang,ty VND,D,FiinProX,auto,
+N09,Nguon TT2,ib_vol_9m,Doanh so LNH 9 thang,ty VND,D,FiinProX,auto,
+N09,Nguon TT2,ib_vol_total,Tong doanh so LNH cong bo,ty VND,D,derived,derived,
+N09,Nguon TT2,kbnn_deposit,Tien gui KBNN tai he thong NH,ty VND,Q,BCTC NH,manual,tach tu thuyet minh BCTC quy
+N09,Nguon TT2,credit_deposit_gap,Chenh tang truong tin dung - huy dong,diem %,M,derived,derived,duong = phai bu bang von TT2
+N10,Room va chi phi von NH,ldr_system,LDR toan he thong (SBV),%,M,SBV,auto,ty le cap tin dung so voi nguon von huy dong
+N10,Room va chi phi von NH,ldr_soe,LDR nhom NHTM Nha nuoc,%,M,SBV,auto,
+N10,Room va chi phi von NH,ldr_jsc,LDR nhom NHTM co phan,%,M,SBV,auto,
+N10,Room va chi phi von NH,bank_total_assets,Tong tai san he thong TCTD,ty VND,M,SBV,auto,
+N10,Room va chi phi von NH,bank_charter_capital,Von dieu le he thong TCTD,ty VND,M,SBV,auto,
+N10,Room va chi phi von NH,car_tt41,CAR nhom ngan hang ap dung Thong tu 41,%,M,SBV,auto,NHNN khong cong bo CAR chung ca he thong
+N10,Room va chi phi von NH,car_tt41_soe,CAR nhom NHTM Nha nuoc (TT41),%,M,SBV,auto,
+N10,Room va chi phi von NH,car_tt41_jsc,CAR nhom NHTM co phan (TT41),%,M,SBV,auto,
+N10,Room va chi phi von NH,car_imf_system,CAR to chuc nhan tien gui (IMF FSI),%,Q,IMF/macro-fetcher,auto,song song CAR NHNN - pham vi toan bo to chuc nhan tien gui
+N10,Room va chi phi von NH,own_capital_tt41,Von tu co nhom ap dung Thong tu 41,ty VND,M,SBV,auto,
+N10,Room va chi phi von NH,casa_ratio,Ty le CASA nhom NH niem yet,%,Q,FS Extractor,auto,nob66 thuyet minh chia tien gui KH
+N10,Room va chi phi von NH,mlt_loan_share,Ty trong cho vay trung dai han (NH niem yet),%,Q,FS Extractor,auto,tu so cua SFL - KHONG phai SFL day du
+N10,Room va chi phi von NH,mlt_loans,Du no cho vay trung dai han (NH niem yet),ty VND,Q,FS Extractor,auto,
+N10,Room va chi phi von NH,loan_deposit_listed,Cho vay KH / Tien gui KH nhom NH niem yet,%,Q,FS Extractor,auto,KHONG phai LDR theo Thong tu 22 - mau so chi co tien gui KH
+N10,Room va chi phi von NH,ldr_tt22_listed,LDR theo Dieu 20 TT22 (NH niem yet),%,Q,FS Extractor,auto,mau so = tien gui KH + tien gui cua TCTD khac + GTCG; hop nhat; chua loai KBNN
+N10,Room va chi phi von NH,bank_deposits,Tien gui khach hang nhom NH niem yet,ty VND,Q,FS Extractor,auto,
+N10,Room va chi phi von NH,deposits_corporate,Tien gui cua cac TCKT,ty VND,M,dulieukinhte,auto,
+N10,Room va chi phi von NH,deposits_household,Tien gui cua cu dan,ty VND,M,dulieukinhte,auto,
+N10,Room va chi phi von NH,deposits_total,Tong tien gui TCKT + cu dan,ty VND,M,derived,derived,
+N10,Room va chi phi von NH,deposit_growth_ytd,Tang truong huy dong luy ke,%,M,derived,derived,
+N11,Lai suat TT1,deposit_1m_big4,Lai suat huy dong 1 thang nhom Big4,%/nam,D,Nguoiquansat,auto,lai suat niem yet
+N11,Lai suat TT1,deposit_1m_avg,Lai suat huy dong 1 thang binh quan thi truong,%/nam,D,Nguoiquansat,auto,
+N11,Lai suat TT1,deposit_1m_max,Lai suat huy dong 1 thang cao nhat,%/nam,D,Nguoiquansat,auto,
+N11,Lai suat TT1,deposit_6m_big4,Lai suat huy dong 6 thang nhom Big4,%/nam,D,Nguoiquansat,auto,lai suat niem yet
+N11,Lai suat TT1,deposit_6m_avg,Lai suat huy dong 6 thang binh quan thi truong,%/nam,D,Nguoiquansat,auto,
+N11,Lai suat TT1,deposit_6m_max,Lai suat huy dong 6 thang cao nhat,%/nam,D,Nguoiquansat,auto,
+N11,Lai suat TT1,deposit_12m_big4,Lai suat huy dong 12 thang nhom Big4,%/nam,D,Nguoiquansat,auto,lai suat niem yet
+N11,Lai suat TT1,deposit_12m_avg,Lai suat huy dong 12 thang binh quan thi truong,%/nam,D,Nguoiquansat,auto,
+N11,Lai suat TT1,deposit_12m_max,Lai suat huy dong 12 thang cao nhat,%/nam,D,Nguoiquansat,auto,
+N11,Lai suat TT1,lending_rate_avg,Lai suat cho vay binh quan (VCB cong bo),%/nam,M,dulieukinhte,auto,
+N11,Lai suat TT1,lending_deposit_spread,Chenh lech lai suat cho vay - tien gui,diem %,M,dulieukinhte,auto,
+N12,Tin dung giai ngan,credit_growth_ytd,Tang truong tin dung luy ke (NHNN cong bo),%,M,dulieukinhte,auto,so chinh thuc thay cho suy tu FiinProX
+N12,Tin dung giai ngan,credit_outstanding,Tong du no tin dung,ty VND,M,FiinProX,manual,khong co nguon mo cho MUC - chi co toc do tang
+N12,Tin dung giai ngan,m2,Tong phuong tien thanh toan (M2),ty VND,M,dulieukinhte,auto,
+N12,Tin dung giai ngan,cash_ratio_m2,Ty trong tien mat tren M2,%,M,dulieukinhte,auto,
+N12,Tin dung giai ngan,m2_growth,Tang truong M2 luy ke,%,M,derived,derived,tu m2 cua FiinProX
+N12,Tin dung giai ngan,bank_loans,Cho vay khach hang nhom NH niem yet,ty VND,Q,FS Extractor,auto,dai dien tin dung giai ngan
+N10,Room va chi phi von NH,car_banks_median,CAR hop nhat trung vi cac NH co CBTT (TT41),%,H,CBTT,auto,cbtt_parse.py - median car_<ticker> theo ky nua nam
+N10,Room va chi phi von NH,car_banks_min,CAR hop nhat thap nhat trong cac NH co CBTT,%,H,CBTT,auto,cbtt_parse.py
+N10,Room va chi phi von NH,car_banks_n,So ngan hang co CBTT CAR trong ky,ngan hang,H,CBTT,auto,cbtt_parse.py
+N11,Lai suat TT1,lending_rate_big4,Lai suat cho vay binh quan nhom Big4 (TB don gian VCB BID AGR),%/nam,M,tong hop,auto,src_lending.aggregate; TB don gian; khong theo du no; CTG chua co bo doc
+N11,Lai suat TT1,lending_rate_jsc,Lai suat cho vay binh quan nhom NHTM co phan (TB don gian),%/nam,M,tong hop,auto,src_lending.aggregate - hien EIB VIB; them bo doc la tu vao
+N11,Lai suat TT1,lend_avg_bid,Lai suat cho vay binh quan BIDV,%/nam,M,BIDV,auto,trang thang bidv.com.vn; co so tu 10/2025
+N11,Lai suat TT1,lend_spread_bid,Chenh lech lai suat cho vay - huy dong BIDV,diem %,M,BIDV,auto,
+N11,Lai suat TT1,lend_avg_eib,Lai suat cho vay binh quan Eximbank,%/nam,M,Eximbank,auto,trang nam; moi thang mot bang
+N11,Lai suat TT1,lend_avg_eib_khcn,Lai suat cho vay binh quan Eximbank KHCN,%/nam,M,Eximbank,auto,
+N11,Lai suat TT1,lend_avg_eib_khdn,Lai suat cho vay binh quan Eximbank KHDN,%/nam,M,Eximbank,auto,
+N11,Lai suat TT1,lend_spread_eib,Chenh lech lai suat cho vay - huy dong Eximbank,diem %,M,Eximbank,auto,
+N11,Lai suat TT1,lend_avg_agr,Lai suat cho vay binh quan Agribank,%/nam,M,Agribank,auto,trang chi co thang hien tai - boi dan hang ngay
+N11,Lai suat TT1,lend_spread_agr,Chenh lech lai suat cho vay - huy dong Agribank,diem %,M,Agribank,auto,
+N11,Lai suat TT1,lend_avg_vib,Lai suat cho vay binh quan VIB (TB KHCN va KHDN),%/nam,M,VIB,auto,trang chi co thang hien tai - boi dan hang ngay
+N11,Lai suat TT1,lend_avg_vib_khcn,Lai suat cho vay binh quan VIB KHCN,%/nam,M,VIB,auto,
+N11,Lai suat TT1,lend_avg_vib_khdn,Lai suat cho vay binh quan VIB KHDN,%/nam,M,VIB,auto,
+N11,Lai suat TT1,lend_spread_vib,Chenh lech lai suat cho vay - huy dong VIB,diem %,M,VIB,auto,
+N11,Lai suat TT1,deposit_rate_avg_vcb,Lai suat huy dong binh quan VCB,%/nam,M,derived,derived,= lending_rate_avg - lending_deposit_spread (VCB khong cong bo truc tiep)
+N11,Lai suat TT1,lending_spread_net_vcb,Chenh lech lai suat sau chi phi (VCB),diem %,M,dulieukinhte,auto,bang 700; chenh lech sau khi tru chi phi huy dong va su dung von
+N02,Dong von ngoai sinh,current_account_bop,Can can vang lai (BOP),trieu USD,Q,dulieukinhte,auto,NHNN cong bo theo quy; tre ~1 quy
+N02,Dong von ngoai sinh,fdi_inflow_bop,FDI vao Viet Nam (BOP tai san no),trieu USD,Q,dulieukinhte,auto,dong von FDI thuc vao theo BOP; khac von dang ky
+N02,Dong von ngoai sinh,fdi_net_bop,Dau tu truc tiep rong (BOP),trieu USD,Q,dulieukinhte,auto,
+N02,Dong von ngoai sinh,fii_net_bop,Dau tu gian tiep rong (BOP),trieu USD,Q,dulieukinhte,auto,am = khoi ngoai rut rong ca co phieu lan trai phieu
+N02,Dong von ngoai sinh,other_inv_net_bop,Dau tu khac rong (BOP),trieu USD,Q,dulieukinhte,auto,tien gui ra nuoc ngoai + vay tra no; am lon = dan cu va TCTD gui USD ra ngoai
+N02,Dong von ngoai sinh,financial_account_bop,Can can tai chinh (BOP),trieu USD,Q,dulieukinhte,auto,
+N02,Dong von ngoai sinh,bop_errors,Loi va sai sot (BOP),trieu USD,Q,dulieukinhte,auto,dong von khong ghi nhan duoc; am lon lien tuc = chay von ngam
+N02,Dong von ngoai sinh,bop_overall,Can can tong the (BOP),trieu USD,Q,dulieukinhte,auto,= thay doi du tru ngoai hoi
+N02,Dong von ngoai sinh,fdi_realized_vnd,Von FDI thuc hien (VDT toan XH),nghin ty VND,Q,dulieukinhte,auto,Cuc Thong ke; quy ra VND
+N09,Nguon TT2,public_inv_month,Giai ngan dau tu cong trong thang (von NSNN thuc hien),ty VND,M,dulieukinhte,auto,Cuc Thong ke; tien ngoai sinh vao he thong qua Kho bac; 10/2025 site lap so 09/2025
+N09,Nguon TT2,public_inv_ytd,Giai ngan dau tu cong luy ke tu dau nam,ty VND,M,derived,derived,= cong don public_inv_month trong nam
+N10,Room va chi phi von NH,car_abb,CAR hop nhat ABB (CBTT TT41),%,H,CBTT ABB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_acb,CAR hop nhat ACB (CBTT TT41),%,H,CBTT ACB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_bid,CAR hop nhat BID (CBTT TT41),%,H,CBTT BID,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_bvb,CAR hop nhat BVB (CBTT TT41),%,H,CBTT BVB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_ctg,CAR hop nhat CTG (CBTT TT41),%,H,CBTT CTG,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_eib,CAR hop nhat EIB (CBTT TT41),%,H,CBTT EIB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_hdb,CAR hop nhat HDB (CBTT TT41),%,H,CBTT HDB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_klb,CAR hop nhat KLB (CBTT TT41),%,H,CBTT KLB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_lpb,CAR hop nhat LPB (CBTT TT41),%,H,CBTT LPB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_mbb,CAR hop nhat MBB (CBTT TT41),%,H,CBTT MBB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_msb,CAR hop nhat MSB (CBTT TT41),%,H,CBTT MSB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_nab,CAR hop nhat NAB (CBTT TT41),%,H,CBTT NAB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_ocb,CAR hop nhat OCB (CBTT TT41),%,H,CBTT OCB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_pgb,CAR hop nhat PGB (CBTT TT41),%,H,CBTT PGB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_sgb,CAR hop nhat SGB (CBTT TT41),%,H,CBTT SGB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_shb,CAR hop nhat SHB (CBTT TT41),%,H,CBTT SHB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_ssb,CAR hop nhat SSB (CBTT TT41),%,H,CBTT SSB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_stb,CAR hop nhat STB (CBTT TT41),%,H,CBTT STB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_tcb,CAR hop nhat TCB (CBTT TT41),%,H,CBTT TCB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_tpb,CAR hop nhat TPB (CBTT TT41),%,H,CBTT TPB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_vbb,CAR hop nhat VBB (CBTT TT41),%,H,CBTT VBB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_vcb,CAR hop nhat VCB (CBTT TT41),%,H,CBTT VCB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_vib,CAR hop nhat VIB (CBTT TT41),%,H,CBTT VIB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu
+N10,Room va chi phi von NH,car_vpb,CAR hop nhat VPB (CBTT TT41),%,H,CBTT VPB,auto,cbtt_parse.py; hop nhat uu tien; rieng le neu thieu

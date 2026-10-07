@@ -1,0 +1,76 @@
+========================================================================
+  HƯỚNG DẪN — VESSEL ROUTE APP
+  Vẽ hành trình tàu biển trên bản đồ từ danh sách vùng biển theo tháng
+========================================================================
+
+1. TOOL LÀM GÌ
+------------------------------------------------------------------------
+App web (Streamlit) nhận bảng "tháng - vùng biển" (CSV/Excel), tự chọn cảng
+đại diện cho mỗi vùng theo loại tàu, tính tuyến đường biển thực tế (qua
+Suez/Panama, tránh đất liền), rồi vẽ bản đồ tâm Thái Bình Dương + timeline,
+xuất PNG 300 DPI để dán vào slide/Word.
+
+
+2. CÁCH CHẠY
+------------------------------------------------------------------------
+   cd D:\shipping\vessel-route-app
+   python -m streamlit run app.py
+
+Mở trình duyệt: http://localhost:8501  (Ctrl+C trong PowerShell để thoát).
+
+
+3. INPUT
+------------------------------------------------------------------------
+File upload (CSV/Excel) các cột:
+   Month   "Dec 2016" / "12/2016" / "2016-12" / "Dec-16"  (app tự parse)
+   Region  tên vùng biển, vd "East Asia / SE Asia", "Gulf of Mexico"
+   Source  (tuỳ chọn) "MarineTraffic" / "VesselTracker" / "Both"
+
+Trên sidebar CHỌN LOẠI TÀU (quan trọng): crude / chemical / gas / container /
+general. Mỗi loại có catalog cảng RIÊNG -> đổi loại tàu thì toàn bộ waypoint
+được resolve lại. Ví dụ "East Asia / SE Asia": crude -> Ningbo, container -> Shanghai.
+
+Có thể sửa tay Port/Lon/Lat trong bảng editor nếu muốn ép cảng chính xác.
+
+
+4. OUTPUT
+------------------------------------------------------------------------
+- PNG 300 DPI: bản đồ + timeline (nút "Tải PNG").
+- Bảng từng chặng: cảng đi -> cảng đến + khoảng cách (hải lý).
+- Tổng quãng đường total_nm.
+Bản đồ: đất liền màu kem, tuyến màu tím (searoute), mũi tên hướng, nhãn cảng
+đánh số, timeline tháng/cảng/source phía dưới.
+
+
+5. CÀI ĐẶT
+------------------------------------------------------------------------
+   pip install -r requirements.txt
+(streamlit, searoute, matplotlib, numpy, pandas, openpyxl). Cần Python 3.x.
+
+Kiểm thử nhanh sau khi cài:
+   python smoke_test.py     (8 điểm)      -> xuất PNG kiểm tra
+   python smoke_long.py     (30 điểm)
+
+
+6. LƯU Ý
+------------------------------------------------------------------------
+- Cảng là SUY LUẬN từ vùng + loại tàu -> có thể chưa chính xác, ép lại bằng editor.
+- Tuyến do thư viện searoute tính (tuyến biển chuẩn), KHÔNG tính thời tiết/AIS thực tế.
+- Transpacific: bản đồ tâm 180° (Thái Bình Dương ở giữa); tuyến gần đường đổi
+  ngày được tự cắt để không vẽ vắt ngang sai.
+- searoute fail 1 chặng -> app vẽ đường thẳng + in cảnh báo (không chết).
+
+
+7. CẤU TRÚC FILE
+------------------------------------------------------------------------
+   app.py            Giao diện Streamlit (upload, chọn tàu, editor, vẽ, tải PNG)
+   route.py          Engine vẽ bản đồ + tính tuyến (searoute, matplotlib)
+   ports.py          Catalog 150+ cảng + mapping vùng theo 5 loại tàu + fallback
+   world.geojson     Đường bờ biển Natural Earth 110m (để vẽ đất liền)
+   requirements.txt  Thư viện cần cài
+   smoke_test.py / smoke_long.py  Script kiểm thử
+========================================================================
+
+
+=== CAP NHAT 14/09/2026 - GOP VAO HUB ===
+Thu muc doi sang `D:\shipping\vessel-route-app` (khong co lich chay).

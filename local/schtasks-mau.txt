@@ -1,0 +1,22 @@
+LENH MAU DANG KY 2 TASK LAPTOP (CHUA dang ky - chay khi da seed Drive va cloud chay on dinh)
+Mo PowerShell/CMD (khong can admin), dan tung dong:
+
+schtasks /Create /F /TN "Pipeline Local Cvhcm" /SC DAILY /ST 08:30 /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File D:\cloud-deploy\local\Run-Local-Cvhcm.ps1"
+
+schtasks /Create /F /TN "Pipeline Local Mini"  /SC DAILY /ST 18:40 /TR "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File D:\cloud-deploy\local\Run-Local-Mini.ps1"
+
+Kiem tra / chay thu / xoa:
+  schtasks /Query /TN "Pipeline Local Mini" /V /FO LIST
+  schtasks /Run   /TN "Pipeline Local Mini"
+  schtasks /Delete /TN "Pipeline Local Mini" /F
+
+Luu y:
+- Task "Pipeline Local Mini" doi cloud Market PM xong (toi da 150 phut, tuc den ~21:10) roi moi chay; may phai bat
+  trong khoang 18:40-21:10. Muon khong doi: them -NoWait vao cuoi /TR.
+- Neu may thuong ngu: Task Scheduler -> Properties -> Conditions -> "Wake the computer to run this task";
+  Settings -> "Run task as soon as possible after a scheduled start is missed".
+- 4 task cu (Market Data AM/PM, Shipping AM/PM) TAT (Disable) chi khi cloud da chay on dinh >= 1 tuan:
+  schtasks /Change /TN "Market Data AM" /DISABLE   (ten task xem trong Task Scheduler)
+  Khong xoa, de bat lai duoc (schtasks /Change /TN "..." /ENABLE).
+- Log: D:\pipeline-data\logs\local-mini_*.log, local-cvhcm_*.log; status: D:\pipeline-data\market-data\status-PM.txt,
+  D:\pipeline-data\shipping\status-AM.txt

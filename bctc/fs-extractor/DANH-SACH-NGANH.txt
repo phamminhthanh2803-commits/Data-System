@@ -1,0 +1,212 @@
+﻿==========================================================================
+  DANH SÁCH NGÀNH — FS EXTRACTOR (chuẩn phân ngành ICB, nguồn VCI/VietcapIQ)
+  File sinh tự động từ nganh_cache.csv — chạy lại khi muốn cập nhật:
+      python fsx.py nganh --refresh   (kéo listing mới, cache 7 ngày)
+==========================================================================
+
+1. CÚ PHÁP GỌI THEO NGÀNH
+--------------------------------------------------------------------------
+Tra cứu ngành:
+   python fsx.py nganh                     # xem toàn bộ ngành + số mã
+   python fsx.py nganh "van tai"           # lọc theo từ khóa, in kèm danh sách mã
+
+Kéo data theo ngành (dùng được cho cả 3 lệnh bctc / cap / liq):
+   python fsx.py bctc --nganh "Ngân hàng" --period quarter --from 2020-Q1
+   python fsx.py cap  --nganh "van tai thuy" --san HOSE --from 2020-01-01
+   python fsx.py liq  --nganh "cang bien" --no-index
+
+Quy tắc khớp tên:
+   - KHÔNG cần dấu, không phân biệt hoa thường:  "ngan hang" = "Ngân hàng"
+   - Khớp SUBSTRING trên cả 4 cấp ICB:  "van tai" trúng mọi ngành chứa chữ đó
+     (Vận tải L3 + Vận tải Thủy L4 + Dịch vụ vận tải L4 + ...) -> từ khóa càng
+     dài càng hẹp; muốn đúng 1 ngành thì gõ đủ tên trong danh sách dưới.
+   - Nhiều ngành 1 lần: cách nhau dấu phẩy  --nganh "cang bien,van tai thuy"
+     hoặc lặp lại  --nganh "Ngân hàng" --nganh "Bảo hiểm"
+   - Lọc sàn:  --san HOSE  /  --san HOSE,HNX   (mặc định cả HOSE,HNX,UPCOM)
+   - Kết hợp thêm mã lẻ vẫn được:  python fsx.py cap HAH GMD --nganh "cang bien"
+   - Cache 7 ngày (nganh_cache.csv); ép kéo mới:  --refresh-nganh
+
+Qua run.bat: chọn 1/2/3 -> gõ tên ngành khi được hỏi (Enter = dùng tickers.txt);
+menu 4 = tra cứu ngành.
+
+2. CHUẨN PHÂN NGÀNH: ICB (Industry Classification Benchmark) 4 CẤP
+--------------------------------------------------------------------------
+Tên ngành lấy nguyên văn từ VCI/VietcapIQ theo chuẩn ICB — hệ phân ngành của
+FTSE Russell mà HOSE và các bên dữ liệu VN (FiinGroup, VNDirect...) đều dùng:
+   L1 = Industry       (ngành lớn, 11 nhóm — vd Tài chính, Công nghiệp)
+   L2 = Supersector    (vd Xây dựng và Vật liệu, Hàng & Dịch vụ Công nghiệp)
+   L3 = Sector         (vd Vận tải, Ngân hàng, Bất động sản)
+   L4 = Subsector      (hẹp nhất — vd Vận tải Thủy, Khai thác Than)
+Một mã thuộc đúng 1 nhánh L1->L2->L3->L4. Gọi cấp nào cũng được; cấp càng sâu
+tập mã càng hẹp. Số mã dưới đây = mã STOCK đang niêm yết HOSE+HNX+UPCOM.
+
+3. DANH SÁCH ĐẦY ĐỦ (cây L1 -> L2 -> L3 -> L4, kèm số mã)
+--------------------------------------------------------------------------
+
+Công nghiệp  (554 mã)
+│  Xây dựng và Vật liệu  (306 mã)
+│  │  Xây dựng và Vật liệu  (306 mã)
+│  │  │  Xây dựng  (194 mã)
+│  │  │  Vật liệu xây dựng & Nội thất  (112 mã)
+│  Hàng & Dịch vụ Công nghiệp  (248 mã)
+│  │  Vận tải  (109 mã)
+│  │  │  Kho bãi, hậu cần và bảo dưỡng  (54 mã)
+│  │  │  Vận tải Thủy  (26 mã)
+│  │  │  Dịch vụ vận tải  (25 mã)
+│  │  │  Chuyển phát nhanh  (2 mã)
+│  │  │  Đường sắt  (2 mã)
+│  │  Tư vấn & Hỗ trợ Kinh doanh  (57 mã)
+│  │  │  Chất thải & Môi trường  (29 mã)
+│  │  │  Tư vấn & Hỗ trợ KD  (16 mã)
+│  │  │  Nhà cung cấp thiết bị  (6 mã)
+│  │  │  Đào tạo & Việc làm  (6 mã)
+│  │  Công nghiệp nặng  (32 mã)
+│  │  │  Máy công nghiệp  (29 mã)
+│  │  │  Xe tải & Đóng tàu  (3 mã)
+│  │  Hàng công nghiệp  (26 mã)
+│  │  │  Containers & Đóng gói  (22 mã)
+│  │  │  Công nghiệp phức hợp  (4 mã)
+│  │  Điện tử & Thiết bị điện  (24 mã)
+│  │  │  Hàng điện & điện tử  (12 mã)
+│  │  │  Thiết bị điện  (12 mã)
+
+Hàng Tiêu dùng  (236 mã)
+│  Thực phẩm và đồ uống  (145 mã)
+│  │  Sản xuất thực phẩm  (101 mã)
+│  │  │  Nuôi trồng nông & hải sản  (51 mã)
+│  │  │  Thực phẩm  (50 mã)
+│  │  Bia và đồ uống  (44 mã)
+│  │  │  Sản xuất bia  (25 mã)
+│  │  │  Đồ uống & giải khát  (16 mã)
+│  │  │  Vang & Rượu mạnh  (3 mã)
+│  Hàng cá nhân & Gia dụng  (73 mã)
+│  │  Hàng cá nhân  (57 mã)
+│  │  │  Hàng May mặc  (47 mã)
+│  │  │  Hàng cá nhân  (8 mã)
+│  │  │  Giầy dép  (2 mã)
+│  │  Hàng gia dụng  (9 mã)
+│  │  │  Thiết bị gia dụng  (6 mã)
+│  │  │  Đồ gia dụng lâu bền  (2 mã)
+│  │  │  Đồ gia dụng một lần  (1 mã)
+│  │  Thuốc lá  (4 mã)
+│  │  │  Thuốc lá  (4 mã)
+│  │  Hàng hóa giải trí  (3 mã)
+│  │  │  Điện tử tiêu dùng  (2 mã)
+│  │  │  Đồ chơi  (1 mã)
+│  Ô tô và phụ tùng  (18 mã)
+│  │  Ô tô và phụ tùng  (18 mã)
+│  │  │  Sản xuất ô tô  (13 mã)
+│  │  │  Lốp xe  (4 mã)
+│  │  │  Phụ tùng ô tô  (1 mã)
+
+Tài chính  (186 mã)
+│  Bất động sản  (123 mã)
+│  │  Bất động sản  (123 mã)
+│  │  │  Bất động sản  (115 mã)
+│  │  │  Tư Vấn, Định giá, Môi giới Bất động sản  (8 mã)
+│  Dịch vụ tài chính  (50 mã)
+│  │  Dịch vụ tài chính  (49 mã)
+│  │  │  Môi giới chứng khoán  (41 mã)
+│  │  │  Tài chính đặc biệt  (4 mã)
+│  │  │  Quản lý tài sản  (2 mã)
+│  │  │  Tài chính cá nhân  (2 mã)
+│  │  Quỹ đầu tư  (1 mã)
+│  │  │  Quỹ đầu tư  (1 mã)
+│  Bảo hiểm  (13 mã)
+│  │  Bảo hiểm phi nhân thọ  (12 mã)
+│  │  │  Bảo hiểm phi nhân thọ  (10 mã)
+│  │  │  Tái bảo hiểm  (2 mã)
+│  │  Bảo hiểm nhân thọ  (1 mã)
+│  │  │  Bảo hiểm nhân thọ  (1 mã)
+
+Nguyên vật liệu  (172 mã)
+│  Tài nguyên Cơ bản  (102 mã)
+│  │  Kim loại  (46 mã)
+│  │  │  Thép và sản phẩm thép  (42 mã)
+│  │  │  Kim Loại màu  (2 mã)
+│  │  │  Nhôm  (2 mã)
+│  │  Khai khoáng  (37 mã)
+│  │  │  Khai khoáng  (23 mã)
+│  │  │  Khai thác Than  (13 mã)
+│  │  │  Khai thác vàng  (1 mã)
+│  │  Lâm nghiệp và Giấy  (19 mã)
+│  │  │  Lâm sản và Chế biến gỗ  (12 mã)
+│  │  │  Sản xuất giấy  (7 mã)
+│  Hóa chất  (70 mã)
+│  │  Hóa chất  (70 mã)
+│  │  │  Nhựa, cao su & sợi  (35 mã)
+│  │  │  Sản phẩm hóa dầu, Nông dược & Hóa chất khác  (35 mã)
+
+Tiện ích Cộng đồng  (140 mã)
+│  Điện, nước & xăng dầu khí đốt  (140 mã)
+│  │  Nước & Khí đốt  (88 mã)
+│  │  │  Nước  (54 mã)
+│  │  │  Phân phối xăng dầu & khí đốt  (32 mã)
+│  │  │  Tiện ích khác  (2 mã)
+│  │  Sản xuất & Phân phối Điện  (52 mã)
+│  │  │  Sản xuất & Phân phối Điện  (52 mã)
+
+Dịch vụ Tiêu dùng  (103 mã)
+│  Du lịch và Giải trí  (46 mã)
+│  │  Du lịch & Giải trí  (46 mã)
+│  │  │  Vận tải hành khách & Du lịch  (24 mã)
+│  │  │  Khách sạn  (9 mã)
+│  │  │  Dịch vụ giải trí  (8 mã)
+│  │  │  Hàng không  (3 mã)
+│  │  │  Nhà hàng và quán bar  (2 mã)
+│  Truyền thông  (31 mã)
+│  │  Truyền thông  (31 mã)
+│  │  │  Sách, ấn bản & sản phẩm văn hóa  (25 mã)
+│  │  │  Dịch vụ truyền thông  (3 mã)
+│  │  │  Giải trí & Truyền thông  (3 mã)
+│  Bán lẻ  (26 mã)
+│  │  Bán lẻ  (22 mã)
+│  │  │  Bán lẻ phức hợp  (11 mã)
+│  │  │  Phân phối hàng chuyên dụng  (9 mã)
+│  │  │  Dịch vụ tiêu dùng chuyên ngành  (2 mã)
+│  │  Phân phối thực phẩm & dược phẩm  (4 mã)
+│  │  │  Phân phối thực phẩm  (4 mã)
+
+Dược phẩm và Y tế  (62 mã)
+│  Y tế  (62 mã)
+│  │  Dược phẩm  (51 mã)
+│  │  │  Dược phẩm  (50 mã)
+│  │  │  Công nghệ sinh học  (1 mã)
+│  │  Thiết bị và Dịch vụ Y tế  (11 mã)
+│  │  │  Thiết bị y tế  (6 mã)
+│  │  │  Dụng cụ y tế  (3 mã)
+│  │  │  Chăm sóc y tế  (2 mã)
+
+Công nghệ Thông tin  (27 mã)
+│  Công nghệ Thông tin  (27 mã)
+│  │  Thiết bị và Phần cứng  (15 mã)
+│  │  │  Thiết bị viễn thông  (10 mã)
+│  │  │  Phần cứng  (4 mã)
+│  │  │  Thiết bị văn phòng  (1 mã)
+│  │  Phần mềm & Dịch vụ Máy tính  (12 mã)
+│  │  │  Phần mềm  (8 mã)
+│  │  │  Dịch vụ Máy tính  (3 mã)
+│  │  │  Internet  (1 mã)
+
+Ngân hàng  (26 mã)
+│  Ngân hàng  (26 mã)
+│  │  Ngân hàng  (26 mã)
+│  │  │  Ngân hàng  (26 mã)
+
+Dầu khí  (12 mã)
+│  Dầu khí  (12 mã)
+│  │  Thiết bị, Dịch vụ và Phân phối Dầu khí  (9 mã)
+│  │  │  Thiết bị và Dịch vụ Dầu khí  (9 mã)
+│  │  Sản xuất Dầu khí  (3 mã)
+│  │  │  Sản xuất và Khai thác dầu khí  (3 mã)
+
+Viễn thông  (8 mã)
+│  Viễn thông  (8 mã)
+│  │  Viễn thông cố định  (5 mã)
+│  │  │  Viễn thông cố định  (5 mã)
+│  │  Viễn thông di động  (3 mã)
+│  │  │  Viễn thông di động  (3 mã)
+
+--------------------------------------------------------------------------
+Xem MÃ thuộc 1 ngành:  python fsx.py nganh "<tên ngành>"
+Tổng: 1525 mã | L1=11 | L2=19 | L3=37 | L4=86 ngành

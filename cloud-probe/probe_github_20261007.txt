@@ -1,0 +1,7 @@
+Ket qua probe tu GitHub Actions runner (ubuntu-latest, IP 64.236.135.4, My) - 07/10/2026
+31/34 nguon OK. Khong vao duoc:
+  X valuation-region (IDX, Cloudflare)  403 ca requests lan curl_cffi  -> IDX chan IP datacenter
+  X valuation-region (Bursa)             403 ca 2 che do                -> Bursa chan IP datacenter
+  X cvhcm (Cang vu TP.HCM)               TIMEOUT 25s ca 2 che do        -> chan dia ly IP ngoai VN
+Luu y: HNX chi OK bang requests (curl_cffi ERR) - pipeline bond-pivot dang dung urllib + tat verify SSL, van chay.
+       FRED chi OK bang curl_cffi (requests timeout) - giong het baseline local, khong phai do cloud.

@@ -1,0 +1,138 @@
+﻿metric,ten_viet,nhom,don_vi,cong_thuc
+cash,Tiền và tương đương tiền,Quy mô,Tỷ VND,BS dòng 3
+fvtpl,Tài sản tài chính FVTPL,Quy mô,Tỷ VND,BS dòng 6
+htm_st,Đầu tư nắm giữ đến đáo hạn (ngắn hạn),Quy mô,Tỷ VND,BS dòng 7
+loans,Các khoản cho vay (margin + ứng trước),Quy mô,Tỷ VND,BS dòng 8
+afs_st,Tài sản tài chính AFS (ngắn hạn),Quy mô,Tỷ VND,BS dòng 9
+fa_provision,Dự phòng suy giảm tài sản tài chính,Quy mô,Tỷ VND,BS dòng 10
+receivables,Tổng các khoản phải thu,Quy mô,Tỷ VND,BS dòng 11
+lt_invest,Đầu tư dài hạn,Quy mô,Tỷ VND,BS dòng 54
+total_assets,Tổng tài sản,Quy mô,Tỷ VND,BS dòng 92
+liabilities,Nợ phải trả,Quy mô,Tỷ VND,BS dòng 93
+st_borrow,Vay và nợ thuê tài chính ngắn hạn,Quy mô,Tỷ VND,BS dòng 95
+st_bonds,Trái phiếu phát hành ngắn hạn,Quy mô,Tỷ VND,BS dòng 100
+lt_borrow,Vay và nợ thuê tài chính dài hạn,Quy mô,Tỷ VND,BS dòng 122
+lt_bonds,Trái phiếu phát hành dài hạn,Quy mô,Tỷ VND,BS dòng 127
+equity,Vốn chủ sở hữu (gồm CĐ thiểu số),Quy mô,Tỷ VND,BS dòng 142
+equity_parent,Vốn chủ sở hữu công ty mẹ,Quy mô,Tỷ VND,BS dòng 143
+charter_capital,Vốn góp của chủ sở hữu,Quy mô,Tỷ VND,BS dòng 145
+retained,Lợi nhuận chưa phân phối,Quy mô,Tỷ VND,BS dòng 158
+investor_deposits,Tiền gửi của khách hàng (ngoài bảng),Quy mô,Tỷ VND,BS dòng 202
+op_revenue,Doanh thu hoạt động,Kết quả,Tỷ VND,IS dòng 1
+fvtpl_gain,Lãi từ tài sản FVTPL,Kết quả,Tỷ VND,IS dòng 2
+htm_income,Lãi từ HTM,Kết quả,Tỷ VND,IS dòng 6
+loan_income,Lãi từ cho vay và phải thu (margin),Kết quả,Tỷ VND,IS dòng 7
+afs_income,Lãi từ AFS,Kết quả,Tỷ VND,IS dòng 8
+brokerage_rev,Doanh thu môi giới,Kết quả,Tỷ VND,IS dòng 10
+underwriting_rev,Doanh thu bảo lãnh phát hành,Kết quả,Tỷ VND,IS dòng 11
+advisory_rev,Doanh thu tư vấn đầu tư,Kết quả,Tỷ VND,IS dòng 13
+custody_rev,Doanh thu lưu ký,Kết quả,Tỷ VND,IS dòng 15
+fin_advisory_rev,Doanh thu tư vấn tài chính,Kết quả,Tỷ VND,IS dòng 18
+other_rev,Doanh thu khác,Kết quả,Tỷ VND,IS dòng 19
+fvtpl_loss,Lỗ từ tài sản FVTPL,Kết quả,Tỷ VND,IS dòng 23
+provision_borrow_cost,CP dự phòng TSTC + chi phí đi vay (một số CTCK ghi lãi vay ở đây),Kết quả,Tỷ VND,IS dòng 30
+prop_cost,Chi phí hoạt động tự doanh,Kết quả,Tỷ VND,IS dòng 32
+brokerage_cost,Chi phí môi giới,Kết quả,Tỷ VND,IS dòng 33
+op_cost,Chi phí hoạt động kinh doanh,Kết quả,Tỷ VND,IS dòng 41
+gross_profit,Lợi nhuận gộp,Kết quả,Tỷ VND,IS dòng 42
+fin_income,Doanh thu hoạt động tài chính,Kết quả,Tỷ VND,IS dòng 48
+interest_expense,Chi phí lãi vay,Kết quả,Tỷ VND,IS dòng 51
+fin_cost,Chi phí tài chính,Kết quả,Tỷ VND,IS dòng 56
+selling_exp,Chi phí bán hàng,Kết quả,Tỷ VND,IS dòng 57
+ga_exp,Chi phí quản lý,Kết quả,Tỷ VND,IS dòng 58
+op_result,Kết quả hoạt động,Kết quả,Tỷ VND,IS dòng 59
+pbt,Lợi nhuận trước thuế,Kết quả,Tỷ VND,IS dòng 65
+tax,Chi phí thuế TNDN,Kết quả,Tỷ VND,IS dòng 68
+npat,Lợi nhuận sau thuế,Kết quả,Tỷ VND,IS dòng 71
+npat_parent,LNST cổ đông công ty mẹ,Kết quả,Tỷ VND,IS dòng 72
+eps_reported,EPS cơ bản báo cáo (VND),Kết quả,VND,IS dòng 88
+margin_loans,Cho vay ký quỹ (margin) — thuyết minh,Quy mô,Tỷ VND,NOTE dòng 159
+advance_loans,Cho vay ứng trước tiền bán,Quy mô,Tỷ VND,NOTE dòng 160
+trading_value_investors,GTGD cổ phiếu của NĐT thực hiện qua CTCK trong kỳ,Hoạt động,Tỷ VND,NOTE dòng 109
+trading_value_prop,GTGD cổ phiếu tự doanh trong kỳ,Hoạt động,Tỷ VND,NOTE dòng 101
+fvtpl_fv,Giá trị hợp lý FVTPL — thuyết minh,Quy mô,Tỷ VND,NOTE dòng 185
+fvtpl_fv_listed,FVTPL: cổ phiếu niêm yết (giá hợp lý),Quy mô,Tỷ VND,NOTE dòng 187
+fvtpl_fv_bonds,FVTPL: trái phiếu (giá hợp lý),Quy mô,Tỷ VND,NOTE dòng 190
+staff_cost_ga,Chi phí nhân viên (trong chi phí quản lý),Kết quả,Tỷ VND,NOTE dòng 575
+afs_reval_reserve,Chênh lệch đánh giá lại TS theo giá trị hợp lý (VCSH) = lãi/lỗ AFS chưa thực hiện luỹ kế,Quy mô,Tỷ VND,BS dòng 152
+oci,Thu nhập (lỗ) toàn diện khác sau thuế (OCI),Kết quả,Tỷ VND,IS dòng 75
+oci_afs,OCI: lãi/(lỗ) đánh giá lại AFS trong kỳ,Kết quả,Tỷ VND,IS dòng 77
+total_comprehensive,Tổng thu nhập toàn diện (LNST + OCI),Kết quả,Tỷ VND,IS dòng 84
+net_fvtpl,Lãi ròng FVTPL,Kết quả,Tỷ VND,fvtpl_gain - fvtpl_loss
+interest_cost,"Chi phí lãi vay (IS 51, thiếu thì IS 30)",Kết quả,Tỷ VND,interest_expense if > 0 else provision_borrow_cost
+borrowings,Tổng vay + trái phiếu,Quy mô,Tỷ VND,st_borrow + st_bonds + lt_borrow + lt_bonds
+margin_book,"Dư nợ margin (thuyết minh, thiếu thì lấy BS cho vay)",Quy mô,Tỷ VND,margin_loans else loans
+invest_book,Danh mục đầu tư (FVTPL+AFS+HTM ngắn hạn),Quy mô,Tỷ VND,fvtpl + afs_st + htm_st
+shares_mn,"Số cổ phiếu (triệu, = vốn góp / 10.000đ)",Quy mô,triệu CP,charter_capital*1e9/1e4/1e6
+bvps,Giá trị sổ sách / CP,Định giá,VND,equity_parent / shares
+opex,Chi phí vận hành (bán hàng + quản lý),Kết quả,Tỷ VND,selling_exp + ga_exp
+net_brokerage,Môi giới ròng (DT − CP môi giới),Kết quả,Tỷ VND,brokerage_rev - brokerage_cost
+total_income,Tổng thu nhập (DT hoạt động + DT tài chính),Kết quả,Tỷ VND,op_revenue + fin_income
+npat_incl_oci,LNST + OCI AFS (lợi nhuận kinh tế gồm lãi/lỗ AFS chưa thực hiện),Kết quả,Tỷ VND,npat + oci_afs
+advisory_rev_ttm,Doanh thu tư vấn đầu tư — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của advisory_rev
+afs_income_ttm,Lãi từ AFS — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của afs_income
+brokerage_cost_ttm,Chi phí môi giới — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của brokerage_cost
+brokerage_rev_ttm,Doanh thu môi giới — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của brokerage_rev
+custody_rev_ttm,Doanh thu lưu ký — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của custody_rev
+fin_advisory_rev_ttm,Doanh thu tư vấn tài chính — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của fin_advisory_rev
+fin_cost_ttm,Chi phí tài chính — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của fin_cost
+fin_income_ttm,Doanh thu hoạt động tài chính — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của fin_income
+fvtpl_gain_ttm,Lãi từ tài sản FVTPL — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của fvtpl_gain
+fvtpl_loss_ttm,Lỗ từ tài sản FVTPL — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của fvtpl_loss
+ga_exp_ttm,Chi phí quản lý — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của ga_exp
+gross_profit_ttm,Lợi nhuận gộp — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của gross_profit
+htm_income_ttm,Lãi từ HTM — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của htm_income
+ib_rev_ttm,ib_rev — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của ib_rev
+interest_cost_ttm,interest_cost — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của interest_cost
+interest_expense_ttm,Chi phí lãi vay — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của interest_expense
+loan_income_ttm,Lãi từ cho vay và phải thu (margin) — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của loan_income
+net_brokerage_ttm,net_brokerage — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của net_brokerage
+net_fvtpl_ttm,net_fvtpl — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của net_fvtpl
+npat_ttm,Lợi nhuận sau thuế — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của npat
+npat_incl_oci_ttm,npat_incl_oci — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của npat_incl_oci
+npat_parent_ttm,LNST cổ đông công ty mẹ — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của npat_parent
+oci_ttm,Thu nhập (lỗ) toàn diện khác sau thuế (OCI) — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của oci
+oci_afs_ttm,OCI: lãi/(lỗ) đánh giá lại AFS trong kỳ — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của oci_afs
+op_cost_ttm,Chi phí hoạt động kinh doanh — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của op_cost
+op_result_ttm,Kết quả hoạt động — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của op_result
+op_revenue_ttm,Doanh thu hoạt động — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của op_revenue
+opex_ttm,opex — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của opex
+other_rev_ttm,Doanh thu khác — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của other_rev
+pbt_ttm,Lợi nhuận trước thuế — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của pbt
+prop_cost_ttm,Chi phí hoạt động tự doanh — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của prop_cost
+provision_borrow_cost_ttm,CP dự phòng TSTC + chi phí đi vay (một số CTCK ghi lãi vay ở đây) — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của provision_borrow_cost
+selling_exp_ttm,Chi phí bán hàng — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của selling_exp
+staff_cost_ga_ttm,Chi phí nhân viên (trong chi phí quản lý) — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của staff_cost_ga
+tax_ttm,Chi phí thuế TNDN — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của tax
+total_comprehensive_ttm,Tổng thu nhập toàn diện (LNST + OCI) — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của total_comprehensive
+total_income_ttm,total_income — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của total_income
+trading_value_investors_ttm,GTGD cổ phiếu của NĐT thực hiện qua CTCK trong kỳ — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của trading_value_investors
+trading_value_prop_ttm,GTGD cổ phiếu tự doanh trong kỳ — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của trading_value_prop
+underwriting_rev_ttm,Doanh thu bảo lãnh phát hành — TTM 4 quý (năm: bằng số năm),TTM,Tỷ VND,tổng 4 quý liên tiếp của underwriting_rev
+roe,ROE (TTM / VCSH bình quân),Sinh lời,%,"npat_ttm / avg(equity_t, equity_t-4)"
+roa,ROA (TTM / TTS bình quân),Sinh lời,%,npat_ttm / avg(total_assets)
+net_margin,Biên LNST / DT hoạt động (TTM),Sinh lời,%,npat_ttm / op_revenue_ttm
+pbt_margin,Biên LNTT / DT hoạt động (TTM),Sinh lời,%,pbt_ttm / op_revenue_ttm
+eps_ttm,EPS TTM (VND),Định giá,VND,npat_parent_ttm*1e9 / shares
+leverage,Đòn bẩy TTS / VCSH,Đòn bẩy,x,total_assets / equity
+debt_to_equity,Vay + TP / VCSH,Đòn bẩy,x,borrowings / equity
+margin_to_equity,Dư nợ margin / VCSH (trần 2x),Đòn bẩy,%,margin_book / equity
+margin_to_assets,Dư nợ margin / TTS,Cơ cấu tài sản,%,margin_book / total_assets
+invest_to_assets,Danh mục đầu tư / TTS,Cơ cấu tài sản,%,invest_book / total_assets
+cash_to_assets,Tiền / TTS,Cơ cấu tài sản,%,cash / total_assets
+loan_yield,Lợi suất cho vay (TTM / dư nợ BQ),Hiệu quả,%,loan_income_ttm / avg(loans)
+cost_of_funds,Chi phí vốn vay (lãi vay TTM / vay BQ),Hiệu quả,%,interest_cost_ttm / avg(borrowings)
+lending_spread,Chênh lệch lợi suất cho vay − chi phí vốn,Hiệu quả,đ%,loan_yield - cost_of_funds
+brokerage_margin,Biên môi giới (DT − CP) / DT môi giới (TTM),Hiệu quả,%,net_brokerage_ttm / brokerage_rev_ttm
+cir,CIR: (CP hoạt động + CP vận hành) / tổng thu nhập (TTM),Hiệu quả,%,(op_cost_ttm + opex_ttm) / total_income_ttm
+opex_to_income,CP vận hành / tổng thu nhập (TTM),Hiệu quả,%,opex_ttm / total_income_ttm
+brokerage_fee_rate,Phí môi giới hiệu dụng (DT môi giới / GTGD NĐT),Hiệu quả,%,brokerage_rev / trading_value_investors (cùng kỳ)
+mix_brokerage,Tỷ trọng DT môi giới / DT hoạt động (TTM),Cơ cấu doanh thu,%,brokerage_rev_ttm / op_revenue_ttm
+mix_lending,Tỷ trọng lãi cho vay / DT hoạt động (TTM),Cơ cấu doanh thu,%,loan_income_ttm / op_revenue_ttm
+mix_fvtpl,Tỷ trọng lãi FVTPL (gộp) / DT hoạt động (TTM),Cơ cấu doanh thu,%,fvtpl_gain_ttm / op_revenue_ttm
+mix_ib,Tỷ trọng bảo lãnh + tư vấn / DT hoạt động (TTM),Cơ cấu doanh thu,%,(underwriting_rev+advisory_rev+fin_advisory_rev)_ttm / op_revenue_ttm
+g_npat_yoy,Tăng trưởng LNST YoY (kỳ),Tăng trưởng,%,npat / npat_t-4 - 1
+g_revenue_yoy,Tăng trưởng DT hoạt động YoY (kỳ),Tăng trưởng,%,op_revenue / op_revenue_t-4 - 1
+g_margin_yoy,Tăng trưởng dư nợ margin YoY,Tăng trưởng,%,margin_book / margin_book_t-4 - 1
+g_margin_qoq,Tăng trưởng dư nợ margin QoQ,Tăng trưởng,%,margin_book / margin_book_t-1 - 1
+g_equity_yoy,Tăng trưởng VCSH YoY,Tăng trưởng,%,equity / equity_t-4 - 1

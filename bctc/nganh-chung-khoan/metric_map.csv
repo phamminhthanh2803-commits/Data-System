@@ -1,0 +1,60 @@
+﻿metric,statement_code,row_order,label_check,ten_viet,nhom
+cash,BS,3,Tiền và tương đương tiền,Tiền và tương đương tiền,Quy mô
+fvtpl,BS,6,FVTPL,Tài sản tài chính FVTPL,Quy mô
+htm_st,BS,7,HTM,Đầu tư nắm giữ đến đáo hạn (ngắn hạn),Quy mô
+loans,BS,8,Các khoản cho vay,Các khoản cho vay (margin + ứng trước),Quy mô
+afs_st,BS,9,AFS,Tài sản tài chính AFS (ngắn hạn),Quy mô
+fa_provision,BS,10,Dự phòng suy giảm,Dự phòng suy giảm tài sản tài chính,Quy mô
+receivables,BS,11,Tổng các khoản phải thu,Tổng các khoản phải thu,Quy mô
+lt_invest,BS,54,Đầu tư dài hạn,Đầu tư dài hạn,Quy mô
+total_assets,BS,92,TỔNG CỘNG TÀI SẢN,Tổng tài sản,Quy mô
+liabilities,BS,93,NỢ PHẢI TRẢ,Nợ phải trả,Quy mô
+st_borrow,BS,95,Vay và nợ thuê,Vay và nợ thuê tài chính ngắn hạn,Quy mô
+st_bonds,BS,100,Trái phiếu phát hành ngắn hạn,Trái phiếu phát hành ngắn hạn,Quy mô
+lt_borrow,BS,122,Vay và nợ thuê,Vay và nợ thuê tài chính dài hạn,Quy mô
+lt_bonds,BS,127,Trái phiếu phát hành dài hạn,Trái phiếu phát hành dài hạn,Quy mô
+equity,BS,142,VỐN CHỦ SỞ HỮU,Vốn chủ sở hữu (gồm CĐ thiểu số),Quy mô
+equity_parent,BS,143,Vốn chủ sở hữu,Vốn chủ sở hữu công ty mẹ,Quy mô
+charter_capital,BS,145,Vốn góp,Vốn góp của chủ sở hữu,Quy mô
+retained,BS,158,Lợi nhuận chưa phân phối,Lợi nhuận chưa phân phối,Quy mô
+investor_deposits,BS,202,Tiền gửi của khách hàng,Tiền gửi của khách hàng (ngoài bảng),Quy mô
+op_revenue,IS,1,DOANH THU HOẠT ĐỘNG,Doanh thu hoạt động,Kết quả
+fvtpl_gain,IS,2,FVTPL,Lãi từ tài sản FVTPL,Kết quả
+htm_income,IS,6,đáo hạn,Lãi từ HTM,Kết quả
+loan_income,IS,7,cho vay và phải thu,Lãi từ cho vay và phải thu (margin),Kết quả
+afs_income,IS,8,sẵn sàng để bán,Lãi từ AFS,Kết quả
+brokerage_rev,IS,10,môi giới,Doanh thu môi giới,Kết quả
+underwriting_rev,IS,11,bảo lãnh,Doanh thu bảo lãnh phát hành,Kết quả
+advisory_rev,IS,13,tư vấn đầu tư,Doanh thu tư vấn đầu tư,Kết quả
+custody_rev,IS,15,lưu ký,Doanh thu lưu ký,Kết quả
+fin_advisory_rev,IS,18,tư vấn tài chính,Doanh thu tư vấn tài chính,Kết quả
+other_rev,IS,19,Doanh thu khác,Doanh thu khác,Kết quả
+fvtpl_loss,IS,23,FVTPL,Lỗ từ tài sản FVTPL,Kết quả
+provision_borrow_cost,IS,30,CP đi vay,CP dự phòng TSTC + chi phí đi vay (một số CTCK ghi lãi vay ở đây),Kết quả
+prop_cost,IS,32,tự doanh,Chi phí hoạt động tự doanh,Kết quả
+brokerage_cost,IS,33,môi giới,Chi phí môi giới,Kết quả
+op_cost,IS,41,Chi phí hoạt động kinh doanh,Chi phí hoạt động kinh doanh,Kết quả
+gross_profit,IS,42,LỢI NHUẬN GỘP,Lợi nhuận gộp,Kết quả
+fin_income,IS,48,doanh thu hoạt động tài chính,Doanh thu hoạt động tài chính,Kết quả
+interest_expense,IS,51,Chi phí lãi vay,Chi phí lãi vay,Kết quả
+fin_cost,IS,56,chi phí tài chính,Chi phí tài chính,Kết quả
+selling_exp,IS,57,CHI PHÍ BÁN HÀNG,Chi phí bán hàng,Kết quả
+ga_exp,IS,58,QUẢN LÝ,Chi phí quản lý,Kết quả
+op_result,IS,59,KẾT QUẢ HOẠT ĐỘNG,Kết quả hoạt động,Kết quả
+pbt,IS,65,TRƯỚC THUẾ,Lợi nhuận trước thuế,Kết quả
+tax,IS,68,THUẾ,Chi phí thuế TNDN,Kết quả
+npat,IS,71,SAU THUẾ,Lợi nhuận sau thuế,Kết quả
+npat_parent,IS,72,chủ sở hữu,LNST cổ đông công ty mẹ,Kết quả
+eps_reported,IS,88,Lãi cơ bản,EPS cơ bản báo cáo (VND),Kết quả
+margin_loans,NOTE,159,ký quỹ,Cho vay ký quỹ (margin) — thuyết minh,Quy mô
+advance_loans,NOTE,160,ứng trước,Cho vay ứng trước tiền bán,Quy mô
+trading_value_investors,NOTE,109,Giá trị Cổ phiếu,GTGD cổ phiếu của NĐT thực hiện qua CTCK trong kỳ,Hoạt động
+trading_value_prop,NOTE,101,Giá trị Cổ phiếu,GTGD cổ phiếu tự doanh trong kỳ,Hoạt động
+fvtpl_fv,NOTE,185,FVTPL,Giá trị hợp lý FVTPL — thuyết minh,Quy mô
+fvtpl_fv_listed,NOTE,187,Cổ phiếu niêm yết,FVTPL: cổ phiếu niêm yết (giá hợp lý),Quy mô
+fvtpl_fv_bonds,NOTE,190,Trái phiếu,FVTPL: trái phiếu (giá hợp lý),Quy mô
+staff_cost_ga,NOTE,575,nhân viên,Chi phí nhân viên (trong chi phí quản lý),Kết quả
+afs_reval_reserve,BS,152,đánh giá lại tài sản,Chênh lệch đánh giá lại TS theo giá trị hợp lý (VCSH) = lãi/lỗ AFS chưa thực hiện luỹ kế,Quy mô
+oci,IS,75,TOÀN DIỆN KHÁC,Thu nhập (lỗ) toàn diện khác sau thuế (OCI),Kết quả
+oci_afs,IS,77,sẵn sàng để bán,OCI: lãi/(lỗ) đánh giá lại AFS trong kỳ,Kết quả
+total_comprehensive,IS,84,Tổng thu nhập toàn diện,Tổng thu nhập toàn diện (LNST + OCI),Kết quả

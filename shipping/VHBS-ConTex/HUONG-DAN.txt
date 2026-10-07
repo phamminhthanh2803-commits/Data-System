@@ -1,0 +1,81 @@
+========================================================================
+  HƯỚNG DẪN — VHBS ConTex
+  Tự động kéo giá cước thuê tàu container (VHSS New ConTex) hàng ngày 09:00
+========================================================================
+
+1. TOOL LÀM GÌ
+------------------------------------------------------------------------
+Mỗi ngày 09:00 sáng, tự tải giá cước thuê tàu container (charter rates) từ
+trang vhbs.de và MERGE ngày mới vào vhbs_contex.csv. Idempotent: chạy lại
+cùng ngày không tạo dòng trùng, chỉ thêm ngày chưa có.
+
+Nguồn: https://www.vhbs.de/index.php?id=79&L=1
+(dữ liệu nằm inline trong HTML dạng  var json = '{...}' )
+
+
+2. CÁCH CHẠY
+------------------------------------------------------------------------
+TỰ ĐỘNG (Task Scheduler) — đăng ký 1 lần:
+   powershell -ExecutionPolicy Bypass -File "D:\shipping\VHBS-ConTex\Register-VhbsTask.ps1"
+   Task: "VHBS ConTex Daily Pull" — chạy 09:00 mỗi ngày, chạy bù khi bật máy nếu
+   lỡ giờ (StartWhenAvailable), chỉ chạy khi có mạng.
+
+CHẠY TAY:
+   # Merge ngày mới vào CSV (giống job tự động):
+   powershell -ExecutionPolicy Bypass -File "D:\shipping\VHBS-ConTex\Update-VhbsContex.ps1"
+   # Kéo lại TỪ ĐẦU (tạo/ghi đè toàn bộ CSV) — dùng khi cần backup/dựng lại:
+   python D:\shipping\VHBS-ConTex\vhbs_contex_scraper.py
+
+Quản lý task:
+   schtasks /Run   /TN "VHBS ConTex Daily Pull"      -> chạy thử ngay
+   schtasks /Query /TN "VHBS ConTex Daily Pull" /V   -> xem trạng thái
+
+
+3. THAM SỐ (tuỳ chọn)
+------------------------------------------------------------------------
+Update-VhbsContex.ps1:  -CsvPath  -LogPath  -Url
+vhbs_contex_scraper.py: -o/--output  --url
+(Mặc định đã trỏ đúng file & URL, thường không cần đổi.)
+
+
+4. OUTPUT — vhbs_contex.csv
+------------------------------------------------------------------------
+Mỗi dòng = 1 ngày. Cột (đơn vị USD/ngày):
+   Date, 1100 TEU, 1700 TEU, 1800 TEU, 2500 TEU, 2700 TEU, 3000 TEU,
+   3500 TEU, 4250 TEU, 5700 TEU, 6500 TEU, New ConTex
+- Date: YYYY-MM-DD, sắp xếp tăng dần.
+- Ô trống = ngày đó nguồn không công bố loại tàu đó.
+- Encoding UTF-8 BOM (Excel mở đúng).
+- Dữ liệu cũ (2019) chỉ có vài loại tàu; ngày mới có đủ 11 cột.
+
+Cách merge: Update-VhbsContex.ps1 đọc CSV cũ (giữ header & thứ tự cột), thêm
+CHỈ ngày chưa có, ghi lại. Python scraper thì kéo lại toàn bộ và ghi đè.
+
+
+5. CÀI ĐẶT
+------------------------------------------------------------------------
+KHÔNG cần cài gì thêm:
+- Python scraper: chỉ thư viện chuẩn.
+- PowerShell: chỉ cmdlet built-in (Windows PowerShell 5.1+).
+Cần Internet.
+
+
+6. KIỂM TRA / KHẮC PHỤC
+------------------------------------------------------------------------
+- Xem vhbs_contex.log: mỗi lần chạy ghi START/DONE, số ngày mới thêm, ngày mới nhất, lỗi.
+- Không thêm ngày mới: cuối tuần/lễ nguồn chưa cập nhật -> bình thường.
+- Task không chạy: kiểm tra giờ máy bật, mạng; chạy thử bằng schtasks /Run.
+
+
+7. CẤU TRÚC FILE
+------------------------------------------------------------------------
+   Update-VhbsContex.ps1     Script chính chạy hàng ngày (kéo + merge, idempotent)
+   Register-VhbsTask.ps1     Đăng ký Task Scheduler (chạy 1 lần khi cài)
+   vhbs_contex_scraper.py    Python: kéo lại từ đầu (backup/dựng lại)
+   vhbs_contex.csv           FILE DỮ LIỆU CHÍNH
+   vhbs_contex.log           Nhật ký (tool tự sinh)
+========================================================================
+
+
+=== CAP NHAT 14/09/2026 - GOP VAO HUB ===
+Task cu `VHBS ConTex Daily Pull` 09:00 (`Register-VhbsTask.ps1` da xoa) -> nay la buoc `vhbs` trong **Shipping AM 09:00** (`D:\shipping\Run-Shipping.ps1 -Slot AM`).

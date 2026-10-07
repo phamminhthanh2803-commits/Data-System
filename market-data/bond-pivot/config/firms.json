@@ -1,0 +1,63 @@
+{
+  "tcbs": {
+    "name": "TCBS — CTCP Chứng khoán Kỹ Thương",
+    "enabled": true,
+    "patterns": [
+      "ch[ứu]ng\\s+kho[áa]n\\s+k[ỹy]\\s+th[ưu][ơo][nm]g",
+      "techcom\\s*securities",
+      "\\bTCBS\\b",
+      "ch[ứu]ng\\s+kho[áa]n\\s+techcombank"
+    ],
+    "internal_groups": [
+      "Techcombank"
+    ],
+    "anchor_note": "Neo kiểm tra: TCBS tự công bố luỹ kế tư vấn phát hành >400.000 tỷ; FiinRatings chấm thị phần tư vấn TPDN 2024 (không gồm bank bonds) = 46%.",
+    "canonical": "TCBS"
+  },
+  "vps": {
+    "name": "VPS — CTCP Chứng khoán VPS",
+    "enabled": false,
+    "patterns": [
+      "ch[ứu]ng\\s+kho[áa]n\\s+VPS",
+      "\\bVPS\\b"
+    ],
+    "internal_groups": [],
+    "anchor_note": "",
+    "canonical": "VPS"
+  },
+  "mbs": {
+    "name": "MBS — CTCP Chứng khoán MB",
+    "enabled": false,
+    "patterns": [
+      "ch[ứu]ng\\s+kho[áa]n\\s+MB(?![A-Za-z])",
+      "\\bMBS\\b"
+    ],
+    "internal_groups": [
+      "Ngân hàng Thương mại Cổ phần Quân Đội"
+    ],
+    "anchor_note": "",
+    "canonical": "MBS"
+  },
+  "hdbs": {
+    "name": "HDBS — CTCP Chứng khoán HD",
+    "enabled": false,
+    "patterns": [
+      "ch[ứu]ng\\s+kho[áa]n\\s+HD(?![A-Za-z])",
+      "\\bHDBS\\b"
+    ],
+    "internal_groups": [],
+    "anchor_note": "",
+    "canonical": "HDBS"
+  },
+  "tvsi": {
+    "name": "TVSI — CTCP Chứng khoán Tân Việt",
+    "enabled": false,
+    "patterns": [
+      "ch[ứu]ng\\s+kho[áa]n\\s+t[âa]n\\s+vi[ệe]t",
+      "\\bTVSI\\b"
+    ],
+    "internal_groups": [],
+    "anchor_note": "",
+    "canonical": "TVSI"
+  }
+}

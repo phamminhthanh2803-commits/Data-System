@@ -1,0 +1,6 @@
+# Danh sach ma cho stocks.py (moi dong 1 ma)
+VNM
+FPT
+MWG
+HPG
+VCB

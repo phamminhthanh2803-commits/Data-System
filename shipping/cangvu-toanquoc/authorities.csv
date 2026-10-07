@@ -1,0 +1,24 @@
+code,name,platform,base,maritime_code,use,note
+QNH,Quảng Ninh,pkh,http://tttb.cangvuhanghaiquangninh.gov.vn/web/guest/public-kh,20,calls,public-kh chỉ có dữ liệu 2020 -> đầu 2025; hiện tại dùng kht1.cangvuhanghaiquangninh.gov.vn (chưa làm)
+HPH,Hải Phòng,pkh,http://tttb.cangvuhaiphong.gov.vn/web/guest/public-kh,19,imo_only,Hải Phòng đã có pipeline riêng (csdltau từ 2019) -> bản public-kh chỉ dùng lấy IMO/hô hiệu
+TBH,Thái Bình,pkh,http://123.30.27.14/web/guest/public-kh,22,calls,
+THA,Thanh Hoá,pkh,http://tttb.cangvuhanghaithanhhoa.gov.vn/web/guest/public-kh,2,calls,Nghi Sơn
+HTH,Hà Tĩnh,pkh,http://116.98.104.198/web/guest/public-kh,4,calls,Vũng Áng - Sơn Dương
+DNG,Đà Nẵng,pkh,http://tttb.cangvuhanghaidanang.gov.vn/public-kh,18,calls,gồm Quảng Nam (Kỳ Hà - Chu Lai) sau hợp nhất 08/2025
+BTN,Bình Thuận,pkh,http://123.25.223.242/web/guest/public-kh,24,calls,Vĩnh Tân + ngoài khơi
+DNI,Đồng Nai,pkh,http://123.25.204.166/web/guest/public-kh,11,calls,Gò Dầu - Phước An - Nhơn Trạch - sông Đồng Nai
+KGG,Kiên Giang,pkh,http://203.210.235.67/web/guest/public-kh,23,calls,đa số tàu khách/phà Phú Quốc
+HP,Hải Phòng (csdltau),csdltau,https://csdltau.cangvuhaiphong.gov.vn/pages/ship_plan.aspx,,calls,pipeline D:\shipping\cangvu-haiphong
+HCM,TP.HCM - Cái Mép - Vũng Tàu,aspx-hcm,https://cangvuhanghaitphcm.gov.vn/index.aspx?page=shipschedule&cat=3107,,calls,pipeline D:\shipping\cangvu-hcm; gồm Vũng Tàu sau hợp nhất 08/2025
+NTG,Nha Trang,aspx-hcm,https://cangvuhanghainhatrang.gov.vn/index.aspx?page=shipschedule&cat=2015,,todo,cùng nền tảng TP.HCM (grid ctl22_GridView_TauVao/TauRoi/DiChuyen) - chưa làm
+CTO,Cần Thơ,aspx-d,https://cangvuhanghaicantho.gov.vn/Index.aspx?page=khddt&kv=ct&d=0,,todo,tham số d= như Hải Phòng; 4 khu vực kv=ct/hg/st/tv - chưa làm
+NAN,Nghệ An,pdf,https://cangvuhanghainghean.gov.vn/index.aspx?page=news&cat=2016,,pdf,đăng PDF hằng ngày - cần tách bảng từ PDF
+QNO,Quy Nhơn,image,https://cangvuhanghaiquynhon.gov.vn/index.aspx?page=news&cat=2014,,pdf,đăng ảnh JPG hằng ngày - cần OCR
+QTI,Quảng Trị,pdf,https://cangvuhanghaiquangtri.gov.vn/index.aspx?page=NEWS&cat=2079,,pdf,trang tin; gồm Quảng Bình
+HUE,Thừa Thiên Huế,pdf,https://cangvuhanghaithuathienhue.gov.vn/index.aspx?page=law&cat=3132,,pdf,trang tin
+QNI,Quảng Ngãi,down,https://cangvuhanghaiqni.gov.vn/?lk=kehoach_tauvaocang,,down,web đang hiện trang Plesk mặc định
+AGG,An Giang,down,https://cangvuhanghaiangiang.gov.vn,,down,web đang hiện trang Plesk mặc định
+DTP,Đồng Tháp,down,https://cangvuhanghaidongthap.gov.vn,,down,web đang hiện trang Plesk mặc định
+NDH,Nam Định,down,cangvuhanghainamdinh.gov.vn,,down,không phân giải được tên miền
+MTO,Mỹ Tho,down,cangvuhanghaimytho.gov.vn,,down,không phân giải được tên miền
+CMU,Cà Mau,down,cangvuhanghaicamau.gov.vn,,down,không phân giải được tên miền

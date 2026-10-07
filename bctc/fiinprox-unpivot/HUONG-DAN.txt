@@ -1,0 +1,159 @@
+========================================================================
+  HƯỚNG DẪN — FIINPROX UNPIVOT
+  Chuyển BCTC xuất từ FiinProX (Excel wide) -> CSV long + gộp toàn ngành
+========================================================================
+
+1. TOOL LÀM GÌ
+------------------------------------------------------------------------
+Đọc các file Excel BCTC tải từ FiinProX (chỉ tiêu theo dòng, kỳ theo cột),
+chuyển sang dạng long (1 dòng = 1 quan sát) để chạy SQL/DuckDB, gắn phân
+ngành ICB 4 cấp, và CỘNG DỒN thành báo cáo tài chính toàn ngành.
+
+
+2. CÁCH CHẠY
+------------------------------------------------------------------------
+NHANH NHẤT:
+   Double-click  Pipeline_CapNhat.bat
+   (hoặc) python run_pipeline.py
+
+Pipeline tự động: quét thư mục nguồn -> unpivot từng file -> gắn ngành ICB
+-> merge dữ liệu nhập tay -> sắp xếp -> tách theo ngành -> gộp toàn ngành.
+
+Cache thông minh: lần đầu ~3 phút; lần sau chỉ xử lý file mới/đã sửa -> vài giây.
+
+THÊM DATA KỲ MỚI: cứ tải file FiinProX mới (dấu ngày mới, vd _20260721) vào cùng
+thư mục rồi chạy lại. Pipeline TỰ ĐỘNG:
+  - XOÁ HẲN bản cũ bị thay thế (file + cache) — không cần dọn tay, không đếm đôi.
+  - Phát hiện mã ĐỔI TÊN (vd LPBank Securities -> LPS) qua dấu hiệu TRÙNG DATA
+    các kỳ chung -> giữ tên mới, loại + xoá file tên cũ.
+  - Áp bảng SỬA LỖI NGUỒN fixes.csv (xem dưới). Chỉ file mới bị parse.
+
+fixes.csv — bảng sửa lỗi nguồn FiinProX (sai đơn vị...): mỗi dòng gồm
+  ticker,freq,statement_code,row_order,period,gia_tri_sai,gia_tri_dung
+Pipeline áp tự động mỗi lần chạy nên FiinProX xuất bản mới mang số sai cũng bị
+đè về số đúng — KHÔNG cần sửa file gốc. Chỉ sửa khi giá trị hiện tại khớp
+gia_tri_sai (nếu FiinProX tự sửa nguồn thì không đụng). Phát hiện lỗi mới ->
+thêm 1 dòng vào fixes.csv.
+
+CỜ HỮU ÍCH:
+   python run_pipeline.py --refresh-icb     Kéo lại bảng ngành ICB mới (vnstock)
+   python run_pipeline.py --no-cache        Xử lý lại từ đầu (bỏ cache)
+   python run_pipeline.py --level L1        Tách theo cấp ngành khác (L1/L2/L3/L4; mặc định L2)
+
+
+3. INPUT / CONFIG
+------------------------------------------------------------------------
+config.csv  — khai báo thư mục chứa file FiinProX_*.xlsx:
+   folder,default_nganh
+   D:\Database\Chứng khoán,Dịch vụ tài chính
+   D:\Database\Ngân hàng,Ngân hàng
+   (default_nganh = ngành gán cho mã KHÔNG có trong bảng ICB)
+
+icb_map.csv — bảng phân ngành ICB 4 cấp (~1935 mã VN). Cache sẵn; dùng
+              --refresh-icb để cập nhật.
+
+manual_input\ — bổ sung số liệu nhập tay / AI điền (ghi đè nếu trùng):
+   A) File long: manual_input\manual_data.csv
+      Cột: ticker, freq, statement_code(BS/IS/CF/NOTE), row_order, metric, period, value, nganh_L2
+      Bắt buộc: ticker, statement_code, period (Q2/2026 hoặc 2026), value (Tỷ VND).
+      Dòng bắt đầu bằng # -> bỏ qua. File tên bắt đầu bằng _ -> bỏ qua (vd _chi_tieu_tham_chieu.csv).
+   B) File wide theo thư mục: manual_input\<Ngành>\<MÃ> [Q|Y].csv (cho người nhập tay).
+   C) Tạo template để điền:
+      python export_template.py --ticker VND --freq Q --nganh "Dịch vụ tài chính" --periods Q1/2026,Q2/2026
+
+
+4. OUTPUT — thư mục output\
+------------------------------------------------------------------------
+fiinprox_facts_all.csv      Master long (rất lớn, vài triệu dòng).
+   Cột: ticker, ten_cong_ty, nganh_L1..L4, entity_type, freq, statement_code,
+        statement_name, unit(Tỷ VND), currency, row_order, level, parent, metric,
+        period, year, quarter, value
+   (level  = độ sâu phân cấp chỉ tiêu; dùng để thụt lề/khôi phục cây chỉ tiêu)
+   (parent = chỉ tiêu CHA gần nhất. Một số chỉ tiêu con TRÙNG TÊN nhau, vd
+    "Khối lượng Cổ phiếu" có ở cả khối CTCK lẫn NĐT trong Thuyết minh. Chúng
+    KHÔNG bị gộp — phân biệt bằng parent + row_order. Khi lookup theo tên trong
+    SQL/Excel nhớ kèm parent hoặc row_order để khỏi nhầm.)
+
+by_nganh_L2\<Ngành>.csv     Tách master theo từng ngành (cấp L2).
+
+industry\<Ngành>\
+   industry_fs_long.csv     Gộp toàn ngành (long): thêm n_cong_ty (số CT có data),
+                            tong_gia_tri (tổng cộng dồn)
+   industry_FS_Q.csv        Bảng wide theo QUÝ (chỉ tiêu x kỳ)
+   industry_FS_Y.csv        Bảng wide theo NĂM
+   industry_SoCty_Q.csv     Độ phủ theo quý (SỐ công ty có data mỗi ô, không phải bình quân)
+   industry_SoCty_Y.csv     Độ phủ theo năm
+
+LƯU Ý: trước khi so sánh chuỗi thời gian giữa các ngành, xem industry_SoCty_*
+để biết số công ty đóng góp mỗi kỳ (tránh đứt gãy do thiếu mã).
+
+Để mở 1 mã trong Excel (master quá lớn để mở trực tiếp):
+   python slice_for_excel.py --ticker HCM     -> output\excel\HCM_Q.xlsx
+
+
+5. CÀI ĐẶT
+------------------------------------------------------------------------
+   pip install openpyxl pandas
+Cần Python 3.x.
+
+
+6. VAI TRÒ TỪNG SCRIPT
+------------------------------------------------------------------------
+   run_pipeline.py        Điều phối toàn bộ pipeline (có cache)
+   unpivot_fiinprox.py    LÕI: đọc Excel FiinProX, tự dò header/metadata, wide->long
+   aggregate_industry.py  Gộp dồn theo (freq, statement, metric, period) -> toàn ngành
+   import_manual.py       Đọc & merge dữ liệu nhập tay từ manual_input\
+   export_template.py     Tạo template wide để nhập tay
+   slice_for_excel.py     Cắt 1 mã ra .xlsx cho dễ xem
+   update_ticker.py       Cập nhật RIÊNG 1 mã sau khi sửa file gốc (xem mục 8)
+   Pipeline_CapNhat.bat   Wrapper Windows (set UTF-8, gọi run_pipeline.py)
+
+
+8. SỬA 1 MÃ MÀ KHÔNG CHẠY LẠI CẢ PIPELINE
+------------------------------------------------------------------------
+Khi đã sửa số liệu trong file gốc FiinProX của 1 công ty (vd sai đơn vị):
+   python update_ticker.py "HD Securities"
+
+Nó chỉ đọc lại file của mã đó, vá vào: master, by_nganh, và gộp ngành
+(industry\) bằng cách CỘNG/TRỪ phần đóng góp của mã — không đụng các mã khác,
+chạy vài giây. Tên mã ghi đúng như trong dữ liệu (mã có dấu cách để trong ").
+
+Mẹo tìm số bất thường: trong industry_FS_*.csv, dò ô lớn đột biến so với lịch
+sử cùng dòng (thường là sai đơn vị, lệch ~1000x). Sửa ở file gốc rồi update_ticker.
+
+
+7. LỖI THƯỜNG GẶP
+------------------------------------------------------------------------
+- Excel báo file đang mở khi ghi output -> đóng Excel rồi chạy lại.
+- Thiếu mã trong bảng ngành -> đặt default_nganh ở config.csv, hoặc --refresh-icb.
+- Đừng xoá thư mục ẩn output\.cache\ (giữ tốc độ); muốn xử lý lại dùng --no-cache.
+- template_skeleton.csv (tự tạo lần chạy đầu) = khung 1090 chỉ tiêu chuẩn, dùng tham
+  chiếu khi nhập tay; không cần sửa.
+========================================================================
+
+
+=== CAP NHAT 14/09/2026 - GOP VAO HUB ===
+Thu muc doi sang `D:\bctc\fiinprox-unpivot` (cum BCTC). Gop 4 nguon: `python D:\bctc\bctc_normalize.py <ma>` (Ty VND x 1e9 -> VND).
+
+=== 14/09/2026 - VI SAO DU LIEU MOT CONG TY "THIEU" O KY MOI NHAT (vu VCBS) VA CACH TRANH ===
+Nguyen nhan: file FiinProX la xuat TAY tung cong ty; da so xuat 21/07/2026 (3 tuan sau khi het quy 2).
+Luc do FiinProX da co BS/IS/CF quy 2 nhung CHUA nap thuyet minh va phan ngoai bang CDKT
+(tai san luu ky VSD, tien gui NDT...) cua nhung cong ty cong bo muon -> VCBS (+ Alpha, LPS, PNSC,
+Viet Securities) vao master voi NOTE quy 2 = 0 dong, BS thieu 45 dong. Pipeline khong lam mat gi,
+no chi nhan dung nhung gi co trong file, va truoc day khong ai canh bao.
+Xu ly:
+  1. run_pipeline.py gio TU KIEM TRA sau moi lan chay: so so chi tieu co gia tri o ky quy moi nhat
+     voi ky truoc cua cung cong ty; thieu >10% hoac NOTE trong -> in canh bao + ghi
+     output\_can_xuat_lai.csv (ticker, ky, thieu gi, ngay xuat, file). Chi can mo file nay.
+  2. Quy tac xuat file: xuat lai FiinProX SAU ngay 60 ke tu cuoi quy (Q1 -> sau 30/05, Q2 -> sau 29/08,
+     Q3 -> sau 29/11, Q4 -> sau 01/03) thi thuyet minh moi day du. Xuat som van duoc nhung phai
+     xuat lai sau; pipeline danh dau cot xuat_som = x.
+  3. Xuat lai chi nhung cong ty trong _can_xuat_lai.csv, tha vao D:\Database\Chung khoan, chay
+     Pipeline_CapNhat.bat; ban cu tu bi xoa (latest_files), cache chi parse file moi.
+
+=== 15/09/2026 - LOI DON VI NGUON (nhan nham 1.000) ===
+Vu JB Securities Q1/2025: thuyet minh "Trai phieu" FVTPL = 429.780 ty thay vi 429,78 (gia hop ly cung ky 434 ty) -> Fixed income/IEA
+nganh nhay tu 0,42 len 1,14. Quet toan nganh thay ~350 o cung kieu (HD Securities GTGD Q1/2026, VDS/PSI tai san luu ky, Kafi CF...).
+run_pipeline.py nay co detect_unit_errors(): voi moi (ma, bao cao, dong) so gia tri ky voi trung vi 2 ky lien ke;
+  - ty le 500..5000 lan, HOAC >=100 lan kem gia tri phi ly (>=100.000 ty; dong GTGD >=5 trieu ty) -> tu chia 1.000 (auto_/1000);
+  - >= 30 lan nhung ngoai dai tren -> chi liet ke (action review). Xem output\_loi_don_vi.csv sau moi lan chay.

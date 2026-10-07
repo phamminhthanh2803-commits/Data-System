@@ -1,0 +1,168 @@
+========================================================================
+  HƯỚNG DẪN — FS EXTRACTOR
+  Kéo BCTC + Vốn hoá/Định giá + Thanh khoản cổ phiếu VN (vnstock/VCI)
+========================================================================
+
+1. TOOL LÀM GÌ
+------------------------------------------------------------------------
+Kéo dữ liệu chứng khoán VN TOÀN BỘ LỊCH SỬ từ nguồn vnstock/VCI (vượt giới
+hạn 4 kỳ của bản community), xuất CSV long-format có gắn phân ngành ICB 4 cấp.
+Gồm 3 pipeline độc lập:
+   bctc  — 5 báo cáo: KQKD, CĐKT, LCTT, chỉ số, thuyết minh (theo quý/năm)
+   cap   — Vốn hoá + P/E + P/B theo ngày, và P/E P/B gộp theo ngành
+   liq   — Thanh khoản: OHLC + volume 7 chỉ số thị trường (và từng mã nếu cần)
+
+QUAN TRỌNG: 1 entry point duy nhất là fsx.py (gọi 3 lệnh con bctc/cap/liq).
+Các tên file cũ fs_pull.py / cap_pull.py / liq_pull.py KHÔNG còn nữa.
+
+
+2. CÁCH CHẠY
+------------------------------------------------------------------------
+CÁCH A — Menu (khuyên dùng):
+   1. Double-click  run.bat  -> chọn 1 (BCTC) / 2 (Vốn hoá) / 3 (Thanh khoản)
+                                / 4 (Tra cứu ngành)
+   2. Gõ TÊN NGÀNH (không cần dấu, vd "ngan hang") hoặc Enter để dùng tickers.txt
+   3. Nhập khoảng kỳ/ngày (Enter = full lịch sử)
+   -> KHÔNG cần sửa tickers.txt nếu kéo theo ngành.
+
+CÁCH B — Lệnh trực tiếp (đặt encoding trước trên Windows):
+   set PYTHONIOENCODING=utf-8     (PowerShell: $env:PYTHONIOENCODING='utf-8')
+
+   # Xem danh sách ngành ICB (tên ngành + số mã); có từ khóa thì kèm danh sách mã
+   python fsx.py nganh
+   python fsx.py nganh "van tai"
+   # Kéo theo NGÀNH (không cần gõ dấu, nhiều ngành cách nhau dấu phẩy)
+   python fsx.py bctc --nganh "Ngân hàng" --period quarter --from 2020-Q1
+   python fsx.py cap --nganh "van tai thuy" --san HOSE --from 2020-01-01
+   # BCTC theo quý (5 báo cáo) — nhập mã trực tiếp
+   python fsx.py bctc HAH GMD VSC --period quarter --from 2020-Q1 --to 2024-Q4 --out output
+   # BCTC theo năm
+   python fsx.py bctc HPG HSG --period year --from 2019 --to 2024 --out output
+   # Đọc mã từ file
+   python fsx.py bctc --file tickers.txt --period quarter --out output
+   # Vốn hoá + P/E + P/B theo ngày
+   python fsx.py cap --file tickers.txt --from 2020-01-01 --to 2024-12-31 --out output_cap
+   # Thanh khoản 7 chỉ số (không cần tickers.txt)
+   python fsx.py liq --from 2020-01-01 --out output_liq
+
+
+3. INPUT / THAM SỐ
+------------------------------------------------------------------------
+Chọn mã theo 3 cách (cộng dồn được, tự khử trùng lặp):
+   - gõ trực tiếp:  python fsx.py bctc HAH GMD ...
+   - tickers.txt  — mỗi dòng 1 mã (tự viết hoa), qua --file tickers.txt
+   - --nganh      — tên/từ khóa ngành ICB, KHÔNG cần dấu ("ngan hang" = "Ngân hàng"),
+                    nhiều ngành cách nhau dấu phẩy; khớp cả 4 cấp ICB.
+                    Không nhớ tên ngành? Chạy: python fsx.py nganh
+
+   --san      lọc sàn khi dùng --nganh, vd HOSE,HNX (mặc định cả HOSE,HNX,UPCOM)
+   --refresh-nganh  kéo lại danh sách mã+ngành (bình thường cache 7 ngày ở nganh_cache.csv)
+   --period   quarter | year         (chỉ bctc; mặc định quarter)
+   --from/--to  kỳ (2020-Q1 / 2020) cho bctc; ngày (2020-01-01) cho cap/liq
+   --file     đường dẫn danh sách mã
+   --out      thư mục xuất (mặc định output / output_cap / output_liq)
+   --sleep    nghỉ giữa các mã (giây, mặc định 1.0) — CHỈ dùng ở chế độ tuần tự
+   --workers  số luồng song song (mặc định 6 cho cả bctc/cap/liq).
+              --workers 10  chạy nhanh hơn ~20% nữa; --workers 1 quay về chế độ
+              tuần tự cũ có pacer (chậm 3-4 lần, chỉ dùng khi nghi bị chặn)
+   --limit    số kỳ tối đa (mặc định 500 = full lịch sử)
+   --no-index liq: bỏ 7 chỉ số, chỉ kéo từng mã
+
+TỐC ĐỘ (đo 2026-09-08, sau khi bật chạy SONG SONG mặc định 6 luồng):
+   bctc  20 mã / 2 phút 40 (~7,5 mã/phút)   — trước đây ~2,2 mã/phút
+   cap    5 mã / 34 giây  (~8,8 mã/phút)    — trước đây ~2,9 mã/phút
+Ngành to (vd "Vận tải" L3 = 133 mã) kéo bctc nay ~18 phút thay vì ~50 phút.
+Nút thắt còn lại là ĐỘ TRỄ SERVER VCI (~2,5 giây/request), không phải rate-limit:
+giới hạn 20 req/phút là do thư viện vnai đếm ở PHÍA MÁY MÌNH, và tool đã đi
+đường không bị đếm (xem mục 6).
+
+
+4. OUTPUT (long-format, UTF-8-sig)
+------------------------------------------------------------------------
+output\ (bctc) — 5 file: income_statement, balance_sheet, cash_flow, ratio, note .csv
+   Cột: ticker, ten_cong_ty, nganh_L1..L4, item, item_en, item_id, period, value
+   (note tự nhận template: DN thường / ngân hàng / chứng khoán / bảo hiểm)
+
+output_cap\ (cap):
+   market_cap_daily.csv   giá, vốn hoá, LNST TTM, VCSH, pe_daily/pe_vci, pb_daily/pb_vci theo ngày
+   industry_valuation.csv P/E P/B GỘP theo ngành = Σ(vốn hoá)/Σ(LNST hoặc VCSH) — không phải bình quân tỷ số
+   snapshot.csv           ảnh chụp hiện tại mỗi mã (giá, vốn hoá, room, P/E, P/B, ROE)
+
+output_liq\ (liq):
+   indices.csv     7 chỉ số: VNINDEX, VN30, VNMID, VNSML, HNXINDEX, HNX30, UPCOMINDEX
+   liquidity.csv   nếu truyền mã: OHLC + volume + gtgd_ty từng mã
+
+
+5. CÀI ĐẶT
+------------------------------------------------------------------------
+   pip install vnstock pandas
+Cần Python 3.x, Internet, set PYTHONIOENCODING=utf-8 (run.bat tự đặt).
+
+
+6. LƯU Ý / LỖI THƯỜNG GẶP
+------------------------------------------------------------------------
+- Rate-limit: giới hạn 20 req/phút là của thư viện vnai (đếm ở máy mình), KHÔNG
+  phải của server VCI. Tool đi đường KHÔNG bị đếm nên chạy song song thoải mái:
+    * bctc dùng Finance._get_report / _get_ratio_dict (hàm nội bộ, vốn không bị bọc)
+    * cap/liq gọi Company.ratio_summary / overview / Quote.history qua C.unwrap()
+      = lấy hàm gốc ở __wrapped__, bỏ lớp decorator @optimize_execution của vnai
+  Đã test: 40 request liên tục không pacer, 0 lỗi; 6-10 luồng, 0 lỗi.
+  Nếu VCI đổi ý và bắt đầu chặn thật -> chạy lại với --workers 1 (pacer + retry
+  vẫn còn nguyên trong code, in "[pacer] ..." / "[retry] ...").
+- UnicodeEncodeError: quên set PYTHONIOENCODING=utf-8 -> chạy qua run.bat.
+- "LOI <mã>": mã sai/không có data -> bỏ mã đó, các mã khác vẫn chạy.
+- ĐÃ SỬA 2026-09-08: VCI trả overview() có CỘT TRÙNG TÊN 'issue_share' (4 cột)
+  khiến pipeline cap chết toàn bộ mã với lỗi "truth value of a Series is
+  ambiguous". Nay lấy qua _first_scalar() nên không phụ thuộc số cột trùng.
+- Ghi CSV bị từ chối: file đang mở trong Excel -> đóng rồi chạy lại.
+- RỦI RO sau "pip install vnstock -U": bản mới có thể đổi tên hàm nội bộ
+  (_get_report,...) -> có thể phải sửa fsx.py / common.py.
+
+CẢNH BÁO PHƯƠNG PHÁP: vốn hoá = giá điều chỉnh x số CP HIỆN TẠI -> P/E, P/B
+quá khứ có thể lệch nếu trong kỳ có phát hành/pha loãng. Đọc NHAT-KY-LAM-VIEC.md.
+
+
+7. CẤU TRÚC FILE
+------------------------------------------------------------------------
+   fsx.py               Entry point (4 lệnh con: bctc / cap / liq / nganh)
+   common.py            Dùng chung: rate-limit, nạp mã/ngành, chọn theo ngành, ghi CSV
+   run.bat              Menu nhanh
+   tickers.txt          Danh sách mã (chỉ cần khi KHÔNG kéo theo ngành)
+   nganh_cache.csv      Cache danh sách mã + sàn + ngành ICB (tự tạo, hạn 7 ngày)
+   DANH-SACH-NGANH.txt  Sổ tay tra cứu: cú pháp --nganh + cây ngành ICB 4 cấp đầy đủ
+   NHAT-KY-LAM-VIEC.md  Nhật ký kỹ thuật (lý do công thức + giới hạn) — GIỮ cho bảo trì
+   output* \            Thư mục kết quả
+========================================================================
+
+================================================================================
+GHI CSV: GOP THAY VI GHI DE  (sua 08/09/2026)
+================================================================================
+Truoc day moi lan chay la GHI DE ca file. Keo bo sung 1 ma la mat sach cac ma da
+keo truoc do — ngay 08/09/2026 da mat ban dump toan thi truong 1,16 GB vi chay
+`fsx.py bctc BVB`, va KHONG khoi phuc duoc (khong co shadow copy / restore point).
+
+Tu nay mac dinh la GOP:
+  - Doc file cu theo chunk (khong nap ca GB vao RAM), bo nhung dong co cung khoa
+    voi du lieu vua keo, giu nguyen phan con lai, roi noi du lieu moi vao.
+  - Khoa: bctc = (ticker, period) | market_cap_daily, liquidity = (ticker, date)
+    | snapshot = (ticker). Nghia la keo lai 1 ma chi thay the dung cac ky no lay
+    ve, cac ky cu khong bi dung toi.
+  - Truoc khi thay the, ban hien tai duoc copy vao  <out>/_archive/<ten>.<thoi diem>
+    Giu ARCHIVE_KEEP ban gan nhat (mac dinh 1, sua trong common.py). Bo qua archive
+    neu o dia con duoi 15 GB trong.
+
+Muon quay lai hanh vi cu (lam moi hoan toan) thi them  --overwrite
+    python fsx.py bctc --file tickers.txt --overwrite
+
+Dong in "moi keo N dong" la so dong VUA KEO, khong phai tong so dong trong file.
+Dong "giu X dong cu + Y dong moi" moi la ket qua gop.
+
+LUU Y: file goc cua VCI co san dong trung item_id (mot item_id dung cho ca dong tong
+tren bang can doi lan dong thuyet minh ben duoi, vi du
+deposits_and_loans_from_other_credit_institutions o VCB co 2 gia tri). Day la dac
+diem cua nguon, khong phai loi gop — khi tong hop phai drop_duplicates
+(ticker, period, item_id) keep="first" thi moi lay dung dong tong.
+
+
+=== CAP NHAT 14/09/2026 - GOP VAO HUB ===
+Thu muc doi sang `D:\bctc\fs-extractor` (cum BCTC). Gop 4 nguon ve 1 schema: `python D:\bctc\bctc_normalize.py <ma>`.

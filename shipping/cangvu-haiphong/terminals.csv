@@ -1,0 +1,61 @@
+terminal,group,ticker,kind,note
+HICT,Lach Huyen,SGP/SNP,container,Tan Cang Hai Phong International Container Terminal (ben 1-2 Lach Huyen)
+LACH HUYEN 1,Lach Huyen,SGP/SNP,container,ben so 1 Lach Huyen (HICT)
+LACH HUYEN 2,Lach Huyen,SGP/SNP,container,ben so 2 Lach Huyen (HICT)
+HHIT,Lach Huyen,Hateco,container,Hateco Hai Phong International Terminal (ben 5-6 Lach Huyen)
+HTIT,Cang Hai Phong,PHP,container,Cang container quoc te TIL Hai Phong - ben 3-4 Lach Huyen (Cang Hai Phong lien doanh TIL/MSC)
+CHP-LH3,Cang Hai Phong,PHP,container,ben 3 Lach Huyen (Cang Hai Phong)
+CHP-LH4,Cang Hai Phong,PHP,container,ben 4 Lach Huyen (Cang Hai Phong)
+TAN VU,Cang Hai Phong,PHP,container,Chi nhanh Cang Tan Vu
+CHUA VE,Cang Hai Phong,PHP,container,Chi nhanh Cang Chua Ve
+HOANG DIEU,Cang Hai Phong,PHP,general,Chi nhanh Cang Hoang Dieu
+DINH VU,Cang Dinh Vu,DVP,container,CTCP Dau tu va Phat trien Cang Dinh Vu (PHP so huu 51%)
+NAM DINH VU,Gemadept,GMD,container,Cang Nam Dinh Vu (GMD)
+NAM HAI DINH VU,Viconship,VSC,container,Nam Hai Dinh Vu (VSC mua tu GMD 2023)
+NAM HAI,Nam Hai,GMD?,container,Cang Nam Hai cu - kiem tra lai chu so huu hien tai
+VIP GREEN PORT,Viconship,VSC,container,VIP Green Port (VGR)
+GREEN PORT,Viconship,VSC,container,Green Port (VSC)
+HAI AN,Hai An,HAH,container,Cang Hai An
+PTSC DINH VU,PTSC,PVS,general,Cang PTSC Dinh Vu
+EURO DINH VU,Euro Dinh Vu,,general,Cang Euro Dinh Vu (hang roi/tong hop)
+VIMC,VIMC Dinh Vu,MVN,general,Cang VIMC Dinh Vu
+MPC PORT,MPC Port,,general,Cang MPC (Dinh Vu)
+TAN CANG 189,Tan Cang 189,SNP,container,Cang Tan Cang 189
+CANG 128,Cang 128,,general,Cang 128 Hai quan
+DOAN XA,Doan Xa,DXP,general,Cang Doan Xa
+VAT CACH,Vat Cach,,general,Cang Vat Cach (song)
+KHU NEO VẬT CÁCH,Vat Cach,,anchorage,khu neo dau Vat Cach
+NAM NINH,Nam Ninh,,general,Cang Nam Ninh
+VIET NHAT,Viet Nhat,,general,Cang Viet Nhat
+DAP,DAP Dinh Vu,DDV,general,Cang DAP Dinh Vu (phan bon)
+FGG,FGG,,general,Cang FGG (xi mang/vat lieu)
+K99,K99,,general,Cang K99
+19 - 9,19-9,,petro,Cang xang dau 19-9
+PETEC,Petec,,petro,Kho xang dau Petec
+MIPEC,Mipec,,petro,Cang xang dau Mipec
+HAI LINH,Hai Linh,,petro,Kho xang dau Hai Linh
+THUONG LY,Thuong Ly,,petro,Cang xang dau Thuong Ly (Petrolimex)
+KHU NEO THƯỢNG LÝ,Thuong Ly,,anchorage,khu neo Thuong Ly
+XANG DAU NAM DINH VU,Nam Dinh Vu,,petro,Cang xang dau Nam Dinh Vu
+DAI HAI,Dai Hai,,gas,Kho gas Dai Hai
+THANG LONG GAS,Thang Long Gas,,gas,Kho gas Thang Long
+BCCD KHÍ THĂNG LONG,Thang Long Gas,,gas,ben cap dau khi Thang Long
+HON DAU,Hon Dau,,anchorage,khu neo Hon Dau (vung ngoai)
+BEN GOT,Ben Got,,anchorage,khu neo Ben Got
+BEN LAM,Ben Lam,,anchorage,khu neo Ben Lam
+TU LONG,Tu Long,,anchorage,khu neo Tu Long
+BACH DANG,Bach Dang,,anchorage,khu neo song Bach Dang
+LAN HA,Lan Ha,,anchorage,khu neo Lan Ha
+HA LONG,Ha Long,,anchorage,khu neo Ha Long
+CANG CA HA LONG,Cang ca Ha Long,,fishing,Cang ca Ha Long
+THUY SAN II,Thuy san II,,fishing,Cang Thuy san II
+DAMEN SC,Damen Song Cam,,shipyard,Nha may dong tau Damen Song Cam
+DT PHA RUNG,Dong tau Pha Rung,,shipyard,Nha may dong tau Pha Rung
+DT BACH DANG,Dong tau Bach Dang,,shipyard,Nha may dong tau Bach Dang
+DT NAM TRIEU,Dong tau Nam Trieu,,shipyard,Nha may dong tau Nam Trieu
+DT BINH AN,Dong tau Binh An,,shipyard,Nha may dong tau Binh An
+DT THAI BINH DUONG,Dong tau Thai Binh Duong,,shipyard,Nha may dong tau Thai Binh Duong
+DT SONG CAM,Dong tau Song Cam,,shipyard,Nha may dong tau Song Cam
+LE QUOC,Le Quoc,,general,ben Le Quoc
+TIEN MANH,Tien Manh,,general,ben Tien Manh
+NINH TIEP,Ninh Tiep,,general,ben Ninh Tiep

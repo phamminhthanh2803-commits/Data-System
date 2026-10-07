@@ -1,0 +1,1091 @@
+﻿statement_code,row_order,parent,metric
+BS,1,,TÀI SẢN NGẮN HẠN
+BS,2,TÀI SẢN NGẮN HẠN,Tài sản tài chính ngắn hạn
+BS,3,Tài sản tài chính ngắn hạn,Tiền và tương đương tiền
+BS,4,Tiền và tương đương tiền,Tiền
+BS,5,Tiền và tương đương tiền,Các khoản tương đương tiền
+BS,6,Tài sản tài chính ngắn hạn,Các tài sản tài chính ghi nhận thông qua lãi lỗ (FVTPL)
+BS,7,Tài sản tài chính ngắn hạn,Các khoản đầu tư nắm giữ đến ngày đáo hạn (HTM)
+BS,8,Tài sản tài chính ngắn hạn,Các khoản cho vay
+BS,9,Tài sản tài chính ngắn hạn,Các khoản tài chính sẵn sàng để bán (AFS)
+BS,10,Tài sản tài chính ngắn hạn,Dự phòng suy giảm giá trị tài sản tài chính và tài sản thế chấp
+BS,11,Tài sản tài chính ngắn hạn,Tổng các khoản phải thu
+BS,12,Tổng các khoản phải thu,Các khoản phải thu (từ 2016)
+BS,13,Tổng các khoản phải thu,Phải thu bán các tài sản tài chính
+BS,14,Tổng các khoản phải thu,"Phải thu và dự thu cổ tức, tiền lãi các tài sản tài chính"
+BS,15,"Phải thu và dự thu cổ tức, tiền lãi các tài sản tài chính","Phải thu cổ tức, tiền lãi đến ngày nhận"
+BS,16,"Phải thu cổ tức, tiền lãi đến ngày nhận","Trong đó : phải thu khó đòi về cổ tức , tiền lãi đến ngày nhận nhưng chưa nhận được"
+BS,17,"Phải thu và dự thu cổ tức, tiền lãi các tài sản tài chính","Dự thu cổ tức , tiền lãi chưa đến ngày nhận"
+BS,18,Tài sản tài chính ngắn hạn,Phải thu khách hàng (Trước năm 2016)
+BS,19,Tài sản tài chính ngắn hạn,Thuế giá trị gia tăng được khấu trừ  (Trước năm 2016)
+BS,20,Tài sản tài chính ngắn hạn,Trả trước người bán
+BS,21,Tài sản tài chính ngắn hạn,Phải thu các dịch vụ CTCK cung cấp
+BS,22,Tài sản tài chính ngắn hạn,Phải thu nội bộ
+BS,23,Tài sản tài chính ngắn hạn,Phải thu về lỗi giao dịch CK
+BS,24,Tài sản tài chính ngắn hạn,Phải thu về hoạt động giao dịch chứng khoán (Trước năm 2016)
+BS,25,Tài sản tài chính ngắn hạn,Phải thu về XDCB (Trước năm 2016)
+BS,26,Tài sản tài chính ngắn hạn,Phải thu về cho vay ngắn hạn (Trước năm 2016)
+BS,27,Tài sản tài chính ngắn hạn,Phải thu khác
+BS,28,Tài sản tài chính ngắn hạn,Dự phòng suy giảm giá trị các khoản phải thu
+BS,29,Tài sản tài chính ngắn hạn,Dự phòng nợ khó đòi (Trước năm 2016)
+BS,30,Tài sản tài chính ngắn hạn,Tài sản thiếu chờ xử lý (Trước năm 2016)
+BS,31,Tài sản tài chính ngắn hạn,"Hàng tồn kho, ròng (Trước năm 2016)"
+BS,32,"Hàng tồn kho, ròng (Trước năm 2016)",Hàng tồn kho (Trước năm 2016)
+BS,33,"Hàng tồn kho, ròng (Trước năm 2016)",Dự phòng giảm giá HTK (Trước năm 2016)
+BS,34,TÀI SẢN NGẮN HẠN,Tài sản ngắn hạn khác
+BS,35,Tài sản ngắn hạn khác,Tạm ứng
+BS,36,Tài sản ngắn hạn khác,"Vật tư văn phòng, công cụ, dụng cụ"
+BS,37,Tài sản ngắn hạn khác,Chi phí trả trước ngắn hạn
+BS,38,Tài sản ngắn hạn khác,"Cầm cố, thế chấp, ký quý , ký cược ngắn hạn"
+BS,39,Tài sản ngắn hạn khác,Thuế giá trị gia tăng được khấu trừ
+BS,40,Tài sản ngắn hạn khác,Thuế và các khoản khác phải thu Nhà nước
+BS,41,Tài sản ngắn hạn khác,Tài sản ngắn hạn khác
+BS,42,Tài sản ngắn hạn khác,Giao dịch mua bán lại trái phiếu chính phủ
+BS,43,Tài sản ngắn hạn khác,Dự phòng suy giảm giá trị TSNH khác
+BS,44,,TÀI SẢN DÀI HẠN
+BS,45,TÀI SẢN DÀI HẠN,Tài sản tài chính dài hạn
+BS,46,Tài sản tài chính dài hạn,Phải thu dài hạn
+BS,47,Phải thu dài hạn,Phải thu khách hàng dài hạn
+BS,48,Phải thu dài hạn,Trả trước người bán dài hạn (Trước năm 2016)
+BS,49,Phải thu dài hạn,Vốn kinh doanh ở các đơn vị trực thuộc (Trước năm 2016)
+BS,50,Phải thu dài hạn,Phải thu nội bộ dài hạn (Trước năm 2016)
+BS,51,Phải thu dài hạn,Phải thu về cho vay dài hạn (Trước năm 2016)
+BS,52,Phải thu dài hạn,Phải thu dài hạn khác (Trước năm 2016)
+BS,53,Phải thu dài hạn,Dự phòng phải thu dài hạn (Trước năm 2016)
+BS,54,Tài sản tài chính dài hạn,Đầu tư dài hạn
+BS,55,Đầu tư dài hạn,Đầu tư vào các công ty con
+BS,56,Đầu tư dài hạn,Đầu tư vào các công ty liên kết
+BS,57,Đầu tư dài hạn,Đầu tư chứng khoán dài hạn
+BS,58,Đầu tư chứng khoán dài hạn,Chứng khoán sẵn sàng để bán
+BS,59,Đầu tư chứng khoán dài hạn,Đầu tư nắm giữ đến ngày đáo hạn
+BS,60,Đầu tư dài hạn,Đầu tư dài hạn khác
+BS,61,Tài sản tài chính dài hạn,Dự phòng giảm giá đầu tư dài hạn
+BS,62,TÀI SẢN DÀI HẠN,Tài sản cố định
+BS,63,Tài sản cố định,GTCL TSCĐ hữu hình
+BS,64,GTCL TSCĐ hữu hình,Nguyên giá TSCĐ hữu hình
+BS,65,GTCL TSCĐ hữu hình,Khấu hao lũy kế TSCĐ hữu hình
+BS,66,GTCL TSCĐ hữu hình,Đánh giá TSCĐHH theo giá trị hợp lý
+BS,67,Tài sản cố định,GTCL Tài sản thuê tài chính
+BS,68,GTCL Tài sản thuê tài chính,Nguyên giá tài sản thuê tài chính
+BS,69,GTCL Tài sản thuê tài chính,Khấu hao lũy kế tài sản thuê tài chính
+BS,70,GTCL Tài sản thuê tài chính,Đánh giá TSCĐTTC theo giá trị hợp lý
+BS,71,Tài sản cố định,GTCL tài sản cố định vô hình
+BS,72,GTCL tài sản cố định vô hình,Nguyên giá TSCĐ vô hình
+BS,73,GTCL tài sản cố định vô hình,Khấu khao lũy kế TSCĐ vô hình
+BS,74,GTCL tài sản cố định vô hình,Đánh giá TSCĐVH theo giá trị hợp lý
+BS,75,TÀI SẢN DÀI HẠN,Xây dựng cơ bản dở dang (trước 2015)
+BS,76,TÀI SẢN DÀI HẠN,Bất động sản đầu tư
+BS,77,Bất động sản đầu tư,Nguyên giá tài sản đầu tư
+BS,78,Bất động sản đầu tư,Khấu hao lũy kế tài sản đầu tư
+BS,79,Bất động sản đầu tư,Đánh giá BĐSĐT theo giá trị hợp lý
+BS,80,TÀI SẢN DÀI HẠN,Tài sản dở dang dài hạn
+BS,81,Tài sản dở dang dài hạn,"Chi phí sản xuất, kinh doanh dở dang dài hạn"
+BS,82,Tài sản dở dang dài hạn,Chi phí xây dựng cơ bản dở dang
+BS,83,TÀI SẢN DÀI HẠN,Tài sản dài hạn khác
+BS,84,Tài sản dài hạn khác,"Cầm cố, thế chấp, kỹ quỹ, Ký cược dài hạn"
+BS,85,Tài sản dài hạn khác,Chi phí trả trước dài hạn
+BS,86,Tài sản dài hạn khác,Tài sản thuế thu nhập hoãn lại
+BS,87,Tài sản dài hạn khác,"Thiết bị, vật tư, phụ tùng thay thế dài hạn"
+BS,88,Tài sản dài hạn khác,Tiền chi nộp Quỹ Hỗ trợ thanh toán
+BS,89,Tài sản dài hạn khác,Các tài sản dài hạn khác
+BS,90,Tài sản dài hạn khác,Lợi thế thương mại
+BS,91,TÀI SẢN DÀI HẠN,Dự phòng suy giảm giá trị tài sản dài hạn
+BS,92,,TỔNG CỘNG TÀI SẢN
+BS,93,,NỢ PHẢI TRẢ
+BS,94,NỢ PHẢI TRẢ,Nợ phải trả ngắn hạn
+BS,95,Nợ phải trả ngắn hạn,Vay và nợ thuê tài sản tài chính ngắn hạn
+BS,96,Vay và nợ thuê tài sản tài chính ngắn hạn,Vay ngắn hạn
+BS,97,Vay và nợ thuê tài sản tài chính ngắn hạn,Nợ thuê tài sản tài chính ngắn hạn
+BS,98,Nợ phải trả ngắn hạn,Vay tài sản tài chính ngắn hạn
+BS,99,Nợ phải trả ngắn hạn,Trái phiếu chuyển đổi ngắn hạn - Cấu phần nợ
+BS,100,Nợ phải trả ngắn hạn,Trái phiếu phát hành ngắn hạn
+BS,101,Nợ phải trả ngắn hạn,Vay Quỹ Hỗ trợ thanh toán
+BS,102,Nợ phải trả ngắn hạn,Phải trả hoạt động giao dịch chứng khoán
+BS,103,Nợ phải trả ngắn hạn,Phải trả về lỗi giao dịch các tài sản tài chính
+BS,104,Nợ phải trả ngắn hạn,Phải trả người bán ngắn hạn
+BS,105,Nợ phải trả ngắn hạn,Người mua trả tiền trước ngắn han
+BS,106,Nợ phải trả ngắn hạn,Thuế và các khoản phải nộp nhà nước
+BS,107,Nợ phải trả ngắn hạn,Phải trả người lao động
+BS,108,Nợ phải trả ngắn hạn,Các khoản trích nộp phúc lợi nhân viên
+BS,109,Nợ phải trả ngắn hạn,Chi phí phải trả ngắn hạn
+BS,110,Nợ phải trả ngắn hạn,Phải trả nội bộ ngắn hạn
+BS,111,Nợ phải trả ngắn hạn,Doanh thu chưa thực hiện ngắn hạn
+BS,112,Nợ phải trả ngắn hạn,"Nhận ký quỹ, ký cược ngắn hạn"
+BS,113,Nợ phải trả ngắn hạn,Phải trả về xây dựng cơ bản (Trước năm 2016)
+BS,114,Nợ phải trả ngắn hạn,"Phải trả cổ tức, gốc và lãi trái phiếu (Trước năm 2016)"
+BS,115,Nợ phải trả ngắn hạn,Phải trả tổ chức phát hành chứng khoán (Trước năm 2016)
+BS,116,Nợ phải trả ngắn hạn,"Các khoản phải trả, phải nộp khác ngắn hạn"
+BS,117,Nợ phải trả ngắn hạn,Dự phòng phải trả ngắn hạn
+BS,118,Nợ phải trả ngắn hạn,Quỹ khen thưởng phúc lợi
+BS,119,Nợ phải trả ngắn hạn,Quỹ bình ổn giá (Trước năm 2016)
+BS,120,Nợ phải trả ngắn hạn,Giao dịch mua bán lại trái phiếu Chính phủ
+BS,121,NỢ PHẢI TRẢ,Nợ phải trả dài hạn
+BS,122,Nợ phải trả dài hạn,Vay và nợ thuê tài sản tài chính dài hạn
+BS,123,Vay và nợ thuê tài sản tài chính dài hạn,Vay dài hạn
+BS,124,Vay và nợ thuê tài sản tài chính dài hạn,Nợ thuê tài chính dài hạn
+BS,125,Nợ phải trả dài hạn,Vay tài sản tài chính dài hạn
+BS,126,Nợ phải trả dài hạn,Trái phiếu chuyển đổi dài hạn - Cấu phần nợ
+BS,127,Nợ phải trả dài hạn,Trái phiếu phát hành dài hạn
+BS,128,Nợ phải trả dài hạn,Phải trả người bán dài hạn
+BS,129,Nợ phải trả dài hạn,Người mua trả tiền trước dài hạn
+BS,130,Nợ phải trả dài hạn,Chi phí phải trả dài hạn
+BS,131,Nợ phải trả dài hạn,Phải trả nội bộ dài hạn
+BS,132,Nợ phải trả dài hạn,Phải trả nội bộ về vốn kinh doanh (Trước năm 2016)
+BS,133,Nợ phải trả dài hạn,Doanh thu chưa thực hiên dài hạn
+BS,134,Nợ phải trả dài hạn,"Nhận ký quỹ, ký cược dài hạn"
+BS,135,Nợ phải trả dài hạn,Phải trả dài hạn khác
+BS,136,Nợ phải trả dài hạn,Cổ phiếu ưu đãi (Trước năm 2016)
+BS,137,Nợ phải trả dài hạn,Dự phòng trợ cấp thôi việc (Trước năm 2016)
+BS,138,Nợ phải trả dài hạn,Dự phòng phải trả dài hạn
+BS,139,Nợ phải trả dài hạn,Quỹ bảo vệ Nhà đầu tư
+BS,140,Nợ phải trả dài hạn,Thuế thu nhập hoãn lại phải trả
+BS,141,Nợ phải trả dài hạn,Quỹ phát triển khoa học công nghệ
+BS,142,,VỐN CHỦ SỞ HỮU
+BS,143,VỐN CHỦ SỞ HỮU,Vốn chủ sở hữu
+BS,144,Vốn chủ sở hữu,Vốn đầu tư của chủ sở hữu
+BS,145,Vốn đầu tư của chủ sở hữu,Vốn góp của chủ sở hữu
+BS,146,Vốn góp của chủ sở hữu,Cổ phiếu phổ thông có quyền biểu quyết
+BS,147,Vốn góp của chủ sở hữu,Cổ phiếu ưu đãi
+BS,148,Vốn đầu tư của chủ sở hữu,Thặng dư vốn cổ phần
+BS,149,Vốn đầu tư của chủ sở hữu,Quyền chọn chuyển đổi trái phiếu - Cấu phần vốn
+BS,150,Vốn đầu tư của chủ sở hữu,Vốn khác của chủ sở hữu
+BS,151,Vốn đầu tư của chủ sở hữu,Cổ phiếu quỹ
+BS,152,Vốn chủ sở hữu,Chênh lệch đánh giá lại tài sản theo giá trị hợp lý
+BS,153,Vốn chủ sở hữu,Chênh lệch tỷ giá hổi đoái
+BS,154,Vốn chủ sở hữu,Quỹ dự trữ bổ sung vốn điều lệ
+BS,155,Vốn chủ sở hữu,Quỹ đầu tư và phát triển (Trước năm 2016)
+BS,156,Vốn chủ sở hữu,Quỹ dự phòng tài chính và rủi ro nghiệp vụ
+BS,157,Vốn chủ sở hữu,Quỹ khác thuộc vốn chủ sỡ hữu
+BS,158,Vốn chủ sở hữu,Lợi nhuận chưa phân phối
+BS,159,Lợi nhuận chưa phân phối,Lợi nhuận đã thực hiện
+BS,160,Lợi nhuận đã thực hiện,LNST chưa phân phối lũy kế đến cuối kỳ trước
+BS,161,Lợi nhuận đã thực hiện,LNST chưa phân phối kỳ này
+BS,162,Lợi nhuận chưa phân phối,Lợi nhuận chưa thực hiện
+BS,163,Vốn chủ sở hữu,Lợi ích cổ đông không kiểm soát
+BS,164,VỐN CHỦ SỞ HỮU,LỢI ÍCH CỦA CỔ ĐÔNG KHÔNG KIỂM SOÁT (trước 2015)
+BS,165,,Nguồn kinh phí và quỹ khác
+BS,166,Nguồn kinh phí và quỹ khác,"Quỹ khen thưởng, phúc lợi (trước 2010)"
+BS,167,Nguồn kinh phí và quỹ khác,Vốn ngân sách nhà nước
+BS,168,Nguồn kinh phí và quỹ khác,Nguồn kinh phí đã hình thành TSCĐ
+BS,169,,TỔNG CỘNG NGUỒN VỐN
+BS,172,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Tài sản cố định thuê ngoài
+BS,173,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Chứng chỉ có giá nhận giữ hộ
+BS,174,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Tài sản nhận thế chấp
+BS,175,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Nợ khó đòi đã xử lý
+BS,176,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Ngoại tệ các loại
+BS,177,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Cổ phiếu đang lưu hành
+BS,178,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Cổ phiếu quỹ
+BS,179,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Tài sản tài chính niêm yết/đăng ký giao dịch tại VSD của CTCK
+BS,180,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch của CTCK
+BS,181,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Tài sản tài chính chờ về của CTCK
+BS,182,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Tài sản tài chính sửa lỗi giao dịch của CTCK
+BS,183,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Tài sản tài chính chưa lưu ký tại VSD của CTCK
+BS,184,TÀI SẢN CỦA CTCK VÀ TÀI SẢN QUẢN LÝ THEO CAM KẾT,Tài sản tài chính được hưởng quyền của CTCK
+BS,186,TÀI SẢN VÀ CÁC KHOẢN PHẢI TRẢ VỀ TÀI SẢN QUẢN LÝ CAM KẾT VỚI KHÁCH HÀNG,Tài sản tài chính niêm yết/đăng ký giao dịch tại VSD của NĐT
+BS,187,Tài sản tài chính niêm yết/đăng ký giao dịch tại VSD của NĐT,Tài sản tài chính giao dịch tự do chuyển nhượng
+BS,188,Tài sản tài chính niêm yết/đăng ký giao dịch tại VSD của NĐT,Tài sản tài chính hạn chế chuyển nhượng
+BS,189,Tài sản tài chính niêm yết/đăng ký giao dịch tại VSD của NĐT,Tài sản tài chính giao dịch cầm cố
+BS,190,Tài sản tài chính niêm yết/đăng ký giao dịch tại VSD của NĐT,"Tài sản tài chính phong tỏa, tạm giữ"
+BS,191,Tài sản tài chính niêm yết/đăng ký giao dịch tại VSD của NĐT,Tài sản tài chính chờ thanh toán
+BS,192,Tài sản tài chính niêm yết/đăng ký giao dịch tại VSD của NĐT,Tài sản tài chính chờ cho vay
+BS,193,TÀI SẢN VÀ CÁC KHOẢN PHẢI TRẢ VỀ TÀI SẢN QUẢN LÝ CAM KẾT VỚI KHÁCH HÀNG,Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch của NĐT
+BS,194,Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch của NĐT,"Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch, tự do chuyển nhượng"
+BS,195,Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch của NĐT,"Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch, hạn chế chuyển nhượng"
+BS,196,Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch của NĐT,"Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch, cầm cố"
+BS,197,Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch của NĐT,"Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch, phong tỏa, tạm giữ"
+BS,198,TÀI SẢN VÀ CÁC KHOẢN PHẢI TRẢ VỀ TÀI SẢN QUẢN LÝ CAM KẾT VỚI KHÁCH HÀNG,Tài sản tài chính chờ về của NĐT
+BS,199,TÀI SẢN VÀ CÁC KHOẢN PHẢI TRẢ VỀ TÀI SẢN QUẢN LÝ CAM KẾT VỚI KHÁCH HÀNG,Tài sản tài chính sửa lỗi giao dịch của NĐT
+BS,200,TÀI SẢN VÀ CÁC KHOẢN PHẢI TRẢ VỀ TÀI SẢN QUẢN LÝ CAM KẾT VỚI KHÁCH HÀNG,Tài sản tài chính chưa lưu ký tại VSD của NĐT
+BS,201,TÀI SẢN VÀ CÁC KHOẢN PHẢI TRẢ VỀ TÀI SẢN QUẢN LÝ CAM KẾT VỚI KHÁCH HÀNG,Tài sản tài chính được hưởng quyền của Nhà đầu tư
+BS,202,TÀI SẢN VÀ CÁC KHOẢN PHẢI TRẢ VỀ TÀI SẢN QUẢN LÝ CAM KẾT VỚI KHÁCH HÀNG,Tiền gửi của khách hàng
+BS,203,Tiền gửi của khách hàng,Tiền gửi của Nhà đầu tư về giao dịch chứng khoán
+BS,204,Tiền gửi của Nhà đầu tư về giao dịch chứng khoán,Tiền gửi của nhà đầu tư về giao dịch chứng khoán theo phương thức CTCK quản lý
+BS,205,Tiền gửi của Nhà đầu tư về giao dịch chứng khoán,Tiền của Nhà đầu tư về giao dịch chứng khoán theo phương thức Ngân hàng thương mại quản lý
+BS,206,Tiền gửi của khách hàng,Tiền gửi tổng hợp giao dịch chứng khoán cho khách hàng
+BS,207,Tiền gửi của khách hàng,Tiền gửi bù trừ và thanh toán giao dịch chứng khoán
+BS,208,Tiền gửi bù trừ và thanh toán giao dịch chứng khoán,Tiền gửi bù trừ và thanh toán giao dịch chứng khoán Nhà đầu tư trong nước
+BS,209,Tiền gửi bù trừ và thanh toán giao dịch chứng khoán,Tiền gửi bù trừ và thanh toán giao dịch chứng khoán Nhà đầu tư nước ngoài
+BS,210,Tiền gửi của khách hàng,Tiền gửi của Tổ chức phát hành chứng khoán
+BS,211,TÀI SẢN VÀ CÁC KHOẢN PHẢI TRẢ VỀ TÀI SẢN QUẢN LÝ CAM KẾT VỚI KHÁCH HÀNG,Phải trả Nhà đầu tư về tiền gửi giao dịch chứng khoán theo phương thức CTCK quản lý
+BS,212,Phải trả Nhà đầu tư về tiền gửi giao dịch chứng khoán theo phương thức CTCK quản lý,Phải trả Nhà đầu tư trong nước về tiền gửi giao dịch chứng khoán theo phương thức CTCK quản lý
+BS,213,Phải trả Nhà đầu tư về tiền gửi giao dịch chứng khoán theo phương thức CTCK quản lý,Phải trả Nhà đầu tư nước ngoài về tiền gửi giao dịch chứng khoán theo phương thức CTCK quản lý
+BS,214,TÀI SẢN VÀ CÁC KHOẢN PHẢI TRẢ VỀ TÀI SẢN QUẢN LÝ CAM KẾT VỚI KHÁCH HÀNG,Phải trả Tổ chức phát hành chứng khoán
+BS,215,TÀI SẢN VÀ CÁC KHOẢN PHẢI TRẢ VỀ TÀI SẢN QUẢN LÝ CAM KẾT VỚI KHÁCH HÀNG,Phải thu/phải trả của khách hàng về lỗi giao dịch các tài sản tài chính
+BS,216,TÀI SẢN VÀ CÁC KHOẢN PHẢI TRẢ VỀ TÀI SẢN QUẢN LÝ CAM KẾT VỚI KHÁCH HÀNG,Phải trả vay CTCK
+BS,217,TÀI SẢN VÀ CÁC KHOẢN PHẢI TRẢ VỀ TÀI SẢN QUẢN LÝ CAM KẾT VỚI KHÁCH HÀNG,"Phải trả cổ tức, gốc và lãi trái phiếu"
+IS,1,,DOANH THU HOẠT ĐỘNG
+IS,2,DOANH THU HOẠT ĐỘNG,Lãi từ các tài sản tài chính ghi nhận thông qua lãi/lỗ ( FVTPL)
+IS,3,Lãi từ các tài sản tài chính ghi nhận thông qua lãi/lỗ ( FVTPL),Lãi bán các tài sản tài chính FVTPL
+IS,4,Lãi từ các tài sản tài chính ghi nhận thông qua lãi/lỗ ( FVTPL),Chênh lệch tăng đánh giá lại các TSTC thông qua lãi/lỗ
+IS,5,Lãi từ các tài sản tài chính ghi nhận thông qua lãi/lỗ ( FVTPL),"Cổ tức, tiền lãi phát sinh từ tài sản tài chính FVTPL"
+IS,6,DOANH THU HOẠT ĐỘNG,Lãi từ các khoản đầu tư nắm giữ đến ngày đáo hạn
+IS,7,DOANH THU HOẠT ĐỘNG,Lãi từ các khoản cho vay và phải thu
+IS,8,DOANH THU HOẠT ĐỘNG,Lãi từ các tài sản tài chính sẵn sàng để bán
+IS,9,DOANH THU HOẠT ĐỘNG,Lãi từ các công cụ phát sinh phòng ngừa rủi ro
+IS,10,DOANH THU HOẠT ĐỘNG,Doanh thu nghiệp vụ môi giới chứng khoán
+IS,11,DOANH THU HOẠT ĐỘNG,Doanh thu nghiệp vụ bảo lãnh phát hành chứng khoán
+IS,12,DOANH THU HOẠT ĐỘNG,Tiền gửi của NĐT về giao dịch chứng khoán
+IS,13,DOANH THU HOẠT ĐỘNG,Doanh thu nghiệp vụ tư vấn đầu tư chứng khoán
+IS,14,DOANH THU HOẠT ĐỘNG,"Doanh thu hoạt động ủy thác, đấu giá (Trước năm 2016)"
+IS,15,DOANH THU HOẠT ĐỘNG,Doanh thu lưu ký chứng khoán
+IS,16,DOANH THU HOẠT ĐỘNG,"Doanh thu hoạt động đầu tư chứng khoán, góp vốn (Trước năm 2016)"
+IS,17,DOANH THU HOẠT ĐỘNG,Thu cho thuê sử dụng tài sản (Trước năm 2016)
+IS,18,DOANH THU HOẠT ĐỘNG,Doanh thu hoạt động tư vấn tài chính
+IS,19,DOANH THU HOẠT ĐỘNG,Doanh thu khác
+IS,20,,Các khoản giảm trừ doanh thu
+IS,21,,Doanh thu thuần về hoạt động kinh doanh
+IS,23,CHI PHÍ HOẠT ĐỘNG,Lỗ các tài sản tài chính ghi nhận thông qua lãi lỗ (FVTPL)
+IS,24,Lỗ các tài sản tài chính ghi nhận thông qua lãi lỗ (FVTPL),Lỗ bán các tài sản tài chính
+IS,25,Lỗ các tài sản tài chính ghi nhận thông qua lãi lỗ (FVTPL),Chênh lệch giảm đánh giá lại các TSTC thông qua lãi/lỗ
+IS,26,Lỗ các tài sản tài chính ghi nhận thông qua lãi lỗ (FVTPL),Chi phí giao dịch mua các tài sản tài chính FVTPL
+IS,27,CHI PHÍ HOẠT ĐỘNG,Lỗ các khoản đầu tư nắm giữ đến ngày đáo hạn (HTM)
+IS,28,CHI PHÍ HOẠT ĐỘNG,"Chi phí lãi vay, lỗ từ các khoản cho vay và phải thu (Trước năm 2016)"
+IS,29,CHI PHÍ HOẠT ĐỘNG,Lỗ và ghi nhận chênh lệch đánh giá theo giá trị hợp lý tài sản tài chính sẵn sàng để bán (AFS) khi phân loại lại
+IS,30,CHI PHÍ HOẠT ĐỘNG,"CP dự phòng TSTC, xử lý tổn thất các khoản phải thu khó đòi là lỗ suy giảm TSTC và CP đi vay"
+IS,31,CHI PHÍ HOẠT ĐỘNG,Lỗ từ các tài sản tài chính phái sinh phòng ngừa rủi ro
+IS,32,CHI PHÍ HOẠT ĐỘNG,Chi phí hoạt động tự doanh
+IS,33,CHI PHÍ HOẠT ĐỘNG,Chi phí nghiệp vụ môi giới chứng khoán
+IS,34,CHI PHÍ HOẠT ĐỘNG,"Chi phí nghiệp vụ bảo lãnh, đại lý phát hành chứng khoán"
+IS,35,CHI PHÍ HOẠT ĐỘNG,Chi phí nghiệp vụ tư vấn đầu tư chứng khoán
+IS,36,CHI PHÍ HOẠT ĐỘNG,"Chí phí hoạt động đấu giá, ủy thác"
+IS,37,CHI PHÍ HOẠT ĐỘNG,Chi phí nghiệp vụ lưu ký chứng khoán
+IS,38,CHI PHÍ HOẠT ĐỘNG,Chi phí hoạt động tư vấn tài chính
+IS,39,CHI PHÍ HOẠT ĐỘNG,Chi phí các dịch vụ khác
+IS,40,Chi phí các dịch vụ khác,"Chi phí sửa lỗi giao dịch chứng khoán, lỗi khác"
+IS,41,,Chi phí hoạt động kinh doanh
+IS,42,,LỢI NHUẬN GỘP
+IS,44,DOANH THU HOẠT ĐỘNG TÀI CHÍNH,Chênh lệch lãi tỷ giá hối đoái đã và chưa thực hiện
+IS,45,DOANH THU HOẠT ĐỘNG TÀI CHÍNH,"Doanh thu, dự thu cổ tức, lãi tiền gửi không cố định phát sinh trong kỳ"
+IS,46,DOANH THU HOẠT ĐỘNG TÀI CHÍNH,"Lãi bán, thanh lý các khoản đầu tư vào công ty con, liên kết, liên doanh"
+IS,47,DOANH THU HOẠT ĐỘNG TÀI CHÍNH,Doanh thu khác về đầu tư
+IS,48,,Doanh thu hoạt động tài chính
+IS,50,CHI PHÍ TÀI CHÍNH,Chênh lệch lỗ tỷ giá hối đoái đã và chưa thực hiện
+IS,51,CHI PHÍ TÀI CHÍNH,Chi phí lãi vay
+IS,52,CHI PHÍ TÀI CHÍNH,"Lỗ bán, thanh lý các khoản đầu tư vào công ty con, liên kết, liên doanh"
+IS,53,CHI PHÍ TÀI CHÍNH,Chi phí dự phòng suy giảm giá trị các khoản đầu tư tài chính dài hạn
+IS,54,CHI PHÍ TÀI CHÍNH,Chi phí đầu tư khác
+IS,55,CHI PHÍ TÀI CHÍNH,"Lãi/lỗ từ công ty liên doanh, liên kết"
+IS,56,CHI PHÍ TÀI CHÍNH,Chi phí tài chính
+IS,57,,CHI PHÍ BÁN HÀNG
+IS,58,,CHI PHÍ QUẢN LÝ CÔNG TY CHỨNG KHOÁN
+IS,59,,KẾT QUẢ HOẠT ĐỘNG
+IS,61,THU NHẬP KHÁC VÀ CHI PHÍ KHÁC,Thu nhập khác
+IS,62,THU NHẬP KHÁC VÀ CHI PHÍ KHÁC,Chi phí khác
+IS,63,,Thu nhập khác ròng
+IS,65,,TỔNG LỢI NHUẬN KẾ TOÁN TRƯỚC THUẾ
+IS,66,TỔNG LỢI NHUẬN KẾ TOÁN TRƯỚC THUẾ,Lợi nhuận đã thực hiện
+IS,67,TỔNG LỢI NHUẬN KẾ TOÁN TRƯỚC THUẾ,Lợi nhuận chưa thực hiện
+IS,68,,CHI PHÍ THUẾ THU NHẬP DOANH NGHIỆP
+IS,69,CHI PHÍ THUẾ THU NHẬP DOANH NGHIỆP,Chi phí thuế thu nhập hiện hành
+IS,70,CHI PHÍ THUẾ THU NHẬP DOANH NGHIỆP,Chi phí thuế thu nhập hoãn lại
+IS,71,,LỢI NHUẬN KẾ TOÁN SAU THUẾ
+IS,72,LỢI NHUẬN KẾ TOÁN SAU THUẾ,Lợi nhuận sau thuế phân bổ cho chủ sở hữu
+IS,73,LỢI NHUẬN KẾ TOÁN SAU THUẾ,"LNST trích các Quỹ dự trữ điều lệ, Quỹ Dự phòng tài chính và rủi ro nghề nghiệp"
+IS,74,LỢI NHUẬN KẾ TOÁN SAU THUẾ,Lợi nhuận thuần phân bổ cho lợi ích của cổ đông không kiểm soát
+IS,75,,THU NHẬP (LỖ) TOÀN DIỆN KHÁC SAU THUẾ
+IS,76,THU NHẬP (LỖ) TOÀN DIỆN KHÁC SAU THUẾ,Lãi/(lỗ) từ đánh giá lại các các khoản đầu tư giữ đến ngày đáo hạn
+IS,77,THU NHẬP (LỖ) TOÀN DIỆN KHÁC SAU THUẾ,Lãi/(lỗ) từ đánh giá lại các tài sản tài chính sẵn sàng để bán
+IS,78,THU NHẬP (LỖ) TOÀN DIỆN KHÁC SAU THUẾ,"Lãi/(lỗ) toàn diện khác được chia từ hoạt động đầu tư vào công ty con, đầu tư liên kết, liên doanh"
+IS,79,THU NHẬP (LỖ) TOÀN DIỆN KHÁC SAU THUẾ,Lãi/(lỗ) từ đánh giá lại các công cụ tài chính phái sinh
+IS,80,THU NHẬP (LỖ) TOÀN DIỆN KHÁC SAU THUẾ,Lãi/(lỗ) chênh lệch tỷ giá của hoạt động tại nước ngoài
+IS,81,THU NHẬP (LỖ) TOÀN DIỆN KHÁC SAU THUẾ,"Lãi/(lỗ) từ các khoản đầu tư vào công ty con. Công ty liên kết, liên doanh chưa chia"
+IS,82,THU NHẬP (LỖ) TOÀN DIỆN KHÁC SAU THUẾ,Lãi/(lỗ) đánh giá công cụ phái sinh
+IS,83,THU NHẬP (LỖ) TOÀN DIỆN KHÁC SAU THUẾ,Lãi/(lỗ) đánh giá lại tài sản cố định theo mô hình giá trị hợp lý
+IS,84,,Tổng thu nhập toàn diện
+IS,85,Tổng thu nhập toàn diện,Thu nhập toàn diện phân bổ cho cổ đông không nắm quyền kiểm soát
+IS,86,Tổng thu nhập toàn diện,Thu nhập toàn diện phân bổ cho chủ sở hữu
+IS,87,,THU NHẬP THUẦN TRÊN CỔ PHIẾU PHỔ THÔNG
+IS,88,,Lãi cơ bản trên cổ phiếu (VND)
+IS,89,,Lãi trên cổ phiếu pha loãng (VND)
+CF,2,LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG KINH DOANH,LỢI NHUẬN TRƯỚC THUẾ
+CF,3,LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG KINH DOANH,Điều chỉnh cho các khoản
+CF,4,Điều chỉnh cho các khoản,Khấu hao tài sản cố định
+CF,5,Điều chỉnh cho các khoản,Phân bổ lợi thế thương mại
+CF,6,Điều chỉnh cho các khoản,Các khoản dự phòng
+CF,7,Điều chỉnh cho các khoản,"Lãi, lỗ chênh lệch tỷ giá hối đoái chưa thực hiện"
+CF,8,Điều chỉnh cho các khoản,"Chi phí phải trả, chi phí trả trước"
+CF,9,Điều chỉnh cho các khoản,Chi phí lãi vay
+CF,10,Điều chỉnh cho các khoản,"Lãi, lỗ hoạt động đầu tư"
+CF,11,Điều chỉnh cho các khoản,Dự thu lãi và cổ tức
+CF,12,Điều chỉnh cho các khoản,Các khoản điều chỉnh khác
+CF,13,LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG KINH DOANH,Tăng các chi phí phi tiền tệ
+CF,14,Tăng các chi phí phi tiền tệ,Lỗ đánh giá giá trị các tài sản tài chính ghi nhận thông qua lãi/lỗ FVTPL
+CF,15,Tăng các chi phí phi tiền tệ,Lỗ suy giảm giá trị các khoản đầu tư nắm giữ đến ngày đáo hạn (HTM)
+CF,16,Tăng các chi phí phi tiền tệ,Lỗ suy giảm giá trị các khoản cho vay
+CF,17,Tăng các chi phí phi tiền tệ,Lỗ về ghi nhận chệnh lệch đánh giá theo giá trị hợp lý tài sản tài chính sẵn sàng để bán AFS khi phân loại lại
+CF,18,Tăng các chi phí phi tiền tệ,"Suy giảm giá trị của các tài sản cố định, BĐSĐT"
+CF,19,Tăng các chi phí phi tiền tệ,Chi phí dự phòng suy giảm giá trị các khoản đầu tư tài chính dài hạn
+CF,20,Tăng các chi phí phi tiền tệ,Lỗ khác
+CF,21,Tăng các chi phí phi tiền tệ,Lỗ đánh giá giá trị các công nợ tài chính ghi nhận thông qua KQKD (Trước năm 2016)
+CF,22,Tăng các chi phí phi tiền tệ,Lỗ đánh giá giá trị các công cụ tài chính phái sinh (Trước năm 2016)
+CF,23,Tăng các chi phí phi tiền tệ,Lỗ từ thanh lý các tài sản tài chính sẵn sàng để bán (Trước năm 2016)
+CF,24,Tăng các chi phí phi tiền tệ,Suy giảm giá trị của các tài sản tài chính sẵn sàng để bán (Trước năm 2016)
+CF,25,Tăng các chi phí phi tiền tệ,Lỗ đánh giá giá các công cụ tài chính phát sinh cho mục đích phòng ngừa rủi ro (Trước năm 2016)
+CF,26,Tăng các chi phí phi tiền tệ,Lỗ từ thanh lý TSCĐ (Trước năm 2016)
+CF,27,Tăng các chi phí phi tiền tệ,"Lỗ từ thanh lý các khoản đầu tư vào công ty con và công ty liên doanh, liên kết (Trước năm 2016)"
+CF,28,LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG KINH DOANH,Giảm các doanh thu phi tiền tệ
+CF,29,Giảm các doanh thu phi tiền tệ,Lãi đánh giá giá trị các tài sản chính ghi nhận thông qua lãi/lỗ FVTPL
+CF,30,Giảm các doanh thu phi tiền tệ,Lãi về ghi nhận chệnh lệch đánh giá theo giá trị hợp lý tài sản tài chính sẵn sàng để bán AFS khi phân loại lại
+CF,31,Giảm các doanh thu phi tiền tệ,Lãi đánh giá giá trị các công cụ tài chính phái sinh cho mục đích phòng ngừa
+CF,32,Giảm các doanh thu phi tiền tệ,Lãi từ thanh lý các khoản cho vay và phải thu
+CF,33,Giảm các doanh thu phi tiền tệ,Hoàn nhập chi phí dự phòng
+CF,34,Giảm các doanh thu phi tiền tệ,"Lãi từ thanh lý tài sản cố định, BĐSĐT"
+CF,35,Giảm các doanh thu phi tiền tệ,"Lãi từ thanh lý các khoản đầu tư vào công ty con và công ty liên doanh, liên kết"
+CF,36,Giảm các doanh thu phi tiền tệ,Lãi khác
+CF,37,Giảm các doanh thu phi tiền tệ,Lãi đánh giá giá trị các công nợ tài chính thông qua kết quả kinh doanh (Trước năm 2016)
+CF,38,Giảm các doanh thu phi tiền tệ,Lãi từ thanh lý các tài sản tài chính sẵn sàng để bán (Trước năm 2016)
+CF,39,Giảm các doanh thu phi tiền tệ,Hoàn nhập suy giảm giá trị của các tài sản tài chính sẵn sàng để bán (Trước năm 2016)
+CF,40,LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG KINH DOANH,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động
+CF,41,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,Tăng (giảm) tài sản tài chính ghi nhận thông qua lãi/ lỗ (FVTPL)
+CF,42,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,Tăng (giảm) các khoản đầu tư giữ đến ngày đáo hạn (HTM)
+CF,43,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,Tăng(giảm) các khoản cho vay
+CF,44,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,Tăng (giảm) tài sản tài chính sẵn sàng để bán AFS
+CF,45,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,"(-) Tăng, (+) giảm phải thu bán các tài sản tài chính"
+CF,46,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,"(-) Tăng, (+) giảm phải thu và dự thu cổ tức, tiền lãi các tài sản tài chính"
+CF,47,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,"(-) Tăng, (+) giảm các khoản phải thu các dịch vụ CTCK cung cấp"
+CF,48,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,"(-) Tăng, (+) giảm các khoản phải thu về lỗi giao dịch các TSTC"
+CF,49,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,"(-) Tăng, (+) giảm các khoản phải thu khác"
+CF,50,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,Tăng/giảm các tài sản khác
+CF,51,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,"(-) Tăng, (+) giảm chi phí phải trả (không bao gồm chi phí lãi vay)"
+CF,52,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,Tăng/giảm chi phí trả trước
+CF,53,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,Thuế TNDN CTCK đã nộp
+CF,54,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,Tiền lãi vay đã trả
+CF,55,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,"(+) Tăng, (-) giảm phải trả cho người bán"
+CF,56,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,"(+) Tăng, (-) giảm các khoản trích nộp phúc lợi nhân viên"
+CF,57,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,"(+) Tăng, (-) giảm thuế và các khoản phải nộp Nhà nước"
+CF,58,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,"(+) Tăng, (-) giảm phải trả người lao động"
+CF,59,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,"(+) Tăng, (-) giảm phải trả về lỗi giao dịch các tài sản tài chính"
+CF,60,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,"(+) Tăng, (-) giảm các khoản phải trả, phải nộp khác"
+CF,61,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,Tiền thu khác từ hoạt động kinh doanh
+CF,62,Tiền thu khác từ hoạt động kinh doanh,Tiền lãi đã thu
+CF,63,Tiền thu khác từ hoạt động kinh doanh,Tiền thu khác
+CF,64,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,Tiền chi khác cho hoạt động kinh doanh
+CF,65,Tiền chi khác cho hoạt động kinh doanh,Lãi vay đã trả
+CF,66,Tiền chi khác cho hoạt động kinh doanh,Thuế TNDN đã nộp
+CF,67,Tiền chi khác cho hoạt động kinh doanh,Các khoản chi khác
+CF,68,Lợi nhuận từ hoạt động kinh doanh trước thay đổi vốn lưu động,Thay đổi tài sản và nợ phải trả hoạt động (Trước năm 2016)
+CF,69,Thay đổi tài sản và nợ phải trả hoạt động (Trước năm 2016),Tăng/giảm các khoản phải thu (Trước năm 2016)
+CF,70,Thay đổi tài sản và nợ phải trả hoạt động (Trước năm 2016),Tăng/giảm vay và nợ thuê tài sản tài chính (Trước năm 2016)
+CF,71,Thay đổi tài sản và nợ phải trả hoạt động (Trước năm 2016),Tăng/giảm vay tài sản tài chính (Trước năm 2016)
+CF,72,Thay đổi tài sản và nợ phải trả hoạt động (Trước năm 2016),Tăng/giảm Trái phiếu chuyển đổi-Cấu phần nợ (Trước năm 2016)
+CF,73,Thay đổi tài sản và nợ phải trả hoạt động (Trước năm 2016),Tăng/giảm Trái phiếu phát hành (Trước năm 2016)
+CF,74,Thay đổi tài sản và nợ phải trả hoạt động (Trước năm 2016),Tăng/giảm vay Quỹ Hỗ trợ thanh toán (Trước năm 2016)
+CF,75,Thay đổi tài sản và nợ phải trả hoạt động (Trước năm 2016),"(+) Tăng, (-) giảm phải trả Tổ chức phát hành chứng khoán (Trước năm 2016)"
+CF,76,Thay đổi tài sản và nợ phải trả hoạt động (Trước năm 2016),Tăng/giảm hàng tồn kho (Trước năm 2016)
+CF,77,Thay đổi tài sản và nợ phải trả hoạt động (Trước năm 2016),Tăng/giảm chứng khoán kinh doanh (Trước năm 2016)
+CF,78,LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG KINH DOANH,Lưu chuyển thuần từ hoạt động kinh doanh
+CF,80,LƯU CHUYỂN TIỀN TỪ HOẠT ĐÔNG ĐẦU TƯ,"Tiền chi để mua sắm, xây dựng TSCĐ, BĐSĐT và các tài sản dài hạn khác"
+CF,81,LƯU CHUYỂN TIỀN TỪ HOẠT ĐÔNG ĐẦU TƯ,"Tiền thu từ thanh lý, nhượng bán TSCĐ, BĐSĐT và các tài sản dài hạn khác"
+CF,82,LƯU CHUYỂN TIỀN TỪ HOẠT ĐÔNG ĐẦU TƯ,"Tiền chi đầu tư góp vốn vào công ty con, công ty liên doanh, liên kết và đầu tư khác"
+CF,83,LƯU CHUYỂN TIỀN TỪ HOẠT ĐÔNG ĐẦU TƯ,"Tiền thu hồi các khoản đầu tư góp vốn vào công ty con, công ty liên doanh, liên kết và đầu tư khác"
+CF,84,LƯU CHUYỂN TIỀN TỪ HOẠT ĐÔNG ĐẦU TƯ,Tiền thu về cổ tức lợi nhuận được chia từ các khoản đầu tư tài chính dài hạn
+CF,85,LƯU CHUYỂN TIỀN TỪ HOẠT ĐÔNG ĐẦU TƯ,"Tiền chi cho vay, mua các công cụ nợ của đơn vị khác (Trước năm 2016)"
+CF,86,LƯU CHUYỂN TIỀN TỪ HOẠT ĐÔNG ĐẦU TƯ,"Tiền thu hồi cho vay, bán lại các công cụ nợ của đơn vị khác (Trước năm 2016)"
+CF,87,,Lưu chuyển tiền thuần từ hoạt động đầu tư
+CF,89,LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG TÀI CHÍNH,"Tiền thu từ phát hành cổ phiếu, nhận vốn góp của chủ sở hữu"
+CF,90,LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG TÀI CHÍNH,"Tiền chi trả vốn góp cho các chủ sở hữu, mua lại cổ phiếu của doanh nghiệp đã phát hành"
+CF,91,LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG TÀI CHÍNH,Tiền vay gốc
+CF,92,Tiền vay gốc,Tiền vay Quỹ Hỗ trợ thanh toán
+CF,93,Tiền vay gốc,Tiền vay khác
+CF,94,LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG TÀI CHÍNH,Tiền chi trả nợ gốc vay
+CF,95,Tiền chi trả nợ gốc vay,Tiền chi trả gốc vay Quỹ Hỗ trợ thanh toán
+CF,96,Tiền chi trả nợ gốc vay,Tiền chi trả nợ gốc vay tài sản tài chính
+CF,97,Tiền chi trả nợ gốc vay,Tiền chi trả gốc nợ vay khác
+CF,98,LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG TÀI CHÍNH,Tiền chi trả nợ thuê tài chính
+CF,99,LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG TÀI CHÍNH,"Cổ tức, lợi nhuận đã trả cho chủ sở hữu"
+CF,100,,Lưu chuyển thuần từ hoạt động tài chính
+CF,101,,LƯU CHUYỂN TIỀN THUẦN TRONG KỲ
+CF,102,,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN ĐẦU KỲ
+CF,103,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN ĐẦU KỲ,"Tiền mặt, tiền gửi ngân hàng đầu kỳ"
+CF,104,"Tiền mặt, tiền gửi ngân hàng đầu kỳ",Tiền gửi ngân hàng cho hoạt động CTCK
+CF,105,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN ĐẦU KỲ,Các khoản tương đương tiền
+CF,106,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN ĐẦU KỲ,Ảnh hưởng của thay đổi tỷ giá hối đoái quy đổi ngoại tệ
+CF,107,,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ
+CF,108,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ,"Tiền mặt, tiền gửi ngân hàng kỳ"
+CF,109,"Tiền mặt, tiền gửi ngân hàng kỳ",Tiền gửi ngân hàng cho hoạt động CTCK
+CF,110,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ,Các khoản tương đương tiền
+CF,111,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ,Ảnh hưởng của thay đổi tỷ giá hối đoái quy đổi ngoại tệ
+CF,114,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Tiền thu bán chứng khoán môi giới cho khách hàng
+CF,115,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Tiền chi mua chứng khoán môi giới cho khách hàng
+CF,116,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Tiền thu bán chứng khoán ủy thác của khách hàng
+CF,117,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Tiền chi bán chứng khoán ủy thác của khách hàng
+CF,118,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Thu tiền từ tài khoản vãng lai của khách hàng (Trước năm 2016)
+CF,119,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Chi tiền từ tài khoản vãng lai của khách hàng (Trước năm 2016)
+CF,120,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Thu vay Quỹ Hỗ trợ thanh toán
+CF,121,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Chi trả vay Quỹ Hỗ trợ thanh toán
+CF,122,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Nhận tiền gửi để thanh toán giao dịch chứng khoán của khách hàng
+CF,123,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Chi trả thanh toán giao dịch chứng khoán của khách hàng
+CF,124,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Nhận tiền gửi của Nhà đầu tư cho hoạt động ủy thác đầu tư của khách hàng
+CF,125,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Chi trả cho hoạt động ủy thác đầu tư của khách hàng
+CF,126,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Chi trả phí lưu ký chứng khoán của khách hàng
+CF,127,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Thu lỗi giao dịch chứng khoán
+CF,128,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Chi lỗi giao dịch chứng khoán
+CF,129,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Tiền thu của Tổ chức phát hành chứng khoán
+CF,130,"LƯU CHUYỂN TIỀN HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG",Tiền chi trả Tổ chức phát hành chứng khoán
+CF,131,"HOẠT ĐỘNG MÔI GIỚI, ỦY THÁC CỦA KHÁCH HÀNG","Lưu chuyển tiền hoạt động môi giới, ủy thác của khách hàng"
+CF,132,,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN ĐẦU KỲ CỦA KHÁCH HÀNG
+CF,133,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN ĐẦU KỲ CỦA KHÁCH HÀNG,Tiền gửi ngân hàng đầu kỳ
+CF,134,Tiền gửi ngân hàng đầu kỳ,Tiền gửi của NĐT về GDCK theo phương thức CTCK quản lý
+CF,135,Tiền gửi của NĐT về GDCK theo phương thức CTCK quản lý,Trong đó: có kỳ hạn
+CF,136,Tiền gửi ngân hàng đầu kỳ,Tiền gửi tổng hợp GDCK cho khách hàng
+CF,137,Tiền gửi ngân hàng đầu kỳ,Tiền gửi bù trừ và thanh toán GDCK
+CF,138,Tiền gửi ngân hàng đầu kỳ,Tiền gửi của tổ chức phát hành
+CF,139,Tiền gửi của tổ chức phát hành,Trong đó: có kỳ hạn
+CF,140,Tiền gửi ngân hàng đầu kỳ,Tiền gửi của NĐT về GDCK theo phương thức NHTM quản lý  (Trước năm 2016)
+CF,141,Tiền gửi của NĐT về GDCK theo phương thức NHTM quản lý  (Trước năm 2016),Trong đó: có kỳ hạn (Trước năm 2016)
+CF,142,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN ĐẦU KỲ CỦA KHÁCH HÀNG,Các khoản tương đương tiền
+CF,143,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN ĐẦU KỲ CỦA KHÁCH HÀNG,Ảnh hưởng của thay đổi tỷ giá hối đoái quy đổi ngoại tệ
+CF,144,,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ CỦA KHÁCH HÀNG
+CF,145,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ CỦA KHÁCH HÀNG,Tiền gửi ngân hàng cuối kỳ
+CF,146,Tiền gửi ngân hàng cuối kỳ,Tiền gửi của NĐT về GDCK theo phương thức CTCK quản lý
+CF,147,Tiền gửi của NĐT về GDCK theo phương thức CTCK quản lý,Trong đó: có kỳ hạn
+CF,148,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ CỦA KHÁCH HÀNG,Tiền gửi tổng hợp GDCK cho khách hàng
+CF,149,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ CỦA KHÁCH HÀNG,Tiền gửi bù trừ và thanh toán GDCK
+CF,150,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ CỦA KHÁCH HÀNG,Tiền gửi của tổ chức phát hành
+CF,151,Tiền gửi của tổ chức phát hành,Trong đó: có kỳ hạn
+CF,152,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ CỦA KHÁCH HÀNG,Tiền gửi của NĐT về GDCK theo phương thức NHTM quản lý  (Trước năm 2016)
+CF,153,Tiền gửi của NĐT về GDCK theo phương thức NHTM quản lý  (Trước năm 2016),Trong đó: có kỳ hạn (Trước năm 2016)
+CF,154,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ CỦA KHÁCH HÀNG,Các khoản tương đương tiền
+CF,155,TIỀN VÀ CÁC KHOẢN TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ CỦA KHÁCH HÀNG,Ảnh hưởng của thay đổi tỷ giá hối đoái quy đổi ngoại tệ
+NOTE,1,,CHỨNG KHOÁN LƯU KÝ NIÊM YẾT
+NOTE,2,CHỨNG KHOÁN LƯU KÝ NIÊM YẾT,Chứng khoán giao dịch
+NOTE,3,Chứng khoán giao dịch,Chứng khoán giao dịch của thành viên lưu ký
+NOTE,4,Chứng khoán giao dịch,Chứng khoán giao dịch của khách hàng trong nước
+NOTE,5,Chứng khoán giao dịch,Chứng khoán giao dịch của khách hàng nước ngoài
+NOTE,6,Chứng khoán giao dịch,Chứng khoán giao dịch của tổ chức khác
+NOTE,7,CHỨNG KHOÁN LƯU KÝ NIÊM YẾT,Chứng khoán tạm ngừng giao dịch
+NOTE,8,Chứng khoán tạm ngừng giao dịch,Chứng khoán tạm ngừng giao dịch của thành viên lưu ký
+NOTE,9,Chứng khoán tạm ngừng giao dịch,Chứng khoán tạm ngừng giao dịch của khách hàng trong nước
+NOTE,10,Chứng khoán tạm ngừng giao dịch,Chứng khoán tạm ngừng giao dịch của khách hàng nước ngoài
+NOTE,11,Chứng khoán tạm ngừng giao dịch,Chứng khoán tạm ngừng giao dịch của tổ chức khác
+NOTE,12,CHỨNG KHOÁN LƯU KÝ NIÊM YẾT,Chứng khoán cầm cố
+NOTE,13,Chứng khoán cầm cố,Chứng khoán cầm cố của thành viên lưu ký
+NOTE,14,Chứng khoán cầm cố,Chứng khoán cầm cố của khách hàng trong nước
+NOTE,15,Chứng khoán cầm cố,Chứng khoán cầm cố của khách hàng nước ngoài
+NOTE,16,Chứng khoán cầm cố,Chứng khoán cầm cố của tổ chức khác
+NOTE,17,CHỨNG KHOÁN LƯU KÝ NIÊM YẾT,Chứng khoán tạm giữ
+NOTE,18,Chứng khoán tạm giữ,Chứng khoán tạm giữ của thành viên lưu ký
+NOTE,19,Chứng khoán tạm giữ,Chứng khoán tạm giữ của khách hàng trong nước
+NOTE,20,Chứng khoán tạm giữ,Chứng khoán tạm giữ của khách hàng nước ngoài
+NOTE,21,Chứng khoán tạm giữ,Chứng khoán tạm giữ của tổ chức khác
+NOTE,22,CHỨNG KHOÁN LƯU KÝ NIÊM YẾT,Chứng khoán chờ thanh toán
+NOTE,23,Chứng khoán chờ thanh toán,Chứng khoán chờ thanh toán của thành viên lưu ký
+NOTE,24,Chứng khoán chờ thanh toán,Chứng khoán chờ thanh toán của khách hàng trong nước
+NOTE,25,Chứng khoán chờ thanh toán,Chứng khoán chờ thanh toán của khách hàng nước ngoài
+NOTE,26,Chứng khoán chờ thanh toán,Chứng khoán chờ thanh toán của tổ chức khác
+NOTE,27,CHỨNG KHOÁN LƯU KÝ NIÊM YẾT,Chứng khoán phong tỏa chờ rút
+NOTE,28,Chứng khoán phong tỏa chờ rút,Chứng khoán phong tỏa chờ rút của thành viên lưu ký
+NOTE,29,Chứng khoán phong tỏa chờ rút,Chứng khoán phong tỏa chờ rút của khách hàng trong nước
+NOTE,30,Chứng khoán phong tỏa chờ rút,Chứng khoán phong tỏa chờ rút của khách hàng nước ngoài
+NOTE,31,Chứng khoán phong tỏa chờ rút,Chứng khoán phong tỏa chờ rút của tổ chức khác
+NOTE,32,CHỨNG KHOÁN LƯU KÝ NIÊM YẾT,Chứng khoán chờ giao dịch
+NOTE,33,Chứng khoán chờ giao dịch,Chứng khoán chờ giao dịch của thành viên lưu ký
+NOTE,34,Chứng khoán chờ giao dịch,Chứng khoán chờ giao dịch của khách hàng trong nước
+NOTE,35,Chứng khoán chờ giao dịch,Chứng khoán chờ giao dịch của khách hàng nước ngoài
+NOTE,36,Chứng khoán chờ giao dịch,Chứng khoán chờ giao dịch của tổ chức khác
+NOTE,37,CHỨNG KHOÁN LƯU KÝ NIÊM YẾT,Chứng khoán ký quỹ đảm bảo khoản vay
+NOTE,38,Chứng khoán ký quỹ đảm bảo khoản vay,Chứng khoán ký quỹ đảm bảo khoản vay của thành viên lưu ký
+NOTE,39,Chứng khoán ký quỹ đảm bảo khoản vay,Chứng khoán ký quỹ đảm bảo khoản vay của khách hàng trong nước
+NOTE,40,Chứng khoán ký quỹ đảm bảo khoản vay,Chứng khoán ký quỹ đảm bảo khoản vay của khách hàng nước ngoài
+NOTE,41,Chứng khoán ký quỹ đảm bảo khoản vay,Chứng khoán ký quỹ đảm bảo khoản vay của tổ chức khác
+NOTE,42,CHỨNG KHOÁN LƯU KÝ NIÊM YẾT,Chứng khoán sửa lỗi giao dịch
+NOTE,43,,CHỨNG KHOÁN LƯU KÝ CHƯA NIÊM YẾT
+NOTE,44,CHỨNG KHOÁN LƯU KÝ CHƯA NIÊM YẾT,Chứng khoán giao dịch
+NOTE,45,Chứng khoán giao dịch,Chứng khoán giao dịch của thành viên lưu ký
+NOTE,46,Chứng khoán giao dịch,Chứng khoán giao dịch của khách hàng trong nước
+NOTE,47,Chứng khoán giao dịch,Chứng khoán giao dịch của khách hàng nước ngoài
+NOTE,48,Chứng khoán giao dịch,Chứng khoán giao dịch của tổ chức khác
+NOTE,49,CHỨNG KHOÁN LƯU KÝ CHƯA NIÊM YẾT,Chứng khoán tạm ngừng giao dịch
+NOTE,50,Chứng khoán tạm ngừng giao dịch,Chứng khoán tạm ngừng giao dịch của thành viên lưu ký
+NOTE,51,Chứng khoán tạm ngừng giao dịch,Chứng khoán tạm ngừng giao dịch của khách hàng trong nước
+NOTE,52,Chứng khoán tạm ngừng giao dịch,Chứng khoán tạm ngừng giao dịch của khách hàng nước ngoài
+NOTE,53,Chứng khoán tạm ngừng giao dịch,Chứng khoán tạm ngừng giao dịch của tổ chức khác
+NOTE,54,CHỨNG KHOÁN LƯU KÝ CHƯA NIÊM YẾT,Chứng khoán cầm cố
+NOTE,55,Chứng khoán cầm cố,Chứng khoán cầm cố của thành viên lưu ký
+NOTE,56,Chứng khoán cầm cố,Chứng khoán cầm cố của khách hàng trong nước
+NOTE,57,Chứng khoán cầm cố,Chứng khoán cầm cố của khách hàng nước ngoài
+NOTE,58,Chứng khoán cầm cố,Chứng khoán cầm cố của tổ chức khác
+NOTE,59,CHỨNG KHOÁN LƯU KÝ CHƯA NIÊM YẾT,Chứng khoán tạm giữ
+NOTE,60,Chứng khoán tạm giữ,Chứng khoán tạm giữ của thành viên lưu ký
+NOTE,61,Chứng khoán tạm giữ,Chứng khoán tạm giữ của khách hàng trong nước
+NOTE,62,Chứng khoán tạm giữ,Chứng khoán tạm giữ của khách hàng nước ngoài
+NOTE,63,Chứng khoán tạm giữ,Chứng khoán tạm giữ của tổ chức khác
+NOTE,64,CHỨNG KHOÁN LƯU KÝ CHƯA NIÊM YẾT,Chứng khoán chờ thanh toán
+NOTE,65,Chứng khoán chờ thanh toán,Chứng khoán chờ thanh toán của thành viên lưu ký
+NOTE,66,Chứng khoán chờ thanh toán,Chứng khoán chờ thanh toán của khách hàng trong nước
+NOTE,67,Chứng khoán chờ thanh toán,Chứng khoán chờ thanh toán của khách hàng nước ngoài
+NOTE,68,Chứng khoán chờ thanh toán,Chứng khoán chờ thanh toán của tổ chức khác
+NOTE,69,CHỨNG KHOÁN LƯU KÝ CHƯA NIÊM YẾT,Chứng khoán phong tỏa chờ rút
+NOTE,70,Chứng khoán phong tỏa chờ rút,Chứng khoán phong tỏa chờ rút của thành viên lưu ký
+NOTE,71,Chứng khoán phong tỏa chờ rút,Chứng khoán phong tỏa chờ rút của khách hàng trong nước
+NOTE,72,Chứng khoán phong tỏa chờ rút,Chứng khoán phong tỏa chờ rút của khách hàng nước ngoài
+NOTE,73,Chứng khoán phong tỏa chờ rút,Chứng khoán phong tỏa chờ rút của tổ chức khác
+NOTE,74,CHỨNG KHOÁN LƯU KÝ CHƯA NIÊM YẾT,Chứng khoán chờ giao dịch
+NOTE,75,Chứng khoán chờ giao dịch,Chứng khoán chờ giao dịch của thành viên lưu ký
+NOTE,76,Chứng khoán chờ giao dịch,Chứng khoán chờ giao dịch của khách hàng trong nước
+NOTE,77,Chứng khoán chờ giao dịch,Chứng khoán chờ giao dịch của khách hàng nước ngoài
+NOTE,78,Chứng khoán chờ giao dịch,Chứng khoán chờ giao dịch của tổ chức khác
+NOTE,79,CHỨNG KHOÁN LƯU KÝ CHƯA NIÊM YẾT,Chứng khoán ký quỹ đảm bảo khoản vay
+NOTE,80,Chứng khoán ký quỹ đảm bảo khoản vay,Chứng khoán ký quỹ đảm bảo khoản vay của thành viên lưu ký
+NOTE,81,Chứng khoán ký quỹ đảm bảo khoản vay,Chứng khoán ký quỹ đảm bảo khoản vay của khách hàng trong nước
+NOTE,82,Chứng khoán ký quỹ đảm bảo khoản vay,Chứng khoán ký quỹ đảm bảo khoản vay của khách hàng nước ngoài
+NOTE,83,Chứng khoán ký quỹ đảm bảo khoản vay,Chứng khoán ký quỹ đảm bảo khoản vay của tổ chức khác
+NOTE,84,CHỨNG KHOÁN LƯU KÝ CHƯA NIÊM YẾT,Chứng khoán sửa lỗi giao dịch
+NOTE,85,,CHỨNG KHOÁN CHƯA LƯU KÝ CỦA KHÁCH HÀNG
+NOTE,86,,CHỨNG KHOÁN CHƯA LƯU KÝ CỦA CÔNG TY CHỨNG KHOÁN
+NOTE,87,,CHỨNG KHOÁN NHẬN ỦY THÁC ĐẦU GIÁ
+NOTE,88,,TIỀN VÀ TƯƠNG ĐƯƠNG TIỀN
+NOTE,89,TIỀN VÀ TƯƠNG ĐƯƠNG TIỀN,Tiền mặt
+NOTE,90,TIỀN VÀ TƯƠNG ĐƯƠNG TIỀN,Tiền gửi ngân hàng
+NOTE,91,Tiền gửi ngân hàng,Trong đó: Tiền ký quỹ của NĐT
+NOTE,92,TIỀN VÀ TƯƠNG ĐƯƠNG TIỀN,Tiền đang chuyển
+NOTE,93,TIỀN VÀ TƯƠNG ĐƯƠNG TIỀN,Tiền gửi về bán chứng khoán bảo lãnh phát hành
+NOTE,94,TIỀN VÀ TƯƠNG ĐƯƠNG TIỀN,Tiền gửi thanh toán bù trừ giao dịch CK
+NOTE,95,TIỀN VÀ TƯƠNG ĐƯƠNG TIỀN,Tiền và tương đương tiền
+NOTE,96,,KHỐI LƯỢNG GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA CTCK
+NOTE,97,KHỐI LƯỢNG GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA CTCK,Khối lượng Cổ phiếu
+NOTE,98,KHỐI LƯỢNG GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA CTCK,Khối lượng Trái phiếu
+NOTE,99,KHỐI LƯỢNG GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA CTCK,Khối lượng chứng khoán khác
+NOTE,100,,GIÁ TRỊ GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA CTCK
+NOTE,101,GIÁ TRỊ GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA CTCK,Giá trị Cổ phiếu
+NOTE,102,GIÁ TRỊ GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA CTCK,Giá trị Trái phiếu
+NOTE,103,GIÁ TRỊ GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA CTCK,Giá trị chứng khoán khác
+NOTE,104,,KHỐI LƯỢNG GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA NĐT
+NOTE,105,KHỐI LƯỢNG GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA NĐT,Khối lượng Cổ phiếu
+NOTE,106,KHỐI LƯỢNG GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA NĐT,Khối lượng Trái phiếu
+NOTE,107,KHỐI LƯỢNG GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA NĐT,Khối lượng chứng khoán khác
+NOTE,108,,GIÁ TRỊ GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA NĐT
+NOTE,109,GIÁ TRỊ GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA NĐT,Giá trị Cổ phiếu
+NOTE,110,GIÁ TRỊ GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA NĐT,Giá trị Trái phiếu
+NOTE,111,GIÁ TRỊ GIAO DỊCH THỰC HIỆN TRONG KỲ CỦA NĐT,Giá trị chứng khoán khác
+NOTE,112,,SỐ LƯỢNG ĐẦU TƯ TÀI CHÍNH
+NOTE,113,SỐ LƯỢNG ĐẦU TƯ TÀI CHÍNH,Chứng khoán thương mại
+NOTE,114,SỐ LƯỢNG ĐẦU TƯ TÀI CHÍNH,Chứng khoán đầu tư sẵn sàng để bán
+NOTE,115,SỐ LƯỢNG ĐẦU TƯ TÀI CHÍNH,Chứng khoán nắm giữ đến ngày đáo hạn
+NOTE,116,SỐ LƯỢNG ĐẦU TƯ TÀI CHÍNH,Đầu tư vào công ty con
+NOTE,117,SỐ LƯỢNG ĐẦU TƯ TÀI CHÍNH,"Góp vốn liên doanh, liên kết"
+NOTE,118,SỐ LƯỢNG ĐẦU TƯ TÀI CHÍNH,Đầu tư tài chính khác
+NOTE,119,,GIÁ GỐC ĐẦU TƯ TÀI CHÍNH
+NOTE,120,GIÁ GỐC ĐẦU TƯ TÀI CHÍNH,Giá trị ghi sổ Tài sản tài chính ghi nhận thông qua lãi/lỗ (FVTPL)
+NOTE,121,Giá trị ghi sổ Tài sản tài chính ghi nhận thông qua lãi/lỗ (FVTPL),Chứng khoán thương mại
+NOTE,122,Chứng khoán thương mại,Cổ phiếu niêm yết
+NOTE,123,Chứng khoán thương mại,Cổ phiếu chưa niêm yết
+NOTE,124,Chứng khoán thương mại,Chứng chỉ quỹ
+NOTE,125,Chứng khoán thương mại,Trái phiếu
+NOTE,126,Giá trị ghi sổ Tài sản tài chính ghi nhận thông qua lãi/lỗ (FVTPL),Đầu tư tài chính ngắn hạn khác
+NOTE,127,Đầu tư tài chính ngắn hạn khác,Công cụ thị trường tiền tệ
+NOTE,128,Đầu tư tài chính ngắn hạn khác,TSTC phái sinh niêm yết
+NOTE,129,Đầu tư tài chính ngắn hạn khác,TSTC phái sinh chưa niêm yết
+NOTE,130,Đầu tư tài chính ngắn hạn khác,TSTC cho vay
+NOTE,131,Đầu tư tài chính ngắn hạn khác,TSTC đem thế chấp
+NOTE,132,Đầu tư tài chính ngắn hạn khác,TSTS mua chưa chuyển QSH
+NOTE,133,Đầu tư tài chính ngắn hạn khác,TSTC khác
+NOTE,134,GIÁ GỐC ĐẦU TƯ TÀI CHÍNH,Giá trị ghi sổ Tài sản tài chính sẵn sàng để bán (AFS)
+NOTE,135,Giá trị ghi sổ Tài sản tài chính sẵn sàng để bán (AFS),Cổ phiếu niêm yết
+NOTE,136,Giá trị ghi sổ Tài sản tài chính sẵn sàng để bán (AFS),Cổ phiếu chưa niêm yết
+NOTE,137,Giá trị ghi sổ Tài sản tài chính sẵn sàng để bán (AFS),Chứng chỉ quỹ
+NOTE,138,Giá trị ghi sổ Tài sản tài chính sẵn sàng để bán (AFS),Trái phiếu
+NOTE,139,Giá trị ghi sổ Tài sản tài chính sẵn sàng để bán (AFS),Công cụ thị trường tiền tệ
+NOTE,140,Giá trị ghi sổ Tài sản tài chính sẵn sàng để bán (AFS),TSTC phái sinh niêm yết
+NOTE,141,Giá trị ghi sổ Tài sản tài chính sẵn sàng để bán (AFS),TSTC phái sinh chưa niêm yết
+NOTE,142,Giá trị ghi sổ Tài sản tài chính sẵn sàng để bán (AFS),TSTC cho vay
+NOTE,143,Giá trị ghi sổ Tài sản tài chính sẵn sàng để bán (AFS),TSTC đem thế chấp
+NOTE,144,Giá trị ghi sổ Tài sản tài chính sẵn sàng để bán (AFS),TSTS mua chưa chuyển QSH
+NOTE,145,Giá trị ghi sổ Tài sản tài chính sẵn sàng để bán (AFS),TSTC khác
+NOTE,146,GIÁ GỐC ĐẦU TƯ TÀI CHÍNH,Giá trị ghi sổ Các khoản đầu tư giữ đến ngày đáo hạn (HTM)
+NOTE,147,Giá trị ghi sổ Các khoản đầu tư giữ đến ngày đáo hạn (HTM),Tiền gửi có kỳ hạn sắp đến ngày đáo hạn
+NOTE,148,Giá trị ghi sổ Các khoản đầu tư giữ đến ngày đáo hạn (HTM),Tiền gửi có kỳ hạn
+NOTE,149,Giá trị ghi sổ Các khoản đầu tư giữ đến ngày đáo hạn (HTM),Chứng chỉ quỹ
+NOTE,150,Giá trị ghi sổ Các khoản đầu tư giữ đến ngày đáo hạn (HTM),Trái phiếu
+NOTE,151,Giá trị ghi sổ Các khoản đầu tư giữ đến ngày đáo hạn (HTM),Công cụ thị trường tiền tệ
+NOTE,152,Giá trị ghi sổ Các khoản đầu tư giữ đến ngày đáo hạn (HTM),TSTC phái sinh niêm yết
+NOTE,153,Giá trị ghi sổ Các khoản đầu tư giữ đến ngày đáo hạn (HTM),TSTC phái sinh chưa niêm yết
+NOTE,154,Giá trị ghi sổ Các khoản đầu tư giữ đến ngày đáo hạn (HTM),TSTC cho vay
+NOTE,155,Giá trị ghi sổ Các khoản đầu tư giữ đến ngày đáo hạn (HTM),TSTC đem thế chấp
+NOTE,156,Giá trị ghi sổ Các khoản đầu tư giữ đến ngày đáo hạn (HTM),TSTS mua chưa chuyển QSH
+NOTE,157,Giá trị ghi sổ Các khoản đầu tư giữ đến ngày đáo hạn (HTM),TSTC khác
+NOTE,158,GIÁ GỐC ĐẦU TƯ TÀI CHÍNH,Các khoản cho vay và phải thu
+NOTE,159,Các khoản cho vay và phải thu,Cho vay nghiệp vụ ký quỹ (margin)
+NOTE,160,Các khoản cho vay và phải thu,Cho vay ứng trước tiền bán chứng khoán của khách hàng
+NOTE,161,Các khoản cho vay và phải thu,Cho vay vì lỗi giao dịch
+NOTE,162,Các khoản cho vay và phải thu,Phải thu bán các tài sản tài chính
+NOTE,163,Các khoản cho vay và phải thu,"Phải thu và dự thu cổ tức, tiền lãi các tài sản tài chính"
+NOTE,164,Các khoản cho vay và phải thu,Phải thu khác
+NOTE,165,GIÁ GỐC ĐẦU TƯ TÀI CHÍNH,Đầu tư tài chính dài hạn
+NOTE,166,Đầu tư tài chính dài hạn,Chứng khoán đầu tư sẵn sàng để bán
+NOTE,167,Chứng khoán đầu tư sẵn sàng để bán,Cổ phiếu niêm yết
+NOTE,168,Chứng khoán đầu tư sẵn sàng để bán,Cổ phiếu chưa niêm yết
+NOTE,169,Chứng khoán đầu tư sẵn sàng để bán,Chứng chỉ quỹ
+NOTE,170,Chứng khoán đầu tư sẵn sàng để bán,Trái phiếu
+NOTE,171,Đầu tư tài chính dài hạn,Chứng khoán nắm giữ đến ngày đáo hạn
+NOTE,172,Chứng khoán nắm giữ đến ngày đáo hạn,Cổ phiếu niêm yết
+NOTE,173,Chứng khoán nắm giữ đến ngày đáo hạn,Cổ phiếu chưa niêm yết
+NOTE,174,Chứng khoán nắm giữ đến ngày đáo hạn,Chứng chỉ quỹ
+NOTE,175,Chứng khoán nắm giữ đến ngày đáo hạn,Trái phiếu
+NOTE,176,Đầu tư tài chính dài hạn,Đầu tư vào công ty con
+NOTE,177,Đầu tư tài chính dài hạn,"Góp vốn liên doanh, liên kết"
+NOTE,178,Đầu tư tài chính dài hạn,Đầu tư tài chính khác
+NOTE,179,Đầu tư tài chính khác,Đầu tư cổ phiếu
+NOTE,180,Đầu tư tài chính khác,Đầu tư trái phiếu
+NOTE,181,Đầu tư tài chính khác,"Đầu tư tín phiếu, kỳ phiếu"
+NOTE,182,Đầu tư tài chính khác,Cho vay dài hạn
+NOTE,183,Đầu tư tài chính khác,Đầu tư tài chính dài hạn khác
+NOTE,184,,GIÁ THỊ TRƯỜNG ĐẦU TƯ TÀI CHÍNH
+NOTE,185,GIÁ THỊ TRƯỜNG ĐẦU TƯ TÀI CHÍNH,Giá trị hợp lý Tài sản tài chính ghi nhận thông qua lãi/lỗ (FVTPL)
+NOTE,186,Giá trị hợp lý Tài sản tài chính ghi nhận thông qua lãi/lỗ (FVTPL),Chứng khoán thương mại
+NOTE,187,Chứng khoán thương mại,Cổ phiếu niêm yết
+NOTE,188,Chứng khoán thương mại,Cổ phiếu chưa niêm yết
+NOTE,189,Chứng khoán thương mại,Chứng chỉ quỹ
+NOTE,190,Chứng khoán thương mại,Trái phiếu
+NOTE,191,Giá trị hợp lý Tài sản tài chính ghi nhận thông qua lãi/lỗ (FVTPL),Đầu tư tài chính ngắn hạn khác
+NOTE,192,Đầu tư tài chính ngắn hạn khác,Công cụ thị trường tiền tệ
+NOTE,193,Đầu tư tài chính ngắn hạn khác,TSTC phái sinh niêm yết
+NOTE,194,Đầu tư tài chính ngắn hạn khác,TSTC phái sinh chưa niêm yết
+NOTE,195,Đầu tư tài chính ngắn hạn khác,TSTC cho vay
+NOTE,196,Đầu tư tài chính ngắn hạn khác,TSTC đem thế chấp
+NOTE,197,Đầu tư tài chính ngắn hạn khác,TSTS mua chưa chuyển QSH
+NOTE,198,Đầu tư tài chính ngắn hạn khác,TSTC khác
+NOTE,199,GIÁ THỊ TRƯỜNG ĐẦU TƯ TÀI CHÍNH,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS)
+NOTE,200,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),Cổ phiếu niêm yết
+NOTE,201,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),Cổ phiếu chưa niêm yết
+NOTE,202,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),Chứng chỉ quỹ
+NOTE,203,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),Chứng chỉ quỹ chưa niêm yết
+NOTE,204,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),Trái phiếu
+NOTE,205,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),Trái phiếu chưa niêm yết
+NOTE,206,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),Công cụ thị trường tiền tệ
+NOTE,207,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),TSTC phái sinh niêm yết
+NOTE,208,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),TSTC phái sinh chưa niêm yết
+NOTE,209,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),TSTC cho vay
+NOTE,210,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),TSTC đem thế chấp
+NOTE,211,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),TSTS mua chưa chuyển QSH
+NOTE,212,Giá trị hợp lý Tài sản tài chính sẵn sàng để bán (AFS),TSTC khác
+NOTE,213,GIÁ THỊ TRƯỜNG ĐẦU TƯ TÀI CHÍNH,Giá trị hợp lý Các khoản đầu tư giữ đến ngày đáo hạn (HTM)
+NOTE,214,Giá trị hợp lý Các khoản đầu tư giữ đến ngày đáo hạn (HTM),Cổ phiếu niêm yết
+NOTE,215,Giá trị hợp lý Các khoản đầu tư giữ đến ngày đáo hạn (HTM),Cổ phiếu chưa niêm yết
+NOTE,216,Giá trị hợp lý Các khoản đầu tư giữ đến ngày đáo hạn (HTM),Chứng chỉ quỹ
+NOTE,217,Giá trị hợp lý Các khoản đầu tư giữ đến ngày đáo hạn (HTM),Trái phiếu
+NOTE,218,Giá trị hợp lý Các khoản đầu tư giữ đến ngày đáo hạn (HTM),Công cụ thị trường tiền tệ
+NOTE,219,Giá trị hợp lý Các khoản đầu tư giữ đến ngày đáo hạn (HTM),TSTC phái sinh niêm yết
+NOTE,220,Giá trị hợp lý Các khoản đầu tư giữ đến ngày đáo hạn (HTM),TSTC phái sinh chưa niêm yết
+NOTE,221,Giá trị hợp lý Các khoản đầu tư giữ đến ngày đáo hạn (HTM),TSTC cho vay
+NOTE,222,Giá trị hợp lý Các khoản đầu tư giữ đến ngày đáo hạn (HTM),TSTC đem thế chấp
+NOTE,223,Giá trị hợp lý Các khoản đầu tư giữ đến ngày đáo hạn (HTM),TSTS mua chưa chuyển QSH
+NOTE,224,Giá trị hợp lý Các khoản đầu tư giữ đến ngày đáo hạn (HTM),TSTC khác
+NOTE,225,GIÁ THỊ TRƯỜNG ĐẦU TƯ TÀI CHÍNH,Giá trị hợp lý Các khoản cho vay và phải thu
+NOTE,226,Giá trị hợp lý Các khoản cho vay và phải thu,Cho vay nghiệp vụ ký quỹ (margin)
+NOTE,227,Giá trị hợp lý Các khoản cho vay và phải thu,Cho vay ứng trước tiền bán chứng khoán của khách hàng
+NOTE,228,Giá trị hợp lý Các khoản cho vay và phải thu,Cho vay vì lỗi giao dịch
+NOTE,229,Giá trị hợp lý Các khoản cho vay và phải thu,Phải thu bán các tài sản tài chính
+NOTE,230,Giá trị hợp lý Các khoản cho vay và phải thu,"Phải thu và dự thu cổ tức, tiền lãi các tài sản tài chính"
+NOTE,231,Giá trị hợp lý Các khoản cho vay và phải thu,Phải thu khác
+NOTE,232,GIÁ THỊ TRƯỜNG ĐẦU TƯ TÀI CHÍNH,Đầu tư tài chính dài hạn
+NOTE,233,Đầu tư tài chính dài hạn,Chứng khoán đầu tư sẵn sàng để bán
+NOTE,234,Chứng khoán đầu tư sẵn sàng để bán,Cổ phiếu niêm yết
+NOTE,235,Chứng khoán đầu tư sẵn sàng để bán,Cổ phiếu chưa niêm yết
+NOTE,236,Chứng khoán đầu tư sẵn sàng để bán,Chứng chỉ quỹ
+NOTE,237,Chứng khoán đầu tư sẵn sàng để bán,Trái phiếu
+NOTE,238,Đầu tư tài chính dài hạn,Chứng khoán nắm giữ đến ngày đáo hạn
+NOTE,239,Chứng khoán nắm giữ đến ngày đáo hạn,Cổ phiếu niêm yết
+NOTE,240,Chứng khoán nắm giữ đến ngày đáo hạn,Cổ phiếu chưa niêm yết
+NOTE,241,Chứng khoán nắm giữ đến ngày đáo hạn,Chứng chỉ quỹ
+NOTE,242,Chứng khoán nắm giữ đến ngày đáo hạn,Trái phiếu
+NOTE,243,Đầu tư tài chính dài hạn,Đầu tư vào công ty con
+NOTE,244,Đầu tư tài chính dài hạn,"Góp vốn liên doanh, liên kết"
+NOTE,245,Đầu tư tài chính dài hạn,Đầu tư tài chính khác
+NOTE,246,,TRÍCH LẬP DỰ PHÒNG GIẢM GIÁ CÁC TÀI SẢN TÀI CHÍNH
+NOTE,247,TRÍCH LẬP DỰ PHÒNG GIẢM GIÁ CÁC TÀI SẢN TÀI CHÍNH,Tài sản tài chính ghi nhận thông qua lãi/lỗ (FVTPL)
+NOTE,248,TRÍCH LẬP DỰ PHÒNG GIẢM GIÁ CÁC TÀI SẢN TÀI CHÍNH,Tài sản tài chính sẵn sàng để bán (AFS)
+NOTE,249,TRÍCH LẬP DỰ PHÒNG GIẢM GIÁ CÁC TÀI SẢN TÀI CHÍNH,Các khoản đầu tư giữ đến ngày đáo hạn (HTM)
+NOTE,250,TRÍCH LẬP DỰ PHÒNG GIẢM GIÁ CÁC TÀI SẢN TÀI CHÍNH,Các khoản cho vay và phải thu
+NOTE,251,,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ NGẮN HẠN
+NOTE,252,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ NGẮN HẠN,Cổ phiếu niêm yết
+NOTE,253,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ NGẮN HẠN,Cổ phiếu chưa niêm yết
+NOTE,254,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ NGẮN HẠN,Chứng chỉ quỹ
+NOTE,255,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ NGẮN HẠN,Trái phiếu
+NOTE,256,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ NGẮN HẠN,Đầu tư khác
+NOTE,257,,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ DÀI HẠN
+NOTE,258,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ DÀI HẠN,Cổ phiếu niêm yết
+NOTE,259,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ DÀI HẠN,Cổ phiếu chưa niêm yết
+NOTE,260,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ DÀI HẠN,Chứng chỉ quỹ
+NOTE,261,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ DÀI HẠN,Trái phiếu
+NOTE,262,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ DÀI HẠN,Đầu tư góp vốn
+NOTE,263,DỰ PHÒNG GIẢM GIÁ ĐẦU TƯ DÀI HẠN,Đầu tư khác
+NOTE,264,,CÁC KHOẢN PHẢI THU BÁN CÁC KHOẢN ĐẦU TƯ
+NOTE,265,CÁC KHOẢN PHẢI THU BÁN CÁC KHOẢN ĐẦU TƯ,Phải thu bán cổ phiếu
+NOTE,266,CÁC KHOẢN PHẢI THU BÁN CÁC KHOẢN ĐẦU TƯ,Phải thu bán trái phiếu
+NOTE,267,CÁC KHOẢN PHẢI THU BÁN CÁC KHOẢN ĐẦU TƯ,Phải thu bán công cụ thị trường tiền tệ
+NOTE,268,CÁC KHOẢN PHẢI THU BÁN CÁC KHOẢN ĐẦU TƯ,Phải thu các khoản cho vay
+NOTE,269,CÁC KHOẢN PHẢI THU BÁN CÁC KHOẢN ĐẦU TƯ,Các khoản phải thu về bán các khoản đầu tư không có khả năng thu hồi
+NOTE,270,CÁC KHOẢN PHẢI THU BÁN CÁC KHOẢN ĐẦU TƯ,Phải thu khác
+NOTE,271,,"CÁC KHOẢN PHẢI THU VÀ DỰ THU CỔ TỨC, TIỀN LÃI CÁC KHOẢN ĐẦU TƯ"
+NOTE,272,"CÁC KHOẢN PHẢI THU VÀ DỰ THU CỔ TỨC, TIỀN LÃI CÁC KHOẢN ĐẦU TƯ","Phải thu cổ tức, tiền lãi phát sinh trong kỳ"
+NOTE,273,"CÁC KHOẢN PHẢI THU VÀ DỰ THU CỔ TỨC, TIỀN LÃI CÁC KHOẢN ĐẦU TƯ","Dự thu cổ tức, tiền lãi phát sinh trong kỳ chưa đến ngày thu trong kỳ"
+NOTE,274,"CÁC KHOẢN PHẢI THU VÀ DỰ THU CỔ TỨC, TIỀN LÃI CÁC KHOẢN ĐẦU TƯ","Các khoản phải thu và dự thu khó đòi về cổ tức, tiền lãi và các khoản đầu tư"
+NOTE,275,"CÁC KHOẢN PHẢI THU VÀ DỰ THU CỔ TỨC, TIỀN LÃI CÁC KHOẢN ĐẦU TƯ",Phải thu và dự thu khác
+NOTE,276,,CÁC KHOẢN PHẢI THU CÁC KHOẢN ĐẦU TƯ ĐÁO HẠN
+NOTE,277,CÁC KHOẢN PHẢI THU CÁC KHOẢN ĐẦU TƯ ĐÁO HẠN,Các khoản phải thu các khoản đầu tư đáo hạn không có khả năng thu hồi vốn
+NOTE,278,CÁC KHOẢN PHẢI THU CÁC KHOẢN ĐẦU TƯ ĐÁO HẠN,Các khoản phải thu khác các khoản đầu tư đáo hạn
+NOTE,279,,PHẢI THU HOẠT ĐỘNG MARGIN
+NOTE,280,PHẢI THU HOẠT ĐỘNG MARGIN,Phải thu gốc hoạt động Margin
+NOTE,281,PHẢI THU HOẠT ĐỘNG MARGIN,Phải thu khác hoạt động Margin
+NOTE,282,,PHẢI THU CÁC DỊCH VỤ CTCK CUNG CẤP
+NOTE,283,PHẢI THU CÁC DỊCH VỤ CTCK CUNG CẤP,Phải thu hoạt động môi giới chứng khoán
+NOTE,284,PHẢI THU CÁC DỊCH VỤ CTCK CUNG CẤP,"Phải thu hoạt động bảo lãnh, đại lý phát hành chứng khoán"
+NOTE,285,PHẢI THU CÁC DỊCH VỤ CTCK CUNG CẤP,Phải thu hoạt động tư vấn
+NOTE,286,PHẢI THU CÁC DỊCH VỤ CTCK CUNG CẤP,Phải thu hoạt động lưu ký chứng khoán
+NOTE,287,PHẢI THU CÁC DỊCH VỤ CTCK CUNG CẤP,"Phải thu hoạt động nhận ủy thác, đấu giá"
+NOTE,288,PHẢI THU CÁC DỊCH VỤ CTCK CUNG CẤP,"Phải thu hoạt động cho thuê, sử dụng tài sản"
+NOTE,289,PHẢI THU CÁC DỊCH VỤ CTCK CUNG CẤP,Phải thu phí quản lý danh mục của công ty con
+NOTE,290,PHẢI THU CÁC DỊCH VỤ CTCK CUNG CẤP,Phải thu các dịch vụ tài chính CTCK cung cấp
+NOTE,291,PHẢI THU CÁC DỊCH VỤ CTCK CUNG CẤP,"Phải thu từ trả hộ gốc, lãi TP và cổ tức của Tổ chức phát hành"
+NOTE,292,PHẢI THU CÁC DỊCH VỤ CTCK CUNG CẤP,Phải thu lãi tiền gửi có kỳ hạn
+NOTE,293,PHẢI THU CÁC DỊCH VỤ CTCK CUNG CẤP,Phải thu các dịch vụ CTCK cung cấp khác
+NOTE,294,,PHẢI THU VỀ LỖI GIAO DỊCH CHỨNG KHOÁN
+NOTE,295,PHẢI THU VỀ LỖI GIAO DỊCH CHỨNG KHOÁN,Phải thu về lỗi giao dịch chứng khoán tự doanh
+NOTE,296,PHẢI THU VỀ LỖI GIAO DỊCH CHỨNG KHOÁN,Phải thu về lỗi giao dịch chứng khoán môi giới
+NOTE,297,PHẢI THU VỀ LỖI GIAO DỊCH CHỨNG KHOÁN,Phải thu về lỗi giao dịch chứng khoán chưa xác định được đối tượng
+NOTE,298,,PHẢI THU NGẮN HẠN HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN
+NOTE,299,PHẢI THU NGẮN HẠN HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN,Phải thu của Sở GDCK
+NOTE,300,PHẢI THU NGẮN HẠN HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN,Phải thu của Khách hàng về GDCK
+NOTE,301,Phải thu của Khách hàng về GDCK,Phải thu Nhà đầu tư nước ngoài
+NOTE,302,Phải thu của Khách hàng về GDCK,Phải thu ứng trước cho nhà đầu tư
+NOTE,303,Phải thu của Khách hàng về GDCK,Phải thu khách hàng về giao dịch ký quỹ
+NOTE,304,Phải thu của Khách hàng về GDCK,Phải thu khách hàng giao dịch OTC
+NOTE,305,Phải thu của Khách hàng về GDCK,Các khoản phải thu khách hàng khác
+NOTE,306,PHẢI THU NGẮN HẠN HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN,Phải thu tổ chức phát hành chứng khoán
+NOTE,307,PHẢI THU NGẮN HẠN HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN,Phải thu Trung tâm lưu ký
+NOTE,308,PHẢI THU NGẮN HẠN HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN,Phải thu thành viên khác
+NOTE,309,,PHẢI THU NGẮN HẠN KHÁC
+NOTE,310,PHẢI THU NGẮN HẠN KHÁC,Phải thu lãi trái phiếu
+NOTE,311,PHẢI THU NGẮN HẠN KHÁC,Phải thu lãi tiền gửi ngân hàng
+NOTE,312,PHẢI THU NGẮN HẠN KHÁC,Phải thu theo các hợp đồng mua và cam kết bán lại trái phiếu
+NOTE,313,PHẢI THU NGẮN HẠN KHÁC,Phải thu theo các hợp đồng mua và cam kết bán lại cổ phiếu
+NOTE,314,PHẢI THU NGẮN HẠN KHÁC,Phải thu trung tâm lưu ký
+NOTE,315,PHẢI THU NGẮN HẠN KHÁC,Phải thu về cổ phần hóa
+NOTE,316,PHẢI THU NGẮN HẠN KHÁC,Phải thu về cổ tức và lợi nhuận được chia
+NOTE,317,PHẢI THU NGẮN HẠN KHÁC,Phải thu người lao động
+NOTE,318,PHẢI THU NGẮN HẠN KHÁC,Trả trước cho người bán
+NOTE,319,PHẢI THU NGẮN HẠN KHÁC,Tài sản thiếu chờ xử lý
+NOTE,320,PHẢI THU NGẮN HẠN KHÁC,Các khoản phải thu ngắn hạn khác
+NOTE,321,Các khoản phải thu ngắn hạn khác,Trong đó: Phải thu và dự thu khó đòi
+NOTE,322,,PHẢI THU DÀI HẠN KHÁC
+NOTE,323,PHẢI THU DÀI HẠN KHÁC,"Ký quỹ, ký cược dài hạn"
+NOTE,324,PHẢI THU DÀI HẠN KHÁC,Các khoản tiền nhận ủy thác
+NOTE,325,PHẢI THU DÀI HẠN KHÁC,Cho vay không có lãi
+NOTE,326,PHẢI THU DÀI HẠN KHÁC,Phải thu dài hạn khác
+NOTE,327,,DỰ PHÒNG CÁC KHOẢN PHẢI THU KHÓ ĐÒI
+NOTE,328,DỰ PHÒNG CÁC KHOẢN PHẢI THU KHÓ ĐÒI,Dự phòng phải thu khó đòi bán các tài sản tài chính
+NOTE,329,DỰ PHÒNG CÁC KHOẢN PHẢI THU KHÓ ĐÒI,"Dự phòng khó đòi phải thu và dự thu cổ tức, tiền lãi đến hạn"
+NOTE,330,DỰ PHÒNG CÁC KHOẢN PHẢI THU KHÓ ĐÒI,Dự phòng nợ phải thu các khoản đầu tư đáo hạn
+NOTE,331,DỰ PHÒNG CÁC KHOẢN PHẢI THU KHÓ ĐÒI,Dự phòng phải thu các dịch vụ CTCK cung cấp
+NOTE,332,DỰ PHÒNG CÁC KHOẢN PHẢI THU KHÓ ĐÒI,Dự phòng nợ phải thu khác khó đòi
+NOTE,333,,PHẢI TRẢ MUA CÁC TÀI SẢN TÀI CHÍNH
+NOTE,334,PHẢI TRẢ MUA CÁC TÀI SẢN TÀI CHÍNH,Phải trả về mua các tài sản tài chính
+NOTE,335,PHẢI TRẢ MUA CÁC TÀI SẢN TÀI CHÍNH,Phải trả khác về hoạt động đầu tư
+NOTE,336,,NGUYÊN GIÁ TSCĐHH
+NOTE,337,NGUYÊN GIÁ TSCĐHH,Nguyên giá đầu kỳ
+NOTE,338,NGUYÊN GIÁ TSCĐHH,Tăng trong kỳ
+NOTE,339,NGUYÊN GIÁ TSCĐHH,Giảm trong kỳ
+NOTE,340,,HAO MÒN TSCĐHH
+NOTE,341,HAO MÒN TSCĐHH,Đầu kỳ
+NOTE,342,HAO MÒN TSCĐHH,Tăng trong kỳ
+NOTE,343,HAO MÒN TSCĐHH,Giảm trong kỳ
+NOTE,344,,NGUYÊN GIÁ TSCĐ TTC
+NOTE,345,NGUYÊN GIÁ TSCĐ TTC,Nguyên giá đầu kỳ
+NOTE,346,NGUYÊN GIÁ TSCĐ TTC,Tăng trong kỳ
+NOTE,347,NGUYÊN GIÁ TSCĐ TTC,Giảm trong kỳ
+NOTE,348,,HAO MÒN TSCĐ TTC
+NOTE,349,HAO MÒN TSCĐ TTC,Đầu kỳ
+NOTE,350,HAO MÒN TSCĐ TTC,Tăng trong kỳ
+NOTE,351,HAO MÒN TSCĐ TTC,Giảm trong kỳ
+NOTE,352,,NGUYÊN GIÁ TSCĐVH
+NOTE,353,NGUYÊN GIÁ TSCĐVH,Nguyên giá đầu kỳ
+NOTE,354,NGUYÊN GIÁ TSCĐVH,Tăng trong kỳ
+NOTE,355,NGUYÊN GIÁ TSCĐVH,Giảm trong kỳ
+NOTE,356,,HAO MÒN TSCĐVH
+NOTE,357,HAO MÒN TSCĐVH,Đầu kỳ
+NOTE,358,HAO MÒN TSCĐVH,Tăng trong kỳ
+NOTE,359,HAO MÒN TSCĐVH,Giảm trong kỳ
+NOTE,360,,VAY VÀ NỢ NGẮN HẠN
+NOTE,361,VAY VÀ NỢ NGẮN HẠN,Vay ngắn hạn
+NOTE,362,VAY VÀ NỢ NGẮN HẠN,Vay dài hạn đến hạn trả
+NOTE,363,,PHẢI TRẢ HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN
+NOTE,364,PHẢI TRẢ HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN,Phải trả sở GDCK
+NOTE,365,PHẢI TRẢ HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN,Phải trả trung tâm lưu ký
+NOTE,366,PHẢI TRẢ HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN,Phải trả nhà đầu tư về GDCK
+NOTE,367,PHẢI TRẢ HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN,Phải trả vay quỹ hỗ trợ thanh toán của các thành viên
+NOTE,368,PHẢI TRẢ HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN,"Phải trả về chứng khoán giao, nhận đại lý phát hành"
+NOTE,369,PHẢI TRẢ HOẠT ĐỘNG GIAO DỊCH CHỨNG KHOÁN,Phải trả khác
+NOTE,370,,"PHẢI TRẢ CỔ TỨC, GỐC VÀ LÃI TRÁI PHIẾU"
+NOTE,371,"PHẢI TRẢ CỔ TỨC, GỐC VÀ LÃI TRÁI PHIẾU","Phải trả hộ cổ tức, gốc và lãi trái phiếu cho Nhà đầu tư"
+NOTE,372,"PHẢI TRẢ CỔ TỨC, GỐC VÀ LÃI TRÁI PHIẾU",Phải trả cổ tức cho cổ đông hoặc lợi nhuận cho thành viên góp vốn
+NOTE,373,,"PHẢI TRẢ, PHẢI NỘP NGẮN HẠN KHÁC"
+NOTE,374,"PHẢI TRẢ, PHẢI NỘP NGẮN HẠN KHÁC",Tài sản thừa chờ xử lý
+NOTE,375,"PHẢI TRẢ, PHẢI NỘP NGẮN HẠN KHÁC",Kinh phí công đoàn
+NOTE,376,"PHẢI TRẢ, PHẢI NỘP NGẮN HẠN KHÁC",Bảo hiểm xã hội
+NOTE,377,"PHẢI TRẢ, PHẢI NỘP NGẮN HẠN KHÁC",Bảo hiểm y tế
+NOTE,378,"PHẢI TRẢ, PHẢI NỘP NGẮN HẠN KHÁC",Bảo hiểm thất nghiệp
+NOTE,379,"PHẢI TRẢ, PHẢI NỘP NGẮN HẠN KHÁC",Phải trả về cổ phần hóa
+NOTE,380,"PHẢI TRẢ, PHẢI NỘP NGẮN HẠN KHÁC","Nhận ký cược, ký quỹ ngắn hạn"
+NOTE,381,"PHẢI TRẢ, PHẢI NỘP NGẮN HẠN KHÁC",Phải trả trung tâm giao dịch chứng khoán
+NOTE,382,"PHẢI TRẢ, PHẢI NỘP NGẮN HẠN KHÁC",Phải trả từ hợp đồng mua lại trái phiếu
+NOTE,383,"PHẢI TRẢ, PHẢI NỘP NGẮN HẠN KHÁC",Doanh thu chưa thực hiện
+NOTE,384,"PHẢI TRẢ, PHẢI NỘP NGẮN HẠN KHÁC","Các khoản phải trả, phải nộp khác"
+NOTE,385,,CÁC KHOẢN PHẢI TRẢ VỀ THUẾ
+NOTE,386,CÁC KHOẢN PHẢI TRẢ VỀ THUẾ,Thuế GTGT
+NOTE,387,CÁC KHOẢN PHẢI TRẢ VỀ THUẾ,Thuế TTĐB
+NOTE,388,CÁC KHOẢN PHẢI TRẢ VỀ THUẾ,Thuế XNK
+NOTE,389,CÁC KHOẢN PHẢI TRẢ VỀ THUẾ,Thuế TNDN
+NOTE,390,CÁC KHOẢN PHẢI TRẢ VỀ THUẾ,Thuế TNCN
+NOTE,391,CÁC KHOẢN PHẢI TRẢ VỀ THUẾ,Thuế Tài nguyên
+NOTE,392,CÁC KHOẢN PHẢI TRẢ VỀ THUẾ,Thuế nhà đất và tiền thuê đất
+NOTE,393,CÁC KHOẢN PHẢI TRẢ VỀ THUẾ,Các loại thuế khác
+NOTE,394,CÁC KHOẢN PHẢI TRẢ VỀ THUẾ,"Các khoản phí, lệ phí khác"
+NOTE,395,,PHẢI TRẢ CÁC TỔ CHỨC PHÁT HÀNH CHỨNG KHOÁN
+NOTE,396,PHẢI TRẢ CÁC TỔ CHỨC PHÁT HÀNH CHỨNG KHOÁN,Phải trả Tổ chức phát hành về nghiệp vụ bảo lãnh chứng khoán
+NOTE,397,PHẢI TRẢ CÁC TỔ CHỨC PHÁT HÀNH CHỨNG KHOÁN,Phải trả Tổ chức phát hành về nghiệp vụ đại lý phát hành chứng khoán
+NOTE,398,PHẢI TRẢ CÁC TỔ CHỨC PHÁT HÀNH CHỨNG KHOÁN,Phải trả khác Tổ chức phát hành chứng khoán
+NOTE,399,,CHI PHÍ PHẢI TRẢ
+NOTE,400,CHI PHÍ PHẢI TRẢ,Trích trước CF lương nghỉ phép
+NOTE,401,CHI PHÍ PHẢI TRẢ,Chi phí SCL TSCĐ
+NOTE,402,CHI PHÍ PHẢI TRẢ,Chi phí trong thời gian ngừng KD
+NOTE,403,CHI PHÍ PHẢI TRẢ,Khác
+NOTE,404,,PHẢI TRẢ LỖI GIAO DỊCH CHỨNG KHOÁN
+NOTE,405,PHẢI TRẢ LỖI GIAO DỊCH CHỨNG KHOÁN,Phải trả lỗi giao dịch chứng khoán tự doanh
+NOTE,406,PHẢI TRẢ LỖI GIAO DỊCH CHỨNG KHOÁN,Phải trả lỗi giao dịch chứng khoán môi giới
+NOTE,407,PHẢI TRẢ LỖI GIAO DỊCH CHỨNG KHOÁN,Phải trả lỗi giao dịch chứng khoán chưa xác định được đối tượng
+NOTE,408,,VAY DÀI HẠN
+NOTE,409,VAY DÀI HẠN,Vay ngân hàng
+NOTE,410,VAY DÀI HẠN,Vay đối tượng khác
+NOTE,411,VAY DÀI HẠN,Trái phiếu phát hành
+NOTE,412,VAY DÀI HẠN,Thuê tài chính
+NOTE,413,VAY DÀI HẠN,Nợ dài hạn khác
+NOTE,414,,"CÁC TÀI SẢN CẦM CỐ, THẾ CHẤP"
+NOTE,415,"CÁC TÀI SẢN CẦM CỐ, THẾ CHẤP",Ngắn hạn
+NOTE,416,"CÁC TÀI SẢN CẦM CỐ, THẾ CHẤP",Dài hạn
+NOTE,417,,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA CTCK
+NOTE,418,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA CTCK,Tài sản tài chính giao dịch tự do chuyển nhượng
+NOTE,419,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA CTCK,Tài sản tài chính giao dịch hạn chế chuyển nhượng
+NOTE,420,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA CTCK,Tài sản tài chính giao dịch cầm cố
+NOTE,421,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA CTCK,"Tài sản tài chính phong tỏa, tạm giữ"
+NOTE,422,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA CTCK,Tài sản tài chính chờ thanh toán
+NOTE,423,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA CTCK,Tài sản tài chính chờ cho vay
+NOTE,424,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA CTCK,Tài sản tài chính ký quỹ đảm bảo khoản vay
+NOTE,425,,TÀI SẢN TÀI CHÍNH ĐÃ LƯU KÝ TẠI VSD VÀ CHƯA GIAO DỊCH TẠI CTCK
+NOTE,426,TÀI SẢN TÀI CHÍNH ĐÃ LƯU KÝ TẠI VSD VÀ CHƯA GIAO DỊCH TẠI CTCK,"Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch, tự do chuyển nhượng"
+NOTE,427,TÀI SẢN TÀI CHÍNH ĐÃ LƯU KÝ TẠI VSD VÀ CHƯA GIAO DỊCH TẠI CTCK,"Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch, hạn chế chuyển nhượng"
+NOTE,428,TÀI SẢN TÀI CHÍNH ĐÃ LƯU KÝ TẠI VSD VÀ CHƯA GIAO DỊCH TẠI CTCK,"Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch, cầm cố"
+NOTE,429,TÀI SẢN TÀI CHÍNH ĐÃ LƯU KÝ TẠI VSD VÀ CHƯA GIAO DỊCH TẠI CTCK,"Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch, phong tỏa, tạm giữ"
+NOTE,430,,TÀI SẢN TÀI CHÍNH CHỜ VỀ CỦA CTCK
+NOTE,431,,TÀI SẢN TÀI CHÍNH SỬA LỖI GIAO DỊCH CỦA CTCK
+NOTE,432,,TÀI SẢN TÀI CHÍNH CHƯA LƯU KÝ TẠI VSD CỦA CTCK
+NOTE,433,,TÀI SẢN TÀI CHÍNH ĐƯỢC HƯỞNG QUYỀN CỦA CTCK
+NOTE,434,,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA NĐT
+NOTE,435,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA NĐT,Tài sản tài chính giao dịch tự do chuyển nhượng
+NOTE,436,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA NĐT,Tài sản tài chính giao dịch hạn chế chuyển nhượng
+NOTE,437,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA NĐT,Tài sản tài chính giao dịch cầm cố
+NOTE,438,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA NĐT,"Tài sản tài chính phong tỏa, tạm giữ"
+NOTE,439,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA NĐT,Tài sản tài chính chờ thanh toán
+NOTE,440,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA NĐT,Tài sản tài chính chờ cho vay
+NOTE,441,TÀI SẢN TÀI CHÍNH NIÊM YẾT/ĐĂNG KÝ GIAO DỊCH CỦA NĐT,Tài sản tài chính ký quỹ đảm bảo khoản vay
+NOTE,442,,TÀI SẢN TÀI CHÍNH ĐÃ LƯU KÝ TẠI VSD VÀ CHƯA GIAO DỊCH CỦA NĐT
+NOTE,443,TÀI SẢN TÀI CHÍNH ĐÃ LƯU KÝ TẠI VSD VÀ CHƯA GIAO DỊCH CỦA NĐT,"Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch, tự do chuyển nhượng"
+NOTE,444,TÀI SẢN TÀI CHÍNH ĐÃ LƯU KÝ TẠI VSD VÀ CHƯA GIAO DỊCH CỦA NĐT,"Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch, hạn chế chuyển nhượng"
+NOTE,445,TÀI SẢN TÀI CHÍNH ĐÃ LƯU KÝ TẠI VSD VÀ CHƯA GIAO DỊCH CỦA NĐT,"Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch, cầm cố"
+NOTE,446,TÀI SẢN TÀI CHÍNH ĐÃ LƯU KÝ TẠI VSD VÀ CHƯA GIAO DỊCH CỦA NĐT,"Tài sản tài chính đã lưu ký tại VSD và chưa giao dịch, phong tỏa, tạm giữ"
+NOTE,447,,TÀI SẢN TÀI CHÍNH CHỜ VỀ CỦA NĐT
+NOTE,448,,TÀI SẢN TÀI CHÍNH SỬA LỖI GIAO DỊCH CỦA NĐT
+NOTE,449,,TÀI SẢN TÀI CHÍNH CHƯA LƯU KÝ TẠI VSD CỦA NĐT
+NOTE,450,,TÀI SẢN TÀI CHÍNH ĐƯỢC HƯỞNG QUYỀN CỦA NĐT
+NOTE,451,,TIỀN GỬI CỦA NĐT
+NOTE,452,TIỀN GỬI CỦA NĐT,Tiền gửi của NĐT về giao dịch chứng khoán theo phương thức CTCK quản lý
+NOTE,453,Tiền gửi của NĐT về giao dịch chứng khoán theo phương thức CTCK quản lý,Tiền gửi của NĐT trong nước về giao dịch chứng khoán theo phương thức CTCK quản lý
+NOTE,454,Tiền gửi của NĐT về giao dịch chứng khoán theo phương thức CTCK quản lý,Tiền gửi của NĐT nước ngoài về giao dịch chứng khoán theo phương thức CTCK quản lý
+NOTE,455,TIỀN GỬI CỦA NĐT,Tiền gửi của NĐT về giao dịch chứng khoán theo phương thức NHTM quản lý
+NOTE,456,Tiền gửi của NĐT về giao dịch chứng khoán theo phương thức NHTM quản lý,Tiền gửi của NĐT trong nước về giao dịch chứng khoán theo phương thức NHTM quản lý
+NOTE,457,Tiền gửi của NĐT về giao dịch chứng khoán theo phương thức NHTM quản lý,Tiền gửi của NĐT nước ngoài về giao dịch chứng khoán theo phương thức NHTM quản lý
+NOTE,458,TIỀN GỬI CỦA NĐT,Tiền gửi tổng hợp giao dịch chứng khoán cho khách hàng
+NOTE,459,TIỀN GỬI CỦA NĐT,Tiền gửi bù trừ và thanh toán giao dịch chứng khoán của NĐT
+NOTE,460,Tiền gửi bù trừ và thanh toán giao dịch chứng khoán của NĐT,Tiền gửi bù trừ và thanh toán giao dịch chứng khoán của NĐT trong nước
+NOTE,461,Tiền gửi bù trừ và thanh toán giao dịch chứng khoán của NĐT,Tiền gửi bù trừ và thanh toán giao dịch chứng khoán của NĐT nước ngoài
+NOTE,462,,TIỀN GỬI CỦA TỔ CHỨC PHÁT HÀNH
+NOTE,463,TIỀN GỬI CỦA TỔ CHỨC PHÁT HÀNH,"Tiền gửi bán chứng khoán bảo lãnh, đại lý phát hành"
+NOTE,464,TIỀN GỬI CỦA TỔ CHỨC PHÁT HÀNH,"Tiền gửi thanh toán gốc, tiền lãi và cổ tức của Tổ chức phát hành"
+NOTE,465,,PHẢI TRẢ NHÀ ĐẦU TƯ
+NOTE,466,PHẢI TRẢ NHÀ ĐẦU TƯ,Phải trả NĐT - Tiền gửi của NĐT về tiền gửi giao dịch CK theo phương thức CTCK quản lý
+NOTE,467,Phải trả NĐT - Tiền gửi của NĐT về tiền gửi giao dịch CK theo phương thức CTCK quản lý,Của Nhà đầu tư trong nước
+NOTE,468,Phải trả NĐT - Tiền gửi của NĐT về tiền gửi giao dịch CK theo phương thức CTCK quản lý,Của Nhà đầu tư nước ngoài
+NOTE,469,PHẢI TRẢ NHÀ ĐẦU TƯ,Phải trả NĐT - Tiền gửi của NĐT về tiền gửi giao dịch CK theo phương thức NHTM quản lý
+NOTE,470,Phải trả NĐT - Tiền gửi của NĐT về tiền gửi giao dịch CK theo phương thức NHTM quản lý,Của Nhà đầu tư trong nước
+NOTE,471,Phải trả NĐT - Tiền gửi của NĐT về tiền gửi giao dịch CK theo phương thức NHTM quản lý,Của Nhà đầu tư nước ngoài
+NOTE,472,PHẢI TRẢ NHÀ ĐẦU TƯ,Phải trả Nhà đầu tư - Tiền gửi về bù trừ và thanh toán giao dịch chứng khoán của NĐT
+NOTE,473,Phải trả Nhà đầu tư - Tiền gửi về bù trừ và thanh toán giao dịch chứng khoán của NĐT,Của Nhà đầu tư trong nước
+NOTE,474,Phải trả Nhà đầu tư - Tiền gửi về bù trừ và thanh toán giao dịch chứng khoán của NĐT,Của Nhà đầu tư nước ngoài
+NOTE,475,PHẢI TRẢ NHÀ ĐẦU TƯ,Phải trả khác của Nhà đầu tư
+NOTE,476,Phải trả khác của Nhà đầu tư,Của Nhà đầu tư trong nước
+NOTE,477,Phải trả khác của Nhà đầu tư,Của Nhà đầu tư nước ngoài
+NOTE,478,,"PHẢI THU, PHẢI TRẢ CỦA NĐT VỀ SỬA LỖI GIAO DỊCH"
+NOTE,479,"PHẢI THU, PHẢI TRẢ CỦA NĐT VỀ SỬA LỖI GIAO DỊCH",Phải thu của CTCK về sửa lỗi giao dịch của Nhà đầu tư
+NOTE,480,Phải thu của CTCK về sửa lỗi giao dịch của Nhà đầu tư,Phải thu của CTCK về sửa lỗi giao dịch của Nhà đầu tư trong nước
+NOTE,481,Phải thu của CTCK về sửa lỗi giao dịch của Nhà đầu tư,Phải thu của CTCK về sửa lỗi giao dịch của Nhà đầu tư nước ngoài
+NOTE,482,"PHẢI THU, PHẢI TRẢ CỦA NĐT VỀ SỬA LỖI GIAO DỊCH",Phải trả CTCK về lỗi giao dịch
+NOTE,483,Phải trả CTCK về lỗi giao dịch,Phải trả CTCK về lỗi giao dịch của Nhà đầu tư trong nước
+NOTE,484,Phải trả CTCK về lỗi giao dịch,Phải trả CTCK về lỗi giao dịch của Nhà đầu tư nước ngoài
+NOTE,485,,PHẢI TRẢ VAY CTCK CỦA NĐT
+NOTE,486,PHẢI TRẢ VAY CTCK CỦA NĐT,Phải trả nghiệp vụ margin
+NOTE,487,PHẢI TRẢ VAY CTCK CỦA NĐT,Phải trả gốc margin
+NOTE,488,Phải trả gốc margin,Phải trả gốc margin của Nhà đầu tư trong nước
+NOTE,489,Phải trả gốc margin,Phải trả gốc margin của Nhà đầu tư nước ngoài
+NOTE,490,PHẢI TRẢ VAY CTCK CỦA NĐT,Phải trả lãi margin
+NOTE,491,Phải trả lãi margin,Phải trả lãi margin của Nhà đầu tư trong nước
+NOTE,492,Phải trả lãi margin,Phải trả lãi margin của Nhà đầu tư nước ngoài
+NOTE,493,PHẢI TRẢ VAY CTCK CỦA NĐT,Phải trả nghiệp vụ ứng trước tiền bán chứng khoán
+NOTE,494,PHẢI TRẢ VAY CTCK CỦA NĐT,Phải trả gốc nghiệp vụ ứng trước tiền bán chứng khoán
+NOTE,495,Phải trả gốc nghiệp vụ ứng trước tiền bán chứng khoán,Phải trả gốc nghiệp vụ ứng trước tiền bán chứng khoán của NĐT trong nước
+NOTE,496,Phải trả gốc nghiệp vụ ứng trước tiền bán chứng khoán,Phải trả gốc nghiệp vụ ứng trước tiền bán chứng khoán của NĐT nước ngoài
+NOTE,497,PHẢI TRẢ VAY CTCK CỦA NĐT,Phải trả lãi nghiệp vụ ứng trước tiền bán chứng khoán
+NOTE,498,Phải trả lãi nghiệp vụ ứng trước tiền bán chứng khoán,Phải trả lãi nghiệp vụ ứng trước tiền bán chứng khoán của NĐT trong nước
+NOTE,499,Phải trả lãi nghiệp vụ ứng trước tiền bán chứng khoán,Phải trả lãi nghiệp vụ ứng trước tiền bán chứng khoán của NĐT nước ngoài
+NOTE,500,,VỐN CHỦ SỞ HỮU
+NOTE,501,VỐN CHỦ SỞ HỮU,Vốn góp của nhà nước
+NOTE,502,VỐN CHỦ SỞ HỮU,Vốn đầu tư của đối tượng khác
+NOTE,503,,LÃI/LỖ BÁN CÁC TÀI SẢN TÀI CHÍNH
+NOTE,504,LÃI/LỖ BÁN CÁC TÀI SẢN TÀI CHÍNH,Cổ phiếu niêm yết
+NOTE,505,LÃI/LỖ BÁN CÁC TÀI SẢN TÀI CHÍNH,Cổ phiếu chưa niêm yết
+NOTE,506,LÃI/LỖ BÁN CÁC TÀI SẢN TÀI CHÍNH,Chứng chỉ quỹ
+NOTE,507,LÃI/LỖ BÁN CÁC TÀI SẢN TÀI CHÍNH,Trái phiếu
+NOTE,508,LÃI/LỖ BÁN CÁC TÀI SẢN TÀI CHÍNH,Công cụ thị trường tiền tệ
+NOTE,509,LÃI/LỖ BÁN CÁC TÀI SẢN TÀI CHÍNH,TSTC phái sinh niêm yết
+NOTE,510,LÃI/LỖ BÁN CÁC TÀI SẢN TÀI CHÍNH,TSTC phái sinh chưa niêm yết
+NOTE,511,LÃI/LỖ BÁN CÁC TÀI SẢN TÀI CHÍNH,TSTC cho vay
+NOTE,512,LÃI/LỖ BÁN CÁC TÀI SẢN TÀI CHÍNH,TSTC đem thế chấp
+NOTE,513,LÃI/LỖ BÁN CÁC TÀI SẢN TÀI CHÍNH,TSTS mua chưa chuyển QSH
+NOTE,514,LÃI/LỖ BÁN CÁC TÀI SẢN TÀI CHÍNH,Đầu tư khác
+NOTE,515,,CHÊNH LỆCH ĐÁNH GIÁ LẠI CÁC TÀI SẢN TÀI CHÍNH
+NOTE,516,CHÊNH LỆCH ĐÁNH GIÁ LẠI CÁC TÀI SẢN TÀI CHÍNH,Loại FVTPL
+NOTE,517,Loại FVTPL,Cổ phiếu niêm yết
+NOTE,518,Loại FVTPL,Cổ phiếu chưa niêm yết
+NOTE,519,Loại FVTPL,Chứng chỉ quỹ
+NOTE,520,Loại FVTPL,Trái phiếu
+NOTE,521,Loại FVTPL,Công cụ thị trường tiền tệ
+NOTE,522,Loại FVTPL,TSTC phái sinh niêm yết
+NOTE,523,Loại FVTPL,TSTC phái sinh chưa niêm yết
+NOTE,524,Loại FVTPL,TSTC cho vay
+NOTE,525,Loại FVTPL,TSTC đem thế chấp
+NOTE,526,Loại FVTPL,TSTS mua chưa chuyển QSH
+NOTE,527,Loại FVTPL,Đầu tư khác
+NOTE,528,CHÊNH LỆCH ĐÁNH GIÁ LẠI CÁC TÀI SẢN TÀI CHÍNH,Loại HTM
+NOTE,529,CHÊNH LỆCH ĐÁNH GIÁ LẠI CÁC TÀI SẢN TÀI CHÍNH,Loại AFS
+NOTE,530,CHÊNH LỆCH ĐÁNH GIÁ LẠI CÁC TÀI SẢN TÀI CHÍNH,Loại các khoản cho vay và phải thu
+NOTE,531,,PHẢI TRẢ CỦA NĐT VỀ DỊCH VỤ CHO CTCK
+NOTE,532,PHẢI TRẢ CỦA NĐT VỀ DỊCH VỤ CHO CTCK,Phải trả phí môi giới chứng khoán
+NOTE,533,PHẢI TRẢ CỦA NĐT VỀ DỊCH VỤ CHO CTCK,Phải trả phí lưu ký chứng khoán
+NOTE,534,PHẢI TRẢ CỦA NĐT VỀ DỊCH VỤ CHO CTCK,Phải trả phí tư vấn đầu tư
+NOTE,535,,CỔ TỨC VÀ TIỀN LÃI PHÁT SINH
+NOTE,536,CỔ TỨC VÀ TIỀN LÃI PHÁT SINH,Từ tài sản tài chính FVTPL
+NOTE,537,CỔ TỨC VÀ TIỀN LÃI PHÁT SINH,Từ tài sản tài chính HTM
+NOTE,538,CỔ TỨC VÀ TIỀN LÃI PHÁT SINH,Từ AFS
+NOTE,539,CỔ TỨC VÀ TIỀN LÃI PHÁT SINH,Từ các khoản cho vay
+NOTE,540,,DOANH THU NGOÀI THU NHẬP CÁC TÀI SẢN TÀI CHÍNH
+NOTE,541,DOANH THU NGOÀI THU NHẬP CÁC TÀI SẢN TÀI CHÍNH,Doanh thu hoạt động môi giới chứng khoán
+NOTE,542,Doanh thu hoạt động môi giới chứng khoán,Doanh thu ban đầu
+NOTE,543,Doanh thu hoạt động môi giới chứng khoán,Các khoản giảm trừ doanh thu
+NOTE,544,Doanh thu hoạt động môi giới chứng khoán,Doanh thu thuần
+NOTE,545,DOANH THU NGOÀI THU NHẬP CÁC TÀI SẢN TÀI CHÍNH,"Doanh thu hoạt động bảo lãnh, đại lý phát hành chứng khoán"
+NOTE,546,"Doanh thu hoạt động bảo lãnh, đại lý phát hành chứng khoán",Doanh thu ban đầu
+NOTE,547,"Doanh thu hoạt động bảo lãnh, đại lý phát hành chứng khoán",Các khoản giảm trừ doanh thu
+NOTE,548,"Doanh thu hoạt động bảo lãnh, đại lý phát hành chứng khoán",Doanh thu thuần
+NOTE,549,DOANH THU NGOÀI THU NHẬP CÁC TÀI SẢN TÀI CHÍNH,Doanh thu hoạt động tư vấn
+NOTE,550,DOANH THU NGOÀI THU NHẬP CÁC TÀI SẢN TÀI CHÍNH,Doanh thu khác
+NOTE,551,,DOANH THU KHÁC
+NOTE,552,DOANH THU KHÁC,Doanh thu hoạt động giao dịch ký quỹ
+NOTE,553,DOANH THU KHÁC,Thu lãi tiền gửi ngân hàng
+NOTE,554,DOANH THU KHÁC,Doanh thu hoạt động ứng trước cho nhà đầu tư
+NOTE,555,DOANH THU KHÁC,Doanh thu từ các hợp đồng mua và cam kết bán lại chứng khoán
+NOTE,556,DOANH THU KHÁC,Lãi từ hợp đồng đặt cọc mua cổ phần
+NOTE,557,DOANH THU KHÁC,Doanh thu khác
+NOTE,558,,CHI PHÍ HOẠT ĐỘNG KINH DOANH
+NOTE,559,CHI PHÍ HOẠT ĐỘNG KINH DOANH,"Chi phí môi giới, lưu ký chứng khoán"
+NOTE,560,CHI PHÍ HOẠT ĐỘNG KINH DOANH,"Chi phí hoạt động đầu tư chứng khoán, góp vốn"
+NOTE,561,CHI PHÍ HOẠT ĐỘNG KINH DOANH,Chi phí/hoàn nhập dự phòng hoạt động kinh doanh chứng khoán
+NOTE,562,CHI PHÍ HOẠT ĐỘNG KINH DOANH,Chi phí vốn kinh doanh chứng khoán
+NOTE,563,Chi phí vốn kinh doanh chứng khoán,Chi phí lãi vay
+NOTE,564,Chi phí vốn kinh doanh chứng khoán,Chi phí trả lãi tài khoảnh kinh doanh chứng khoán của nhà đầu tư
+NOTE,565,Chi phí vốn kinh doanh chứng khoán,Chi phí khác
+NOTE,566,CHI PHÍ HOẠT ĐỘNG KINH DOANH,"Chi phí hoạt động tư vấn đầu tư chứng khoán, tư vấn đầu tư tài chính, tư vấn khác"
+NOTE,567,CHI PHÍ HOẠT ĐỘNG KINH DOANH,CHI PHÍ TRỰC TIẾP KHÁC VỀ KINH DOANH CHỨNG KHOÁN
+NOTE,568,CHI PHÍ TRỰC TIẾP KHÁC VỀ KINH DOANH CHỨNG KHOÁN,Chi phí nhân viên
+NOTE,569,CHI PHÍ TRỰC TIẾP KHÁC VỀ KINH DOANH CHỨNG KHOÁN,"Chi phí vật liệu, văn phòng phẩm"
+NOTE,570,CHI PHÍ TRỰC TIẾP KHÁC VỀ KINH DOANH CHỨNG KHOÁN,Chi  phí khấu hao và phân bổ
+NOTE,571,CHI PHÍ TRỰC TIẾP KHÁC VỀ KINH DOANH CHỨNG KHOÁN,Chi phí dịch vụ mua ngoài
+NOTE,572,CHI PHÍ TRỰC TIẾP KHÁC VỀ KINH DOANH CHỨNG KHOÁN,Chi phí thuê văn phòng
+NOTE,573,CHI PHÍ TRỰC TIẾP KHÁC VỀ KINH DOANH CHỨNG KHOÁN,Chi phí khác
+NOTE,574,,CHI PHÍ QUẢN LY DOANH NGHIỆP
+NOTE,575,CHI PHÍ QUẢN LY DOANH NGHIỆP,Chi phí nhân viên
+NOTE,576,CHI PHÍ QUẢN LY DOANH NGHIỆP,Chi phí dịch vụ mua ngoài
+NOTE,577,CHI PHÍ QUẢN LY DOANH NGHIỆP,Chi phí thuê văn phòng
+NOTE,578,CHI PHÍ QUẢN LY DOANH NGHIỆP,Chi phí khấu hao TSCĐ
+NOTE,579,CHI PHÍ QUẢN LY DOANH NGHIỆP,"Chi phí công cụ, đồ dùng văn phòng"
+NOTE,580,CHI PHÍ QUẢN LY DOANH NGHIỆP,"Chi phú cải tạo, sửa chữa văn phòng"
+NOTE,581,CHI PHÍ QUẢN LY DOANH NGHIỆP,"Thuế, phí và lệ phí"
+NOTE,582,CHI PHÍ QUẢN LY DOANH NGHIỆP,Chi phí khác bằng tiền
+NOTE,583,CHI PHÍ QUẢN LY DOANH NGHIỆP,Hoàn nhập dự phòng khoản phải thu khó đòi
+NOTE,584,,DOANH THU
+NOTE,585,DOANH THU,Doanh thu bán hàng
+NOTE,586,DOANH THU,Doanh thu cung cấp dịch vụ
+NOTE,587,DOANH THU,Doanh thu hợp đồng xây dựng
+NOTE,588,,GIẢM TRỪ DOANH THU
+NOTE,589,GIẢM TRỪ DOANH THU,Chiết khấu thương mại
+NOTE,590,GIẢM TRỪ DOANH THU,Giảm giá hàng bán
+NOTE,591,GIẢM TRỪ DOANH THU,Hàng bán bị trả lại
+NOTE,592,GIẢM TRỪ DOANH THU,Thuế GTGT phải nộp
+NOTE,593,GIẢM TRỪ DOANH THU,Thuế tiêu thụ đặc biệt
+NOTE,594,GIẢM TRỪ DOANH THU,Thuế xuất khẩu
+NOTE,595,,GIÁ VỐN
+NOTE,596,GIÁ VỐN,Giá vốn hàng hóa đã bán
+NOTE,597,GIÁ VỐN,Giá vốn thành phẩm đã bán
+NOTE,598,GIÁ VỐN,Giá vốn của dịch vụ cung cấp
+NOTE,599,GIÁ VỐN,"Giá trị còn lại, chi phí nhượng bán, Thanh lý BĐS đầu tư đã bán"
+NOTE,600,GIÁ VỐN,Chi phí kinh doanh BĐS đầu tư
+NOTE,601,GIÁ VỐN,"Hao hụt, mất mát hàng tồn kho"
+NOTE,602,GIÁ VỐN,Các khoản chi phí vượt mức bình thường
+NOTE,603,GIÁ VỐN,Dự phòng
+NOTE,604,,DOANH THU TÀI CHÍNH
+NOTE,605,DOANH THU TÀI CHÍNH,"Lãi tiền gửi, tiền cho vay"
+NOTE,606,DOANH THU TÀI CHÍNH,"Lãi đầu tư trái phiếu, kỳ phiếu, tín phiếu"
+NOTE,607,DOANH THU TÀI CHÍNH,"Cổ tức, lợi nhuận được chia"
+NOTE,608,DOANH THU TÀI CHÍNH,Lãi bán ngoại tệ
+NOTE,609,DOANH THU TÀI CHÍNH,Lãi chênh lệch tỷ giá đã thực hiện
+NOTE,610,DOANH THU TÀI CHÍNH,Lãi chênh lệch tỷ giá chưa thực hiện
+NOTE,611,DOANH THU TÀI CHÍNH,Lãi bán hành trả chậm
+NOTE,612,DOANH THU TÀI CHÍNH,Doanh thu hoạt động tài chính khác
+NOTE,613,,CHI PHÍ GIAO DỊCH MUA CÁC TÀI SẢN TÀI CHÍNH
+NOTE,614,CHI PHÍ GIAO DỊCH MUA CÁC TÀI SẢN TÀI CHÍNH,Cổ phiếu
+NOTE,615,CHI PHÍ GIAO DỊCH MUA CÁC TÀI SẢN TÀI CHÍNH,Chứng chỉ quỹ
+NOTE,616,CHI PHÍ GIAO DỊCH MUA CÁC TÀI SẢN TÀI CHÍNH,Trái phiếu
+NOTE,617,CHI PHÍ GIAO DỊCH MUA CÁC TÀI SẢN TÀI CHÍNH,Chứng khoán đầu tư khác
+NOTE,618,,CHI PHÍ GIAO DỊCH BÁN CÁC TÀI SẢN TÀI CHÍNH
+NOTE,619,CHI PHÍ GIAO DỊCH BÁN CÁC TÀI SẢN TÀI CHÍNH,"Chi phí môi giới, giao dịch, phí chuyển tiền bán các tài sản tài chính"
+NOTE,620,"Chi phí môi giới, giao dịch, phí chuyển tiền bán các tài sản tài chính",Cổ phiếu
+NOTE,621,"Chi phí môi giới, giao dịch, phí chuyển tiền bán các tài sản tài chính",Chứng chỉ quỹ
+NOTE,622,"Chi phí môi giới, giao dịch, phí chuyển tiền bán các tài sản tài chính",Trái phiếu
+NOTE,623,"Chi phí môi giới, giao dịch, phí chuyển tiền bán các tài sản tài chính",Chứng khoán đầu tư khác
+NOTE,624,CHI PHÍ GIAO DỊCH BÁN CÁC TÀI SẢN TÀI CHÍNH,Chi phí tư vấn pháp luật
+NOTE,625,CHI PHÍ GIAO DỊCH BÁN CÁC TÀI SẢN TÀI CHÍNH,Chi phí tư vấn đầu tư
+NOTE,626,CHI PHÍ GIAO DỊCH BÁN CÁC TÀI SẢN TÀI CHÍNH,Chi phí tư vấn định giá
+NOTE,627,CHI PHÍ GIAO DỊCH BÁN CÁC TÀI SẢN TÀI CHÍNH,Chi phí khác
+NOTE,628,,CHI PHÍ TÀI CHÍNH
+NOTE,629,CHI PHÍ TÀI CHÍNH,Lãi tiền vay
+NOTE,630,CHI PHÍ TÀI CHÍNH,"Chiết khấu thanh toán, lãi bán hàng trả chậm"
+NOTE,631,CHI PHÍ TÀI CHÍNH,"Lỗ do thanh lý các khoản đầu tư ngắn hạn, dài hạn"
+NOTE,632,CHI PHÍ TÀI CHÍNH,Lỗ bán ngoại tệ
+NOTE,633,CHI PHÍ TÀI CHÍNH,Lỗ chênh lệch tỷ giá đã thực hiện
+NOTE,634,CHI PHÍ TÀI CHÍNH,Lỗ chênh lệch tỷ giá chưa thực hiện
+NOTE,635,CHI PHÍ TÀI CHÍNH,"Dự phòng giảm giá các khoản đầu tư ngắn hạn, dài hạn"
+NOTE,636,CHI PHÍ TÀI CHÍNH,Chi phí tài chính khác
+NOTE,637,,CHI PHÍ SẢN XUẤT THEO YẾU TỐ
+NOTE,638,CHI PHÍ SẢN XUẤT THEO YẾU TỐ,"Chi phí nguyên liệu, vật liệu"
+NOTE,639,CHI PHÍ SẢN XUẤT THEO YẾU TỐ,Chi phí nhân công
+NOTE,640,CHI PHÍ SẢN XUẤT THEO YẾU TỐ,Chi phí khấu hao tài sản cố định
+NOTE,641,CHI PHÍ SẢN XUẤT THEO YẾU TỐ,Chi phí dịch vụ mua ngoài
+NOTE,642,CHI PHÍ SẢN XUẤT THEO YẾU TỐ,Chi phí khác bằng tiền

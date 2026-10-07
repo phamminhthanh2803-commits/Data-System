@@ -14,7 +14,7 @@ on:
         type: string
 
 concurrency:
-  group: pipeline               # 2 slot khong chay de nhau (cung Drive); job sau doi job truoc xong
+  group: market                 # AM/PM cung hub khong chay de nhau (cung thu muc Drive); market va shipping chay song song duoc
   cancel-in-progress: false
 
 env:

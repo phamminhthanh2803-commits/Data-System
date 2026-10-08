@@ -12,6 +12,16 @@ if not exist D:\pipeline-data\shipping\port-tracker\app.py (
     pause
     exit /b 1
 )
+rem --- keo du lieu moi tu Drive (bo qua neu da keo trong 1 gio qua; them tham so "nosync" de bo qua) ---
+set STAMP=D:\pipeline-data\logs\app_sync_stamp.txt
+if not exist D:\pipeline-data\logs mkdir D:\pipeline-data\logs
+set NEEDSYNC=1
+if exist "%STAMP%" for /f %%a in ('powershell -NoProfile -Command "if (((Get-Date) - (Get-Item ''%STAMP%'').LastWriteTime).TotalHours -gt 1) {1} else {0}"') do set NEEDSYNC=%%a
+if /i "%~1"=="nosync" set NEEDSYNC=0
+if "%NEEDSYNC%"=="1" (
+    echo   Dang keo du lieu moi tu Google Drive ve D:\pipeline-data ^(~1 phut^) ...
+    python D:\cloud-deploy\sync_data.py app >nul 2>&1 && echo ok>"%STAMP%"
+)
 cd /d D:\pipeline-data\shipping\port-tracker
 set URL=http://localhost:8766/
 if not exist logs mkdir logs

@@ -8,8 +8,18 @@ set PYTHONIOENCODING=utf-8
 set MD_ROOT=D:\pipeline-data\market-data
 set SHIP_ROOT=D:\pipeline-data\shipping
 set BCTC_ROOT=D:\bctc
+rem --- keo du lieu moi tu Drive (bo qua neu da keo trong 1 gio qua; them tham so "nosync" de bo qua) ---
+set STAMP=D:\pipeline-data\logs\app_sync_stamp.txt
+if not exist D:\pipeline-data\logs mkdir D:\pipeline-data\logs
+set NEEDSYNC=1
+if exist "%STAMP%" for /f %%a in ('powershell -NoProfile -Command "if (((Get-Date) - (Get-Item ''%STAMP%'').LastWriteTime).TotalHours -gt 1) {1} else {0}"') do set NEEDSYNC=%%a
+if /i "%~1"=="nosync" set NEEDSYNC=0
+if "%NEEDSYNC%"=="1" (
+    echo   Dang keo du lieu moi tu Google Drive ve D:\pipeline-data ^(~1 phut^) ...
+    python D:\cloud-deploy\sync_data.py app >nul 2>&1 && echo ok>"%STAMP%"
+)
 cd /d D:\market-data\app
-set TRANG=%~1
+if /i not "%~1"=="nosync" set TRANG=%~1
 set URL=http://localhost:8765/
 if not "%TRANG%"=="" set URL=http://localhost:8765/?trang=%TRANG%
 

@@ -10,6 +10,7 @@ Quy uoc Drive:  gdrive:pipeline-data/<hub>/<thu-muc>  lap y cau truc D:\\  (hub 
     D:\\market-data\\bond-pivot (junction D:\\pipeline-data\\market-data\\bond-pivot -> D:\\market-data\\bond-pivot de app doc).
   - cangvu-hcm: laptop la chu (Cang vu TP.HCM chan IP nuoc ngoai); cloud chi ghi 3 file enriched (vessel_enrich.py).
   - market-valuation: cloud la chu; laptop chi ghi valuation-region-master/wide.csv (IDX + Bursa bi Cloudflare chan IP My).
+  - port-tracker (09/10/2026): cloud la chu store/ (parquet theo cang vu/thang); 2 duong dan HCM (laptop_only) chi laptop ghi, cloud khong sync.
 
     python data_manifest.py            # in bang thu muc + buoc
     python data_manifest.py --size     # uoc dung luong tung thu muc se len Drive (doc tu D:\\), canh bao neu > 4 GB
@@ -43,6 +44,7 @@ class Folder:
     include: list | None = None            # chi dong bo cac file nay (hah)
     cloud_up_include: list = field(default_factory=list)    # owner=laptop: file cloud van duoc ghi (rclone copy)
     laptop_up_include: list = field(default_factory=list)   # owner=cloud: file laptop van duoc ghi (rclone copy)
+    laptop_only: list = field(default_factory=list)         # owner=cloud: duong dan CHI laptop ghi; cloud khong sync (khong ghi de/xoa)
     note: str = ""
 
     @property
@@ -86,6 +88,9 @@ FOLDERS: dict[str, Folder] = {f.key: f for f in [
            note="laptop cao (IP VN); cloud chi ghi 3 file enriched tu vessel_enrich.py"),
     Folder("shipping", "cangvu-toanquoc", exclude=["khao-sat/**"]),
     Folder("shipping", "vessel-itinerary"),
+    Folder("shipping", "port-tracker", exclude=["cache/**", "*.sqlite", "*.sqlite-wal", "*.sqlite-shm"],
+           laptop_only=["store/events/HCM/**", "store/days/HCM.csv"],
+           note="kho chia se store/ (parquet 1 cang vu x 1 thang, ~50 MB) cua app Port Tracker: cloud keo 11 cang vu, laptop keo TP.HCM"),
     Folder("shipping", "Alibra-scraper"),
     Folder("shipping", "BCTI-scraper"),
 ]}
@@ -135,8 +140,10 @@ STEP_FOLDERS: dict[str, list] = {
     "itinerary":        [("shipping/vessel-itinerary", "rw", None), ("shipping/cangvu-haiphong", "r", None),
                          ("shipping/cangvu-hcm", "r", None), ("shipping/cangvu-toanquoc", "r", None)],
     "alibra":           [("shipping/Alibra-scraper", "rw", None)],
+    "port-tracker":     [("shipping/port-tracker", "rw", None)],
     # shipping PM
     "bcti":             [("shipping/BCTI-scraper", "rw", None)],
+    "port-tracker-pm":  [("shipping/port-tracker", "rw", None)],
 }
 
 # thu muc app local doc (Run-Local-Mini keo ve D:\pipeline-data moi toi de app Streamlit + port-tracker dung)
@@ -146,7 +153,8 @@ APP_FOLDERS = [("market-data/market-valuation", None), ("market-data/index-fetch
                "nso_catalog.csv", "nso_timeseries.xlsx", "monthly_reports_index.csv"]), ("market-data/macro-fetcher", None),
                ("market-data/vsdc-accounts", None), ("shipping/VHBS-ConTex", None), ("hah", None),
                ("shipping/cangvu-haiphong", None), ("shipping/cangvu-hcm", None), ("shipping/cangvu-toanquoc", None),
-               ("shipping/vessel-itinerary", None), ("shipping/Alibra-scraper", None), ("shipping/BCTI-scraper", None)]
+               ("shipping/vessel-itinerary", None), ("shipping/Alibra-scraper", None), ("shipping/BCTI-scraper", None),
+               ("shipping/port-tracker", None)]
 
 
 # ---------------------------------------------------------------------------------------------- tien ich

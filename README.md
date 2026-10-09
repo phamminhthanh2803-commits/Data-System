@@ -130,6 +130,16 @@ Khi ổn: tắt 4 task cũ `schtasks /Change /TN "<tên task>" /DISABLE` (không
 
 ---
 
+## Port Tracker: ghép dữ liệu liên tục (09/10/2026)
+App Port & Vessel Tracker không còn tự gọi trang nguồn khi mở. Bước `port-tracker` (Shipping AM) và `port-tracker-pm` (Shipping PM) chạy
+`shipping/port-tracker/pt_update.py`: nạp kho chia sẻ `store/` → gọi nguồn các ngày thiếu/chưa chốt (cửa sổ 14 ngày) → xuất lại
+`store/events/<cảng vụ>/<YYYY-MM>.parquet` + `store/days/<cảng vụ>.csv` (1 file = 1 cảng vụ 1 tháng, cả lịch sử ≈ 50 MB).
+- Cloud kéo 11 cảng vụ (`CLOUD=1` → bỏ HCM) và là **chủ** thư mục `shipping/port-tracker` trên Drive (sync, bỏ `cache/` + sqlite).
+- Cảng vụ TP.HCM chặn IP nước ngoài → laptop kéo (`PT_AUTHS=HCM`) trong `Run-Local-Cvhcm.ps1` 8:30 và `Run-Local-Mini.ps1` 18:40, chỉ đẩy
+  2 đường dẫn `store/events/HCM/**`, `store/days/HCM.csv` (`laptop_only` trong `data_manifest.py`; cloud không sync 2 đường dẫn này).
+- App (`local\Chay-app-port-tracker.bat`) kéo `store/` về qua `sync_data.py app` rồi `livedata.import_store()` chỉ nạp file đổi vào sqlite riêng.
+- Seed lần đầu 09/10/2026: `pt_update.py --export-all --no-pull` ở `D:\shipping\port-tracker` → `rclone copy store/ gdrive:pipeline-data/shipping/port-tracker/store`.
+
 ## Vận hành hằng ngày
 - Lịch (UTC = VN − 7): Shipping AM `0 2 * * *` (9:00), Market AM `30 3 * * *` (10:30), Market PM `30 11 * * *` (18:30), Shipping PM `0 15 * * *` (22:00).
   GitHub có thể trễ 5–30 phút; `concurrency: pipeline` → job sau đợi job trước, không chạy đè.

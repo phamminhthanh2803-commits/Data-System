@@ -34,7 +34,7 @@ HUBS = [
                              "transmission-fetcher/cbtt", "transmission-fetcher/sbv_cache", "transmission-fetcher/_archive",
                              "transmission-fetcher/paste", "transmission-fetcher/lending", "nso-fetcher/monthly-reports",
                              "app/cache", "chart-pack/out", "chart-pack/ftse/out", "index-fetcher/raw/vci_foreign"]),
-    (SHIP_SRC, "shipping", ["port-tracker/cache", "cangvu-toanquoc/khao-sat", "vimawa-sanluong/downloads",
+    (SHIP_SRC, "shipping", ["port-tracker/cache", "port-tracker/store", "cangvu-toanquoc/khao-sat", "vimawa-sanluong/downloads",
                             "vimawa-sanluong/raw"]),
     (BCTC_SRC, "bctc", ["pdf-detector/downloads", "pdf-detector/markitdown-tool/out", "fs-extractor/output",
                         "fiinprox-unpivot/output", "fiinprox-unpivot/input", "nganh-chung-khoan/excel_feed",

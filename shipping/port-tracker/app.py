@@ -2,8 +2,9 @@
 r"""
 PORT & VESSEL TRACKER - theo dõi cảng và tàu trên bộ dữ liệu cảng vụ Hải Phòng + TP.HCM (D:\shipping).
 Chạy:  D:\shipping\port-tracker\Chay-app.bat   (http://localhost:8766)
-App GỌI THẲNG trang nguồn của từng cảng vụ (livedata.py), phân tích trong bộ nhớ và lưu vào kho riêng cache\\live.sqlite.
-Không đọc các file events/calls do pipeline parse sẵn.
+Dữ liệu được pipeline GHÉP LIÊN TỤC (bước port-tracker: cloud 9:00 + 22:00 cho 11 cảng vụ, laptop 8:30 + 18:40 cho TP.HCM, xem pt_update.py)
+vào kho chia sẻ store/ (parquet, đồng bộ Google Drive). Khi mở, app chỉ nạp các file store mới vào sqlite riêng cache\\live.sqlite rồi phân tích
+trong bộ nhớ. Vẫn gọi thẳng được trang nguồn (livedata.py) bằng nút ở thanh bên / trang Dữ liệu. Không đọc các file events/calls parse sẵn.
 """
 import os, sys, tempfile
 from datetime import date
@@ -240,12 +241,17 @@ MEAS_LABEL = st.sidebar.selectbox('Đo lường', list(MEASURES), index=1 if ONL
 MEAS = MEASURES[MEAS_LABEL]
 MONTHS = {'6 tháng': 6, '12 tháng': 12, '24 tháng': 24, '36 tháng': 36, 'Từ 2019': 400}[PRESET]
 st.sidebar.divider()
-LIVE = st.sidebar.toggle('Tự kéo từ trang nguồn khi mở', value=True, help='Tắt: chỉ dùng dữ liệu đã có trong kho của app.')
+LIVE = st.sidebar.toggle('Kéo thêm từ trang nguồn khi mở', value=False,
+                         help='Kho đã được pipeline cập nhật 2 lần/ngày (cloud 9:00 + 22:00; TP.HCM ở laptop 8:30 + 18:40). Bật khi cần số liệu trong ngày.')
 TTL = st.sidebar.select_slider('Làm mới ngày gần đây sau (phút)', [5, 10, 30, 60, 180], value=30)
 FORCE = st.sidebar.button('🔄 Kéo lại từ nguồn ngay', width='stretch')
 
 # ---- kho của app: lần đầu nạp lịch sử đã có (1 lần), sau đó mọi cập nhật đi thẳng từ trang nguồn
 tick('sidebar')
+with st.spinner('Đang nạp dữ liệu mới từ kho chia sẻ store/ (lần đầu khoảng 1–2 phút)…'):
+    N_IMP, _ = ld.import_store()
+if N_IMP: st.toast(f'Đã nạp {N_IMP} tệp mới từ kho chia sẻ')
+tick('import_store')
 if ld.is_empty():
     with st.spinner('Khởi tạo kho dữ liệu của app từ lịch sử đã có (chỉ 1 lần, khoảng 1–2 phút)…'):
         ld.seed_from_local()
@@ -261,7 +267,8 @@ if LIVE or FORCE:
 tick('goi nguon')
 VER = ld.version(); MST = tl.stamp('master', 'hp_terminals', 'hcm_terminals')
 KEY = (tuple(AUTHS), str(LOAD_LO.date()), str(LOAD_HI.date()), VER, MST)
-calls = get_calls(*KEY)
+with st.spinner('Đang ghép chuyến tàu từ kho (lần đầu trong tháng có thể mất 1–2 phút)…'):
+    calls = get_calls(*KEY)
 if calls.empty:
     st.error('Kho chưa có dữ liệu cho lựa chọn này và không kéo được từ nguồn. Kiểm tra mạng hoặc vào trang "Dữ liệu".'); st.stop()
 tick('get_calls')
@@ -269,7 +276,9 @@ visits = get_visits(*KEY)
 tick('get_visits')
 LAST = min(calls.loc[calls['arr_day'].notna(), 'arr_day'].max(), TODAY)
 LO = max((LAST - pd.DateOffset(months=MONTHS)).normalize(), LOAD_LO)
-st.sidebar.caption(f'Dữ liệu đến {LAST:%d/%m/%Y}, kéo trực tiếp từ trang cảng vụ. TEU là sức chở danh nghĩa của tàu, không phải sản lượng xếp dỡ.')
+_upd = (VER.split('|')[1] or '')[:16]
+st.sidebar.caption(f'Dữ liệu đến {LAST:%d/%m/%Y}; kho cập nhật lần cuối {_upd} (pipeline ghép liên tục). '
+                   'TEU là sức chở danh nghĩa của tàu, không phải sản lượng xếp dỡ.')
 
 
 def scope(df, date_col='arr_day', lo=None):
@@ -598,7 +607,10 @@ elif PAGE == 'Tuyến':
 # ================================================================ DỮ LIỆU
 else:
     st.title('Dữ liệu nguồn')
-    st.caption('App gọi thẳng trang nguồn của từng cảng vụ và lưu vào kho riêng (cache\\live.sqlite). Ngày đã qua hơn 2 ngày coi là chốt, không kéo lại.')
+    ss = ld.store_status()
+    st.caption('Pipeline ghép liên tục (bước port-tracker: cloud 9:00 + 22:00 cho 11 cảng vụ, laptop 8:30 + 18:40 cho TP.HCM) ghi kho chia sẻ '
+               f'store/ ({ss["files"]} tệp parquet, {ss["auths"]} cảng vụ, cập nhật gần nhất {ss["latest"] or "–"}); app nạp về sqlite riêng khi mở. '
+               'Ngày đã qua hơn 2 ngày coi là chốt, không kéo lại.')
     cov = ld.coverage()
     cov['Cảng vụ'] = cov['auth'].map(tl.AUTH_LABEL); cov['order'] = cov['auth'].map({a: i for i, a in enumerate(tl.AUTH_ORDER)})
     st.dataframe(cov.sort_values('order')[['Cảng vụ', 'tu_ngay', 'den_ngay', 'so_ngay', 'so_su_kien', 'keo_gan_nhat']]

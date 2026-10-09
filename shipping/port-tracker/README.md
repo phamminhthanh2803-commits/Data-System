@@ -1,6 +1,19 @@
 # Port & Vessel Tracker
 
-App Streamlit theo dõi cảng và tàu của 12 cảng vụ hàng hải. **App gọi thẳng trang nguồn của từng cảng vụ** (từ 29/09/2026), phân tích trong bộ nhớ và lưu vào kho riêng `cache\live.sqlite`. App không còn đọc các file `*_events.csv` / `*_calls.csv` do pipeline parse sẵn.
+App Streamlit theo dõi cảng và tàu của 12 cảng vụ hàng hải. Dữ liệu được **pipeline ghép liên tục** (từ 09/10/2026) vào kho chia sẻ `store/`; khi mở, app chỉ nạp các file store mới vào sqlite riêng `cache\live.sqlite` rồi phân tích trong bộ nhớ. App không đọc các file `*_events.csv` / `*_calls.csv` do pipeline parse sẵn; vẫn gọi thẳng được trang nguồn (nút ở thanh bên / trang Dữ liệu).
+
+## Ghép dữ liệu liên tục (`pt_update.py`, 09/10/2026)
+| Việc | Cách làm |
+|---|---|
+| Bước pipeline | `port-tracker` (Shipping AM 9:00) và `port-tracker-pm` (Shipping PM 22:00) trong `D:\shipping\run_slot.py` gọi `pt_update.py`: nạp store → gọi nguồn các ngày thiếu/chưa chốt trong cửa sổ 14 ngày (`--days`) → xuất lại các cảng vụ-tháng vừa ghi |
+| Ai kéo cảng vụ nào | Cloud (GitHub Actions, repo Data-System) kéo 11 cảng vụ (`CLOUD=1` → bỏ HCM). Cảng vụ TP.HCM chặn IP nước ngoài → laptop kéo (`PT_AUTHS=HCM`) trong `Run-Local-Cvhcm.ps1` 8:30 và `Run-Local-Mini.ps1` 18:40 |
+| Kho chia sẻ `store/` | `events/<cảng vụ>/<YYYY-MM>.parquet` (1 file = 1 cảng vụ 1 tháng, ~0,5 MB; cả lịch sử 2019+ ≈ 50 MB, 987 file) + `days/<cảng vụ>.csv` (ngày nào đã kéo, lúc nào). rclone đồng bộ `gdrive:pipeline-data/shipping/port-tracker/store`; cloud là chủ, 2 đường dẫn HCM chỉ laptop ghi (`laptop_only` trong `data_manifest.py`) |
+| App nạp | `livedata.import_store()` khi mở: so chữ ký size|mtime từng file với bảng `meta` → chỉ nạp file đổi (mỗi file thay trọn 1 cảng vụ-tháng trong sqlite). Lần đầu nạp cả kho ~1–2 phút, sau đó < 1 giây |
+| Seed lần đầu | `python pt_update.py --export-all --no-pull` xuất sqlite hiện có ra `store/` (37 giây) rồi `rclone copy` lên Drive |
+| Chạy tay | `python pt_update.py` (tất cả), `--auths HCM --days 3`, `--months 2` (chỉ nạp 2 tháng store vào sqlite, cloud mặc định 4), `--ttl 30`, `--max-pages 60` |
+| Env | `PORT_TRACKER_DB` (sqlite), `PORT_TRACKER_STORE` (store/), `PT_AUTHS`, `PT_DAYS`, `CLOUD=1` |
+
+Mô hình cloud: app chạy từ bản copy `D:\pipeline-data\shipping\port-tracker` bằng `D:\cloud-deploy\local\Chay-app-port-tracker.bat` (tự `sync_data.py app` kéo store mới từ Drive trước khi mở). Bản gốc `D:\shipping\port-tracker` vẫn chạy được với `Chay-app.bat` (đọc `store/` tại chỗ).
 
 ## Cơ chế dữ liệu trực tiếp (`livedata.py`)
 | Việc | Cách làm |

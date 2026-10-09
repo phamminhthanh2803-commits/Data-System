@@ -3,6 +3,7 @@
 #   2. nganh-ck: ghi Excel OneDrive IB&Brokerage_Nganh.xlsx (win32com)   — can Excel Windows
 #   3. thu Hai: bonds (bond-pivot 3,5 GB o lai laptop, D:\market-data\bond-pivot qua junction)
 #   4. keo du lieu cloud ve D:\pipeline-data cho 2 app Streamlit (local\Chay-app-*.bat)
+#   3b (09/10/2026). port-tracker HCM buoi toi: keo lich TP.HCM vao store/ cua app Port Tracker (cloud khong vao duoc HCM)
 # Truoc khi chay: doi cloud Market PM hom nay xong (status-PM.txt tren Drive co ngay hom nay, toi da 150 phut)
 # de khong ghi de valuation-region-master.csv va de nganh-ck doc tv-history moi.
 # Dang ky: xem local\schtasks-mau.txt. Chay tay: powershell -ExecutionPolicy Bypass -File D:\cloud-deploy\local\Run-Local-Mini.ps1 [-NoWait] [-NoApp]
@@ -14,7 +15,7 @@ Write-Log '===== BAT DAU Local Mini ====='
 try {
     Set-PipelineEnv
     Copy-Code 'market-data'; Copy-Code 'shipping'; Ensure-BondJunction
-    $md = $env:MD_ROOT; $isMon = (Get-Date).DayOfWeek -eq 'Monday'
+    $md = $env:MD_ROOT; $ship = $env:SHIP_ROOT; $isMon = (Get-Date).DayOfWeek -eq 'Monday'
 
     if (-not $NoWait) { Wait-CloudStatus 'market-data/status-PM.txt' 150 5 | Out-Null }
 
@@ -46,6 +47,15 @@ try {
     Write-Log '----- day len Drive (valuation-region) -----'
     $rc = Invoke-Py $Repo @("$Repo\sync_data.py", 'up', '--hub', 'market-data', '--slot', 'PM', '--only', 'valuation-region', '--job', 'laptop')
     if ($rc -ne 0) { Write-Log "sync up exit $rc" 'WARN' }
+
+    # --- 3b. port-tracker: TP.HCM buoi toi (PT_AUTHS=HCM) -> day 2 duong dan HCM cua store/ len Drive (laptop_only)
+    Write-Log '----- port-tracker (HCM, toi) -----'
+    $env:PT_AUTHS = 'HCM'
+    $rc = Invoke-Py $Repo @("$Repo\sync_data.py", 'down', '--hub', 'shipping', '--slot', 'AM', '--only', 'port-tracker', '--job', 'laptop')
+    if ($rc -ne 0) { Write-Log "sync down port-tracker exit $rc" 'WARN' }
+    $rc = Invoke-Py $ship @("$ship\run_slot.py", '--slot', 'AM', '--only', 'port-tracker')
+    $rc = Invoke-Py $Repo @("$Repo\sync_data.py", 'up', '--hub', 'shipping', '--slot', 'AM', '--only', 'port-tracker', '--job', 'laptop')
+    if ($rc -ne 0) { Write-Log "sync up port-tracker exit $rc" 'WARN' }
 
     # --- 4. du lieu cho app Streamlit + port-tracker
     if (-not $NoApp) {

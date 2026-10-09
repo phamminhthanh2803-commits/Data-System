@@ -52,6 +52,7 @@ probe_local_baseline.json
 **/reports/
 **/downloads/
 **/cache/
+**/store/
 **/logs/
 **/_backup/
 **/_archive/

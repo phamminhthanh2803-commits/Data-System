@@ -16,6 +16,11 @@ Quy tắc làm mới:
     - Ngày gần đây (hôm nay-2 .. ngày mai)        -> kéo lại nếu bản trong kho cũ hơn TTL (mặc định 30 phút).
     - Ngày chưa có trong kho                       -> kéo từ nguồn (tự động tối đa `max_pages` trang / cảng vụ / lần mở).
 Khởi tạo: lần đầu, kho được nạp 1 LẦN từ lịch sử đã có (seed_from_local) để khỏi kéo lại ~8 năm; sau đó mọi cập nhật là trực tiếp.
+
+Kho chia sẻ store/ (09/10/2026, mô hình cloud): pipeline (bước port-tracker trong run_slot.py: GitHub Actions 9:00 + 22:00 cho 11 cảng vụ,
+laptop 8:30 + 18:40 cho TP.HCM) gọi nguồn qua pt_update.py rồi XUẤT sqlite -> store/events/<cảng vụ>/<YYYY-MM>.parquet + store/days/<cảng vụ>.csv
+(mỗi file 1 cảng vụ 1 tháng, ~0,5 MB) để rclone đồng bộ Google Drive. App khi mở chỉ NẠP các file đổi (import_store) vào sqlite của mình,
+không cần gọi nguồn nữa (vẫn kéo được bằng tay).
 """
 import os, re, sqlite3, sys, threading, time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -42,6 +47,8 @@ AUTHS = ['QN', 'HP', 'TBH', 'THA', 'HTH', 'DNG', 'NTG', 'BTN', 'DNI', 'HCM', 'CT
 START = {'HP': '2019-01-01', 'HCM': '2019-01-01', 'QN': '2020-01-01', 'NTG': '2019-01-01', 'CTO': '2021-01-01'}   # mặc định pkh: 2020-01-01
 QN_CUT = date(2025, 4, 14)          # Quảng Ninh chuyển dần public-kh -> kht1 trong 04/2025; từ 14/04 kht1 nhiều bản ghi hơn
 _lock = threading.Lock()
+STORE = os.environ.get('PORT_TRACKER_STORE') or os.path.join(APP, 'store')      # kho chia sẻ (parquet) đồng bộ Drive
+_dirty = set()                      # (auth, 'YYYY-MM') đã ghi vào sqlite trong tiến trình này -> export_store() xuất lại
 FAILED = {}                         # cảng vụ vừa gọi lỗi -> thời điểm; tự kéo sẽ bỏ qua trong COOLDOWN phút
 COOLDOWN = 5
 
@@ -96,6 +103,7 @@ def put_day(auth, d, events, src):
             c.execute(f'DELETE FROM events WHERE auth=? AND rec_id IN ({",".join("?" * len(ids[i:i + 500]))})', [auth] + ids[i:i + 500])
         c.executemany(f'INSERT INTO events VALUES ({",".join("?" * len(COLS))})', rows)
         c.execute('INSERT OR REPLACE INTO days VALUES (?,?,?,?,?)', (auth, d, datetime.now().strftime('%Y-%m-%d %H:%M'), len(rows), src))
+    _dirty.add((auth, d[:7]))
 
 
 def coverage():
@@ -147,6 +155,99 @@ def load_events(auths, d0, d1, raw=False):
 def load_ship_events(ship_key):
     with conn() as c:
         return clean(pd.read_sql('SELECT * FROM events WHERE ship_key=?', c, params=[ship_key]))
+
+
+# ================================================================ KHO CHIA SẺ store/ (parquet theo cảng vụ + tháng, đồng bộ Drive)
+def _ev_path(auth, ym): return os.path.join(STORE, 'events', auth, f'{ym}.parquet')
+def _days_path(auth): return os.path.join(STORE, 'days', f'{auth}.csv')
+
+
+def _sig(path):
+    st = os.stat(path); return f'{st.st_size}|{st.st_mtime_ns}'
+
+
+def export_store(pairs=None, auths=None):
+    """sqlite -> store/: events/<auth>/<YYYY-MM>.parquet (1 file = 1 cảng vụ, 1 tháng) + days/<auth>.csv (toàn bộ ngày của cảng vụ).
+    pairs=None: xuất toàn bộ kho (seed lần đầu). Trả về số file parquet đã ghi."""
+    with conn() as c:
+        if pairs is None:
+            pairs = {(a, ym) for a, ym in c.execute("SELECT DISTINCT auth, substr(plan_date, 1, 7) FROM events")}
+        pairs = {(a, ym) for a, ym in pairs if not auths or a in auths}
+        n = 0
+        for a, ym in sorted(pairs):
+            ev = pd.read_sql('SELECT * FROM events WHERE auth=? AND plan_date LIKE ?', c, params=[a, ym + '%'])
+            p = _ev_path(a, ym); os.makedirs(os.path.dirname(p), exist_ok=True)
+            if ev.empty:
+                if os.path.exists(p): os.remove(p)
+                c.execute("DELETE FROM meta WHERE k=?", (f'imp:{a}/{ym}',)); continue
+            ev.to_parquet(p + '.tmp', index=False, compression='zstd'); os.replace(p + '.tmp', p)
+            c.execute("INSERT OR REPLACE INTO meta VALUES (?,?)", (f'imp:{a}/{ym}', _sig(p))); n += 1
+        for a in sorted({a for a, _ in pairs}):
+            d = pd.read_sql('SELECT auth, plan_date, fetched_at, n, src FROM days WHERE auth=? ORDER BY plan_date', c, params=[a])
+            p = _days_path(a); os.makedirs(os.path.dirname(p), exist_ok=True)
+            d.to_csv(p + '.tmp', index=False, encoding='utf-8'); os.replace(p + '.tmp', p)
+            c.execute("INSERT OR REPLACE INTO meta VALUES (?,?)", (f'impd:{a}', _sig(p)))
+    _dirty.difference_update(pairs)
+    return n
+
+
+def store_files(auths=None, since=None):
+    """[(auth, 'YYYY-MM', đường dẫn)] các file parquet có trong store/ (since='YYYY-MM': bỏ tháng cũ hơn)."""
+    root = os.path.join(STORE, 'events'); out = []
+    if not os.path.isdir(root): return out
+    for a in sorted(os.listdir(root)):
+        d = os.path.join(root, a)
+        if (auths and a not in auths) or not os.path.isdir(d): continue
+        for fn in sorted(os.listdir(d)):
+            if fn.endswith('.parquet') and (not since or fn[:7] >= since): out.append((a, fn[:-8], os.path.join(d, fn)))
+    return out
+
+
+def import_store(since=None, auths=None, progress=None):
+    """store/ -> sqlite: nạp các file parquet MỚI/ĐỔI so với lần nạp trước (chữ ký size|mtime trong bảng meta) + days/<auth>.csv.
+    Mỗi file thay trọn 1 cảng vụ-tháng trong sqlite. Trả về (số file events nạp, số cảng vụ nạp days)."""
+    files = store_files(auths, since)
+    if not files and not os.path.isdir(os.path.join(STORE, 'days')): return 0, 0
+    with conn() as c:
+        have = dict(c.execute("SELECT k, v FROM meta WHERE k LIKE 'imp%'").fetchall())
+    todo = [(a, ym, p) for a, ym, p in files if have.get(f'imp:{a}/{ym}') != _sig(p)]
+    n = 0; touched = set()
+    for i, (a, ym, p) in enumerate(todo, 1):
+        if progress: progress(i, len(todo), a, ym)
+        try: ev = pd.read_parquet(p).reindex(columns=COLS)
+        except Exception as e: log('store loi', p, e); continue
+        with _lock, conn() as c:
+            c.execute('DELETE FROM events WHERE auth=? AND plan_date LIKE ?', (a, ym + '%'))
+            ev.to_sql('events', c, if_exists='append', index=False)
+            c.execute("INSERT OR REPLACE INTO meta VALUES (?,?)", (f'imp:{a}/{ym}', _sig(p)))
+        n += 1; touched.add(a)
+    nd = 0; droot = os.path.join(STORE, 'days')
+    if os.path.isdir(droot):
+        for fn in sorted(os.listdir(droot)):
+            a = fn[:-4]
+            if not fn.endswith('.csv') or (auths and a not in auths): continue
+            p = os.path.join(droot, fn)
+            if have.get(f'impd:{a}') == _sig(p) and a not in touched: continue
+            d = pd.read_csv(p, dtype=str, keep_default_na=False)
+            with _lock, conn() as c:
+                c.executemany('INSERT OR REPLACE INTO days VALUES (?,?,?,?,?)',
+                              [(a, r.plan_date, r.fetched_at, int(float(r.n or 0)), r.src) for r in d.itertuples()])
+                c.execute("INSERT OR REPLACE INTO meta VALUES (?,?)", (f'impd:{a}', _sig(p)))
+            nd += 1
+    if n: _REF['ref'] = None                                   # DWT/LOA chuẩn tính lại
+    return n, nd
+
+
+def store_status():
+    """{'files': số parquet, 'latest': fetched_at mới nhất trong days/*.csv, 'auths': số cảng vụ} - để app hiện tình trạng kho chia sẻ."""
+    files = store_files(); latest = ''; droot = os.path.join(STORE, 'days'); na = 0
+    if os.path.isdir(droot):
+        for fn in os.listdir(droot):
+            if not fn.endswith('.csv'): continue
+            na += 1
+            try: latest = max(latest, pd.read_csv(os.path.join(droot, fn), usecols=['fetched_at'], dtype=str)['fetched_at'].max() or '')
+            except Exception: pass
+    return {'files': len(files), 'latest': latest, 'auths': na}
 
 
 # ================================================================ GỌI NGUỒN

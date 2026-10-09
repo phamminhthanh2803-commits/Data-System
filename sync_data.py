@@ -87,7 +87,7 @@ def plan(hub: str, slot: str, only: list, job: str) -> tuple[dict, dict, list]:
         if f.owner == job:
             up_full[key] = f
         else:
-            inc = f.cloud_up_include if job == "cloud" else f.laptop_up_include
+            inc = f.cloud_up_include if job == "cloud" else (f.laptop_up_include + f.laptop_only)
             if inc:
                 up_part.append((f, inc))
     return names, down, up_full, up_part
@@ -140,7 +140,8 @@ def do_up(rc, remote, hub, slot, up_full: dict, up_part: list, dry, job="cloud")
             print(f"-- {key}: khong co thu muc local, bo qua")
             continue
         # laptop la chu (cangvu-hcm): KHONG dong vao file cloud ghi (3 file enriched) -> loai khoi sync
-        extra = [f"/{p}" for p in f.cloud_up_include] if job == "laptop" else []
+        # cloud la chu (port-tracker): KHONG dong vao duong dan laptop_only (store HCM) -> loai khoi sync
+        extra = [f"/{p}" for p in f.cloud_up_include] if job == "laptop" else [f"/{p}" for p in f.laptop_only]
         flt = write_filter(f, extra_exclude=extra)
         print(f"-- day len (sync, chu={f.owner}) {key}")
         bad += rclone(rc, ["sync", local, f.remote(remote), "--filter-from", flt, "--max-delete", "50"], dry) != 0

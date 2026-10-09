@@ -51,6 +51,7 @@ import time
 
 import duckdb
 import pandas as pd
+import pyarrow as pa
 
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -235,6 +236,9 @@ class Store:
     def __init__(self, path: str) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         self.con = duckdb.connect(path)
+        # 09/10/2026: sap "Fatal Python error: PyEval_SaveThread ... GIL released" sau ~1 gio (DuckDB quet DataFrame pandas
+        # bang luong nen roi goi nguoc Python). Chua: DuckDB 1 luong + dua du lieu vao qua Arrow (khong goi nguoc Python).
+        self.con.execute("SET threads TO 1")
         for tbl, cols in SCHEMA.items():
             self.con.execute(f"CREATE TABLE IF NOT EXISTS {tbl} ({cols})")
         self.q: queue.Queue = queue.Queue()
@@ -261,7 +265,7 @@ class Store:
                 keys = KEYS.get(tbl)
                 if keys:
                     df = df.drop_duplicates(subset=keys, keep="last")
-                self.con.register("df_new", df)
+                self.con.register("df_new", pa.Table.from_pandas(df, preserve_index=False))
                 if keys:
                     cond = " AND ".join(f"{tbl}.{k} = df_new.{k}" for k in keys)
                     self.con.execute(f"DELETE FROM {tbl} USING df_new WHERE {cond}")

@@ -23,6 +23,11 @@ import ui_genea as ui
 # ================================================================ TONG QUAN
 def tong_quan(ctx):
     LAST = ctx["last"]
+    try:                                   # 1 dong KPI live (neu hom nay co du lieu DNSE) -> link sang trang Live
+        import pages_live
+        pages_live.mini_strip()
+    except Exception:  # noqa: BLE001
+        pass
     to = dl.turnover_df()
     br = dl.breadth_df()
     fv = dl.flows_vn()

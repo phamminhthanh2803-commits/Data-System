@@ -15,23 +15,24 @@ Nhấn đúp `Chay-app.bat` (cổng 8765) hoặc:
 ```bat
 set MD_ROOT=D:\pipeline-data\market-data
 set SHIP_ROOT=D:\pipeline-data\shipping
-set BCTC_ROOT=D:ctc
-cd /d D:\market-datapp
+set BCTC_ROOT=D:\bctc
+cd /d D:\market-data\app
 python -m streamlit run app.py --server.port 8765
 ```
 
-Trình duyệt mở `http://localhost:8765`. Lần đầu mất ~1 phút vì dựng cache parquet (`cache	v-history.parquet`,
-`cache	v-ohlc-vn.parquet` cho nến). Cần `plotly` (đã cài 09/10/2026, không dùng `--user`); `kaleido` tuỳ chọn —
+Trình duyệt mở `http://localhost:8765`. Lần đầu mất ~1 phút vì dựng cache parquet (`cache\tv-history.parquet`,
+`cache\tv-ohlc-vn.parquet` cho nến). Cần `plotly` (đã cài 09/10/2026, không dùng `--user`); `kaleido` tuỳ chọn —
 có thì mỗi thẻ thêm nút **⧉ Ảnh**.
 
-**Deep-link** `?trang=<section>/<sub>/<nav>`: `ttck/vn/dong-tien`, `vi-mo/viet-nam/gia-ca`, `ttck/trai-phieu/gia-loi-suat`,
+**Deep-link** `?trang=<section>/<sub>/<nav>`: `live`, `ttck/vn/dong-tien`, `vi-mo/viet-nam/gia-ca`, `ttck/trai-phieu/gia-loi-suat`,
 `tong-quan/kho`, `tong-quan/excel`… Slug cũ (`vimo`, `vn`, `trai-phieu`, `kho`, `excel`, `khu-vuc`) vẫn mở đúng trang.
 
 ## Điều hướng & nội dung
 
 | Cấp 1 (viên thuốc) | Cấp 2 (tab gạch chân) | Cấp 3 (segment) → các mục / thẻ |
 |---|---|---|
-| **Tổng quan** | Tổng quan | 6 KPI + VN-Index · GTGD · Độ rộng · Khối ngoại · bảng độ tươi 21 bộ dữ liệu · nút xoá cache / chạy pipeline |
+| **Tổng quan** | Tổng quan | *(dòng KPI live nhỏ → link trang Live, chỉ khi hôm nay có dữ liệu DNSE)* · 6 KPI + VN-Index · GTGD · Độ rộng · Khối ngoại · bảng độ tươi 21 bộ dữ liệu · nút xoá cache / chạy pipeline |
+| **Live** | — | real-time DNSE (xem mục **Live** bên dưới): KPI strip · Diễn biến trong phiên · Độ rộng · GTGD luỹ kế vs bình quân · Khối ngoại · Ảnh hưởng lên chỉ số · Bảng giá VN30 + phái sinh · Nến 1 phút từng mã · Trạng thái bộ thu |
 | | Kho dữ liệu | mở bất kỳ dataset trong REGISTRY, lọc, vẽ cột, tải |
 | | Xuất Excel | tick bảng → 1 file nhiều sheet; Chart Pack |
 | **Thị trường chứng khoán** | Chứng khoán Việt Nam | **Hiệu suất**: nến/đường 6 chỉ số + KL · rebase 100 · độ rộng dưới MA · hiệu suất ngành rebase · thay đổi vốn hoá ngành 1D…5Y · bảng hiệu suất cổ phiếu trong ngành · nến từng mã |
@@ -47,6 +48,40 @@ có thì mỗi thẻ thêm nút **⧉ Ảnh**.
 Thẻ nào spec yêu cầu mà hệ thống chưa có nguồn (PMI, giá dầu/vàng, margin, ETF, giao dịch nội bộ, đóng góp CPI,
 GDP phía chi tiêu, dự toán NSNN, lãi suất điều hành châu Á, thất nghiệp quốc tế) vẫn hiện khung **"Chưa có dữ liệu"**
 nhạt kèm ghi chú nguồn dự kiến — không bỏ trống.
+
+## Live (real-time DNSE) — `?trang=live`
+
+Trang **Live** (pill cấp 1 sau Tổng quan, thêm 09/10/2026) đọc các parquet mà bộ thu `D:\market-data\realtime-lab\dnse_stream.py`
+(task "Realtime DNSE", 08:45–15:10 T2–T6, `Chay-realtime.bat`) xuất **mỗi 5 giây** vào `realtime-lab\data\<YYYY-MM-DD>\`.
+App **không mở** `realtime.duckdb` (1 tiến trình ghi). Đổi thư mục bằng env `RT_ROOT` (mặc định `D:\market-data\realtime-lab`).
+
+| File | Dùng cho |
+|---|---|
+| `index_latest.parquet` | KPI strip: VN-Index, VN30, HNX, UPCoM (điểm, ±, %), GTGD toàn TT = Σ total_val 3 sàn (tỷ), tăng/giảm/đứng + trần/sàn, basis VN30F1M |
+| `market_summary.parquet` | lịch sử 5 s → đường chỉ số + GTGD luỹ kế, độ rộng theo thời gian, GTGD luỹ kế toàn TT |
+| `index_1m.parquet` | nến 1 phút chỉ số (toggle Đường\|Nến) + VN30F1M/F2M (giá F1M khi chưa có tick) |
+| `rt_bars_1m.parquet` | nến 1 phút từng mã theo dõi (VN30) |
+| `rt_latest.parquet` | bảng giá: giá, bid/ask 1, KL khớp cuối, KL/GTGD luỹ kế, `fr_*` khối ngoại từng mã |
+| `influence_latest.parquet` | top 10 kéo lên / kéo xuống theo chỉ số (chip VNINDEX/VN30/HNX/HNX30/VN100) |
+| `foreign_latest.parquet` | khối ngoại luỹ kế theo mã → ròng Σ(mua − bán), top mua/bán ròng, room còn |
+
+- **Tự làm mới**: cả trang bọc trong `@st.fragment(run_every=…)`, bộ chọn **5 s / 15 s / 60 s / Tắt** đầu trang
+  (deep-link `?trang=live&lam-moi=5|15|60|tat` đặt tần suất ban đầu). Cache `st.cache_data(ttl=4)` theo mtime file;
+  file đang ghi dở → đọc lại 3 lần, vẫn lỗi thì dùng bản cũ trong `session_state` (`data_live.read`).
+- **Ngoài giờ** (trước 08:45, sau 15:10, T7/CN) hoặc bộ thu không chạy: hiện phiên gần nhất có trong `data\` + callout
+  "Phiên gần nhất dd/mm, bộ thu không chạy"; ô Cập nhật tô cam khi trễ > 30 s.
+- **Đơn vị**: điểm chỉ số; `total_val` chỉ số đã là **tỷ**; khối ngoại `*_val` là **đồng** → chia 1e9; giá cổ phiếu **nghìn đồng**
+  (tham chiếu ±% lấy `change_pct` của feed, chưa có thì giá đóng cửa phiên trước từ tv-history chia 1.000).
+- **GTGD luỹ kế so với bình quân**: đường BQ tối đa 20 phiên trước tại cùng mốc giờ (1 phút), chỉ tính từ các ngày có
+  `market_summary.parquet` schema mới (từ 09/10/2026 trở đi) — những ngày đầu chưa có đường BQ.
+- **Khối ngoại trong phiên**: file chỉ có luỹ kế mới nhất, không có lịch sử → đường ròng luỹ kế chỉ tích luỹ từ lúc mở trang
+  (`session_state`); con số ròng/mua/bán và bảng theo mã là luỹ kế thật của phiên.
+- **Bảng giá**: `rt_latest` chỉ gom tick nhận được **từ lúc tiến trình bộ thu khởi động** → mã chưa có tick hiện "—"
+  (bộ thu khởi động lại giữa phiên hoặc nghỉ trưa thì chỉ có cột khối ngoại/room).
+- **Bộ thu** (cuối trang): tiến trình `dnse_stream.py` có chạy không (psutil), 5 dòng cuối log `realtime-lab\logs\realtime_<yyyymmdd>.log`,
+  nút **Bật** (`Start-Process Chay-realtime.bat`, Windows) / **Tắt** (terminate PID).
+- Trục giờ: chuỗi 5 s theo `ts_recv` **không cắt** 11:30–13:00 (DNSE vẫn phát market_index trong giờ nghỉ, đường nằm ngang);
+  nến 1 phút có cắt khoảng nghỉ trưa. Code: `pages_live.py` (trang) + `data_live.py` (dữ liệu). Ảnh: `design\screens\10-live.png`.
 
 ## Giải phẫu 1 thẻ (`ui_genea.card`)
 
@@ -71,6 +106,9 @@ app  app.py          khung trang: header ◆ Market Data + chip "Nguồn dữ li
                   hbar/candle/treemap/group_bars/band/bubble, fmt_vn, html_pct_table, kpi_strip
   data_ext.py     dữ liệu bổ sung trên datalib: OHLC VN (cache parquet), hiệu suất ngành/mã 1D…5Y, GTGD theo nhà đầu tư,
                   treemap, ngũ phân vị, TPCP spot/snapshot, CAR, NSNN niên giám, VSDC
+  pages_live.py   trang Live (DNSE real-time, st.fragment tự làm mới) + mini_strip() cho Tổng quan
+  data_live.py    đọc parquet realtime-lab\data\<ngày>\ (retry + fallback), KPI, chuỗi 5 s, độ rộng, BQ 20 phiên, khối ngoại,
+                  influence, bảng giá, trạng thái/bật/tắt bộ thu
   pages_ck.py     TTCK Việt Nam: hieu_suat · dong_tien · dinh_gia · nha_dau_tu
   pages_vimo.py   Vĩ mô VN (9 navtab) + thế giới (4)
   pages_khac.py   Tổng quan · Kho dữ liệu · Xuất Excel · CK thế giới · Trái phiếu (3 navtab) · Tin tức
@@ -129,7 +167,7 @@ Không có dữ liệu: `ui.card_empty("Tên", "đơn vị", "ghi chú nguồn d
   (toàn thị trường, HNX CBIS), không phải file riêng của từng CTCK. Cột `ctck_bao_lanh`
   đi kèm `do_tin_cay`: *cao/khá* lấy từ PDF công bố, *proxy* chỉ suy từ tổ chức lưu ký —
   nên bảng xếp hạng CTCK mặc định chỉ lấy *cao/khá*.
-- **Vĩ mô** đọc từ `transmission-fetcher	ransmission-wide.csv` (180 chuỗi, đã gộp theo
+- **Vĩ mô** đọc từ `transmission-fetcher\transmission-wide.csv` (180 chuỗi, đã gộp theo
   `series_id`) + `nso-fetcher\nso_monthly_master.csv` (CPI, XNK, IIP, bán lẻ, FDI của Cục Thống kê, 2023+) + `nso-fetcher\nso_master.csv` (niên giám PX-Web, tab Niên giám NSO) + `macro-fetcher\macro_vn_master.csv` (IMF: chỉ còn chỉ số CPI mức, dự trữ, lịch sử trước 2023). Phải dùng bản *wide* vì SBV đổi cách
   viết tên chuỗi giữa chừng (`LNH binh quan qua dem` → `LNH binh quan Qua đêm`) làm 1 chỉ tiêu
   bị tách thành 2 dòng trong file long; `series_id` thì không đổi. Tên hiển thị tiếng Việt lấy

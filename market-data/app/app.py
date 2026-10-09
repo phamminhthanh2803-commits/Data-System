@@ -4,10 +4,11 @@ MARKET DATA APP - giao dien moi theo mau "Genea" (09/10/2026): nen be sang, dieu
 trang, the bieu do trang bo goc, mau cam #ed7d31. Khao sat + quy tac dung: design\genea-ui-spec.md.
 
 Chay:   D:\market-data\app\Chay-app.bat      (hoac: python -m streamlit run app.py --server.port 8765)
-Deep-link: ?trang=<section>/<sub>/<nav>, vd ?trang=ttck/vn/dong-tien, ?trang=vi-mo/viet-nam/gia-ca
+Deep-link: ?trang=<section>/<sub>/<nav>, vd ?trang=live, ?trang=ttck/vn/dong-tien, ?trang=vi-mo/viet-nam/gia-ca
 (cac slug cu ?trang=vimo | vn | trai-phieu | kho | excel | khu-vuc van mo dung trang).
 
 Cau truc: app.py (khung + dieu huong) · ui_genea.py (theme, the, chart Plotly) · data_ext.py (du lieu bo sung)
+          pages_live.py + data_live.py (trang Live: parquet real-time DNSE tu realtime-lab, st.fragment tu lam moi)
           pages_ck.py (TTCK Viet Nam) · pages_vimo.py (Vi mo VN + the gioi) · pages_khac.py (Tong quan, CK the gioi,
           Trai phieu, Tin tuc, Kho du lieu, Xuat Excel) · datalib.py (lop du lieu, giu nguyen) · app_legacy.py (giao dien cu).
 """
@@ -31,6 +32,7 @@ NAV = {
         "kho": ("Kho dữ liệu", {}),
         "excel": ("Xuất Excel", {}),
     }),
+    "live": ("Live", {}),
     "ttck": ("Thị trường chứng khoán", {
         "vn": ("Chứng khoán Việt Nam", {"hieu-suat": "Hiệu suất", "dong-tien": "Dòng tiền",
                                         "dinh-gia": "Định giá", "nha-dau-tu": "Nhà đầu tư"}),
@@ -110,6 +112,9 @@ with st.container(border=True, key="khung_noi_dung"):
     if SEC == "tong-quan":
         import pages_khac as pk
         {"tong-quan": pk.tong_quan, "kho": pk.kho_du_lieu, "excel": pk.xuat_excel}[SUB](ctx)
+    elif SEC == "live":
+        import pages_live as pl
+        pl.live(ctx)
     elif SEC == "ttck":
         if SUB == "vn":
             import pages_ck as pc

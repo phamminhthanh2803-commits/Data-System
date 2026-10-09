@@ -1,0 +1,14 @@
+[global]
+disableWidgetStateDuplicationWarning = true
+
+[theme]
+# 09/10/2026: giao dien sang theo mau Genea (design/genea-ui-spec.md)
+base = "light"
+primaryColor = "#ed7d31"
+backgroundColor = "#faf8f6"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#262626"
+font = "sans-serif"
+
+[server]
+headless = true

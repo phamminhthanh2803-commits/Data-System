@@ -32,25 +32,27 @@ Còn đọc từ file (là bảng tham chiếu/cấu hình, không phải dữ l
 
 ## Chạy
 Double-click `Chay-app.bat` → http://localhost:8766 (Market Data App ở 8765, không đụng nhau).
-Mở thẳng một trang: `http://localhost:8766/?trang=<slug>` với slug = `tong-quan`, `ben-cang`, `hang-tau`, `tau`, `dieu-do`, `canh-bao`, `tuyen`, `du-lieu`.
+Deep-link: `http://localhost:8766/?trang=<trang>/<phạm vi>&cv=<mã cảng vụ>&ben=<bến>`, ví dụ `?trang=dieu-do/cang-vu&cv=HCM`,
+`?trang=tong-quan/cang&cv=HP&ben=HICT`. Trang = `tong-quan`, `hang-tau`, `dieu-do`, `tuyen`, `du-lieu`; phạm vi = `toan-quoc`, `cang-vu`, `cang`
+(slug cũ `ben-cang`, `tau`, `canh-bao` vẫn mở đúng trang).
 
-## Thanh bên (áp dụng cho mọi trang)
-Cảng vụ (trống = cả nước) · Chỉ tàu container · Khoảng thời gian · Độ phân giải Tháng/Tuần · Đo lường (Lượt tàu / TEU danh nghĩa / DWT) · Tự kéo từ trang nguồn khi mở · TTL làm mới · nút Kéo lại từ nguồn ngay.
-Kỳ cuối chưa trọn (tháng/tuần đang chạy) bị bỏ khỏi biểu đồ để đường không gãy giả.
+## Giao diện (09/10/2026: theo mẫu Market Data App, `ui_genea.py`)
+Nền be sáng, không sidebar, thẻ biểu đồ Plotly (xem `D:\market-data\app\design\genea-ui-spec.md`). `ui_genea.py` là bản copy từ
+`D:\market-data\app` để app tự chạy; `.streamlit\config.toml` đặt theme sáng.
+- **Header**: logo ◆ + chip **Kho dữ liệu: 12 cảng vụ ▾** (popover: độ phủ từng cảng vụ, công tắc "Kéo thêm từ trang nguồn khi mở", TTL, nút Kéo lại ngay).
+- **Bộ lọc chung** (áp dụng cho mọi trang): Loại tàu (Container / Mọi loại) · Đo lường (Lượt tàu / TEU danh nghĩa / DWT) · Độ phân giải (Tháng / Tuần) · Dữ liệu nạp (2 năm / 3 năm / Từ 2019).
+- **Điều hướng cấp 1** (viên thuốc cam): 5 trang. **Cấp 2** (tab gạch chân, có trên MỌI trang): **Toàn quốc · Từng cảng vụ · Từng cảng** — cấp cảng vụ chọn 1 cảng vụ, cấp cảng chọn cảng vụ + bến (bến xếp theo tổng 24 tháng của đo lường đang chọn; lựa chọn nhớ qua các trang).
+- **Thẻ biểu đồ**: tiêu đề + đơn vị + "?" · chip (vd Gộp theo Bến / Nhóm chủ bến / Mã CK) · kỳ 3M 6M 1Y 2Y 3Y All + 2 ô ngày · toggle (Giá trị / Thị phần) · nút ⤓ CSV ⤓ Excel · dòng "Cập nhật lần cuối". Kỳ cuối chưa trọn bị bỏ khỏi chuỗi.
 
-## Các trang
-| Trang | Dùng để |
-|---|---|
-| Tổng quan | 4 chỉ số 30 ngày (so kỳ trước, cùng kỳ năm trước), chuỗi theo cảng vụ, cột chồng theo bến |
-| Bến cảng | Chuỗi + thị phần theo Bến / Nhóm chủ bến / Mã CK (PHP, GMD, VSC, HAH, SNP...); chi tiết 1 bến: hãng ghé nhiều nhất, cỡ tàu bình quân, giờ nằm cảng |
-| Hãng tàu | Ma trận hãng × bến 12 tháng; chi tiết 1 hãng: phân bổ theo bến, đội tàu đang khai thác + vòng tuyến |
-| Tàu | Thông số tàu, thời gian nằm cảng từng chuyến, lộ trình (điểm dừng) và nút vẽ bản đồ PNG |
-| Bảng điều độ | Kế hoạch vào / rời / di chuyển theo ngày, tàu đang ở cảng |
-| Cảnh báo | Biến động theo bến, tàu mới xuất hiện, tàu ngừng ghé, tàu đổi bến chính |
-| Tuyến | Chặng lớn nhất, chuỗi theo chặng, hãng trên từng chặng, vòng tuyến từng tàu |
-| Dữ liệu | Kho của app theo cảng vụ (khoảng ngày, lần kéo gần nhất), kéo bù/kéo lại từ nguồn theo khoảng ngày, độ phủ TEU/hãng, tải dữ liệu |
+| Trang | Toàn quốc | Từng cảng vụ | Từng cảng |
+|---|---|---|---|
+| Tổng quan | KPI 30 ngày cả nước; chuỗi theo cảng vụ; tỷ trọng cảng vụ (%); bảng cảng vụ × kỳ | KPI cảng vụ; cột chồng theo Bến / Nhóm chủ bến / Mã CK; thị phần trong cảng vụ; bảng bến × kỳ | KPI bến; chuỗi bến (giá trị / thị phần trong cảng vụ); hãng ghé nhiều nhất; cỡ tàu bình quân; danh sách lượt cập bến |
+| Hãng tàu & tàu | Ma trận hãng × cảng vụ 12 tháng; chi tiết 1 hãng theo cảng vụ + đội tàu; tra cứu tàu đã ghé cả nước | Ma trận hãng × bến; chi tiết 1 hãng theo bến + đội tàu; tra cứu tàu đã ghé cảng vụ | Hãng ghé nhiều nhất + hãng theo kỳ tại bến; chi tiết 1 hãng; tra cứu tàu đã ghé bến |
+| Điều độ & cảnh báo | Kế hoạch ngày 12 cảng vụ (vào/rời/di chuyển), tàu đang ở cảng; 4 cảnh báo cả nước | Kế hoạch + cảnh báo trong 1 cảng vụ | Kế hoạch có bến này ở cột từ/đến; tàu đang ở bến; tàu mới / ngừng ghé bến; tàu đổi bến đến/đi khỏi bến |
+| Tuyến | Chặng lớn nhất, chặng theo tháng, hãng trên chặng, vòng tuyến từng tàu (mọi tàu container) | …của các tàu đã ghé cảng vụ | …của các tàu đã ghé bến |
+| Dữ liệu | Độ phủ kho theo cảng vụ, kéo bù từ nguồn, độ phủ TEU/hãng, tải chuyến | Độ phủ 1 cảng vụ, kéo bù 1 cảng vụ, tải chuyến | Tải lượt cập bến |
 
-Mọi bảng có nút tải Excel và CSV.
+Trang **Tàu** (chi tiết 1 tàu: thông số, nằm cảng từng chuyến theo bến, lộ trình + nút vẽ bản đồ PNG, toàn bộ chuyến) nằm cuối trang Hãng tàu & tàu, chọn tàu trong ô "Chọn tàu đã ghé…" (danh sách theo phạm vi đang xem). Giao diện cũ (Altair + sidebar) không còn giữ.
 
 ## Cấu trúc
 - `app.py` – giao diện. `livedata.py` – gọi nguồn + kho SQLite + ghép chuyến. `trackerlib.py` – ghép thông tin tàu, lượt cập bến, chặng.

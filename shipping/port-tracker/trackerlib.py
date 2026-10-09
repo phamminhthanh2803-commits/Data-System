@@ -331,8 +331,14 @@ def build_lanes(calls, classes=('container', 'container?')):
         pats.append({'ship_key': key, 'ship': name, 'operator': op, 'teu': teu, 'route_pattern': pat, 'ports_called': ports, 'n_stops': len(stops)})
     dist.save()
     L = pd.DataFrame(legs, columns=['month', 'from', 'to', 'operator', 'ship_key', 'teu'])
-    if L.empty: return L, pd.DataFrame(pats)
+    if L.empty: return L, pd.DataFrame(pats), L
+    return lanes_from_legs(L), pd.DataFrame(pats).sort_values('n_stops', ascending=False), L
+
+
+def lanes_from_legs(L):
+    """bảng chặng theo tàu (month, from, to, operator, ship_key, teu) -> chặng gộp theo tháng/hãng. App dùng để lọc tuyến theo cảng vụ / bến."""
+    if L.empty: return pd.DataFrame(columns=['month', 'from', 'to', 'operator', 'legs', 'ships', 'teu_sum', 'lane'])
     lanes = (L.groupby(['month', 'from', 'to', 'operator'], as_index=False)
              .agg(legs=('ship_key', 'size'), ships=('ship_key', 'nunique'), teu_sum=('teu', 'sum')))
     lanes['month'] = pd.to_datetime(lanes['month'] + '-01'); lanes['lane'] = lanes['from'] + ' → ' + lanes['to']
-    return lanes, pd.DataFrame(pats).sort_values('n_stops', ascending=False)
+    return lanes

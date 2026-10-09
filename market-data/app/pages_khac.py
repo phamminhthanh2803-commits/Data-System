@@ -15,6 +15,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+import data_live as rt
 import datalib as dl
 import data_ext as dx
 import ui_genea as ui
@@ -28,38 +29,59 @@ def tong_quan(ctx):
         pages_live.mini_strip()
     except Exception:  # noqa: BLE001
         pass
-    to = dl.turnover_df()
-    br = dl.breadth_df()
-    fv = dl.flows_vn()
+    to = rt.with_live(dl.turnover_df(), "turnover")
+    br = rt.with_live(dl.breadth_df(), "breadth")
+    fv = rt.with_live(dl.flows_vn(), "flows_vn")
     val = dl.load("valuation_wide")
+    is_live = "live" in to.attrs
     live = to[(to["Phiên"] == "Đang giao dịch")]
     to_c = to[(to["Phiên"] == "Đã đóng cửa")]
     last = to_c.index.max()
-    vni = to_c["VN-Index"].dropna()
-    g = to_c["Toàn thị trường"]
-    f_last = fv.loc[fv.index <= last, "KN ròng toàn TT"].dropna()
-    br_c = br[br.index <= last]
     v = val[val.code == "VNINDEX"].sort_values("date")
+    pe_last, pb_last = v.pe.dropna().iloc[-1], v.pb.dropna().iloc[-1]
+    if is_live:                                   # KPI = hom nay (LIVE), so sanh voi phien dong cua truoc
+        ts = to.attrs["live"]["ts"]
+        vni = to["VN-Index"].dropna()
+        g = to["Toàn thị trường"]
+        f_last = fv["KN ròng toàn TT"].dropna()
+        br_c = br
+        ma20 = to["MA20 toàn TT"].dropna().iloc[-1] if to["MA20 toàn TT"].notna().any() else np.nan
+        ratio = rt.ratio_for_index("VNINDEX")
+        if pd.notna(ratio):
+            pe_last, pb_last = pe_last * ratio, pb_last * ratio
+        tag = f"LIVE {ts:%H:%M:%S}"
+    else:
+        vni = to_c["VN-Index"].dropna()
+        g = to_c["Toàn thị trường"]
+        f_last = fv.loc[fv.index <= last, "KN ròng toàn TT"].dropna()
+        br_c = br[br.index <= last]
+        ma20 = to_c["MA20 toàn TT"].iloc[-1]
+        tag = f"phiên {last:%d/%m}"
     chg = (vni.iloc[-1] / vni.iloc[-2] - 1) * 100 if len(vni) > 1 else np.nan
-    gma = (g.iloc[-1] / to_c["MA20 toàn TT"].iloc[-1] - 1) * 100
+    if is_live:                                   # ±% theo tham chieu cua feed (lich su co the thieu phien gan nhat)
+        il = rt.index_today()
+        if "VNINDEX" in il.index and pd.notna(il.loc["VNINDEX", "change_pct"]):
+            chg = float(il.loc["VNINDEX", "change_pct"])
+    gma = (g.iloc[-1] / ma20 - 1) * 100 if pd.notna(ma20) else np.nan
     ui.kpi_strip([
-        ("VN-Index", ui.fmt_vn(vni.iloc[-1], 2), f"{ui.fmt_vn(chg, 2, dau=True)}% phiên {last:%d/%m}", np.sign(chg) if pd.notna(chg) else 0),
-        ("GTGD (tỷ)", ui.fmt_vn(g.iloc[-1], 0), f"{ui.fmt_vn(gma, 0, dau=True)}% so MA20", np.sign(gma)),
+        ("VN-Index", ui.fmt_vn(vni.iloc[-1], 2), f"{ui.fmt_vn(chg, 2, dau=True)}% {tag}", np.sign(chg) if pd.notna(chg) else 0),
+        ("GTGD (tỷ)" + (" hôm nay" if is_live else ""), ui.fmt_vn(g.iloc[-1], 0), f"{ui.fmt_vn(gma, 0, dau=True)}% so MA20", np.sign(gma) if pd.notna(gma) else 0),
         ("Khối ngoại ròng (tỷ)", ui.fmt_vn(f_last.iloc[-1], 0) if len(f_last) else "—",
          f"20 phiên: {ui.fmt_vn(f_last.tail(20).sum(), 0, dau=True)}" if len(f_last) else "", np.sign(f_last.iloc[-1]) if len(f_last) else 0),
         ("% mã trên MA200", ui.fmt_vn(br_c["% mã trên MA200"].iloc[-1], 1) + "%", f"MA50: {ui.fmt_vn(br_c['% mã trên MA50'].iloc[-1], 0)}%", 0),
         ("% mã tăng (phiên)", ui.fmt_vn(br_c["% mã tăng"].iloc[-1], 0) + "%", f"Tăng − giảm: {int(br_c['Tăng - Giảm'].iloc[-1]):+d}", np.sign(br_c["Tăng - Giảm"].iloc[-1])),
-        ("P/E VN-Index", ui.fmt_vn(v.pe.dropna().iloc[-1], 2), f"P/B {ui.fmt_vn(v.pb.dropna().iloc[-1], 2)}", 0),
+        ("P/E VN-Index" + (" (live)" if is_live else ""), ui.fmt_vn(pe_last, 2), f"P/B {ui.fmt_vn(pb_last, 2)}", 0),
     ])
-    if not live.empty:
+    if not live.empty and not is_live:
         r = live.iloc[-1]
         ui.callout(f"Phiên {live.index[-1]:%d/%m} đang giao dịch — VN-Index {ui.fmt_vn(r['VN-Index'], 2)}, GTGD tạm tính "
                    f"{ui.fmt_vn(r['Toàn thị trường'], 0)} tỷ (chưa hết phiên).")
+    to_v = to if is_live else to_c
     ui.h2("Thị trường")
     a, b = st.columns(2)
     with a:
         with ui.card("VN-Index", "điểm", key="tq_vni", default="1Y", compact=True) as c:
-            d = c.cut(to_c[["VN-Index"]])
+            d = c.cut(to_v[["VN-Index"]])
             c.chart(ui.fig_line(d, "điểm", hover_nd=2), d, ten="VN-Index", height=300)
         with ui.card("Độ rộng: % cổ phiếu trên MA", "% số mã", key="tq_breadth", default="1Y", compact=True) as c:
             d = c.cut(br[["% mã trên MA50", "% mã trên MA200"]])
@@ -69,7 +91,7 @@ def tong_quan(ctx):
             c.chart(fig, d, ten="Do rong tren MA", height=300)
     with b:
         with ui.card("Giá trị giao dịch toàn thị trường", "tỷ đồng", key="tq_gtgd", default="1Y", compact=True) as c:
-            d = c.cut(to_c[["Toàn thị trường", "MA20 toàn TT", "MA50 toàn TT"]])
+            d = c.cut(to_v[["Toàn thị trường", "MA20 toàn TT", "MA50 toàn TT"]])
             c.chart(ui.fig_bars(d, "Toàn thị trường", "tỷ đồng", sign=False, lines=["MA20 toàn TT", "MA50 toàn TT"], hover_nd=0), d, ten="GTGD", height=300)
         with ui.card("Khối ngoại mua/bán ròng", "tỷ đồng", key="tq_kn", default="1Y", compact=True) as c:
             d = c.cut(fv[["KN ròng toàn TT"]])
@@ -209,21 +231,33 @@ def ck_the_gioi(ctx, nav):
             p = idx[idx.index_code.isin(c.chip)].pivot_table(index="date", columns="index_code", values="close", aggfunc="last")
             p.columns = [TEN.get(x, x) for x in p.columns]
             p.index.name = "Ngày"
-            d = ui.rebase100(c.cut(p))
+            p = c.cut(rt.with_live(p, "world_close"))
+            d = rt.mark_live(ui.rebase100(p), p)
             fig = ui.fig_line(d, "rebase 100", hover_nd=1)
             if fig is not None:
                 ui.add_hline(fig, 100, color=ui.TOK["gray"])
             c.chart(fig, d, ten="Chi so the gioi rebase 100")
         with ui.card("Hiệu suất chỉ số theo nhiều khung", "%", help="Biến động giá đóng cửa đến phiên gần nhất của mỗi chỉ số.", key="tg_perf", controls=False) as c:
             p = idx.pivot_table(index="date", columns="index_code", values="close", aggfunc="last").sort_index().ffill(limit=10)
-            END = p.index.max()
-            out = pd.DataFrame(index=p.columns)
-            for h in dx.HORIZONS:
-                p0 = dx._p_at(p, END, h)
-                out[h] = (p.loc[END] / p0 - 1) * 100 if p0 is not None else np.nan
-            out.index = [TEN.get(x, x) for x in out.index]
-            out.index.name = "Chỉ số"
-            c.table(out.round(2), ten="Hieu suat chi so the gioi", html=True, pct_cols=dx.HORIZONS)
+
+            def _perf(p):
+                END = p.index.max()
+                out = pd.DataFrame(index=p.columns)
+                for h in dx.HORIZONS:
+                    p0 = dx._p_at(p, END, h)
+                    out[h] = (p.loc[END] / p0 - 1) * 100 if p0 is not None else np.nan
+                out.index = [TEN.get(x, x) for x in out.index]
+                out.index.name = "Chỉ số"
+                return out.round(2)
+            out_hist = _perf(p)
+            p2 = rt.with_live(p, "world_close")
+            if "live" in p2.attrs:                 # chi VN-Index co hang hom nay; chi so khac giu gia cuoi (ffill)
+                p2 = p2.ffill(limit=1)
+                out = _perf(p2)
+                c.table(out, ten="Hieu suat chi so the gioi", html=True, pct_cols=dx.HORIZONS, df_export=out_hist, live_ts=p2.attrs["live"]["ts"])
+                ui.note("Hàng hôm nay chỉ có VN-Index live; các chỉ số khác dùng giá đóng cửa gần nhất.")
+            else:
+                c.table(out_hist, ten="Hieu suat chi so the gioi", html=True, pct_cols=dx.HORIZONS)
     elif nav == "thanh-khoan":
         ui.h2("Thanh khoản")
         with ui.card("Giá trị giao dịch quy USD", "triệu USD / phiên, bình quân 20 phiên", help="indices-master.value_usd.", key="tg_liq",

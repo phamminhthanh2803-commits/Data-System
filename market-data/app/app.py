@@ -20,6 +20,7 @@ import streamlit as st
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import datalib as dl  # noqa: E402
+import data_live as rt  # noqa: E402
 import ui_genea as ui  # noqa: E402
 
 st.set_page_config(page_title="Market Data", page_icon="◆", layout="wide", initial_sidebar_state="collapsed")
@@ -96,6 +97,37 @@ except Exception:  # noqa: BLE001
 # ------------------------------------------------------------------ HEADER
 ui.header(NGUON, len(dl.REGISTRY))
 
+# ---------------------------------------------------------- LIVE TOAN APP (09/10/2026)
+# Cong tac ● LIVE (mac dinh BAT 08:45-15:10 T2-T6, ngoai gio tu TAT) + tan suat 5/15/60 s, nho session_state + ?live=1|0&tan=.
+# Bat: trang dang xem render trong st.fragment(run_every=...) -> moi the co hang hom nay (data_live.with_live) cap nhat lien tuc.
+if "live_on" not in st.session_state:
+    _q = st.query_params.get("live")
+    st.session_state["live_on"] = (_q == "1") if _q in ("0", "1") else rt.in_session()
+    st.session_state["_live_user"] = _q in ("0", "1")
+elif not st.session_state.get("_live_user") and not rt.in_session() and st.session_state.get("live_on"):
+    st.session_state["live_on"] = False                      # ngoai gio: tu tat (tru khi nguoi dung tu bat)
+if "live_freq_all" not in st.session_state:
+    st.session_state["live_freq_all"] = {"5": "5 s", "15": "15 s", "60": "60 s"}.get(str(st.query_params.get("tan") or ""), rt.LIVE_DEFAULT_FREQ)
+
+
+def _live_user_changed():
+    st.session_state["_live_user"] = True
+
+
+LIVE_STATE = rt.live_state()
+_c = st.container(key="live_bar")
+with _c:
+    LIVE_ON, LIVE_F = ui.live_bar(LIVE_STATE)
+if st.session_state.get("_live_prev") is not None and st.session_state["_live_prev"] != LIVE_ON:
+    st.session_state["_live_user"] = True
+st.session_state["_live_prev"] = LIVE_ON
+LIVE_STATE = rt.live_state()                                   # doc lai sau khi cong tac co the vua doi
+LIVE_FREQ = rt.LIVE_FREQ.get(LIVE_F or "", 15)
+st.query_params["live"] = "1" if LIVE_ON else "0"
+st.query_params["tan"] = str(LIVE_FREQ)
+ui.set_live(LIVE_STATE["active"], LIVE_STATE["ts"], LAST)
+ui.set_data_end(rt.today_ts() if LIVE_STATE["active"] else LAST)
+
 # ----------------------------------------------------------- DIEU HUONG 3 CAP
 SEC = ui.nav(list(NAV), "nav_sec", default="tong-quan", kind="pills", fmt=lambda k: NAV[k][0])
 subs = NAV[SEC][1]
@@ -108,33 +140,49 @@ with st.container(border=True, key="khung_noi_dung"):
             NAVK = ui.nav(list(navs), f"nav_nav_{SEC}_{SUB}", kind="segment", fmt=lambda k: navs[k])
     st.query_params["trang"] = "/".join(p for p in (SEC, SUB, NAVK) if p)
 
-    ctx = {"last": LAST, "fresh": FRESH}
-    if SEC == "tong-quan":
-        import pages_khac as pk
-        {"tong-quan": pk.tong_quan, "kho": pk.kho_du_lieu, "excel": pk.xuat_excel}[SUB](ctx)
-    elif SEC == "live":
-        import pages_live as pl
-        pl.live(ctx)
-    elif SEC == "ttck":
-        if SUB == "vn":
-            import pages_ck as pc
-            {"hieu-suat": pc.hieu_suat, "dong-tien": pc.dong_tien, "dinh-gia": pc.dinh_gia,
-             "nha-dau-tu": pc.nha_dau_tu}[NAVK](ctx)
-        elif SUB == "the-gioi":
+    def _render():
+        import time as _t
+        _t0 = _t.time()
+        stt = rt.live_state()                                  # moi lan fragment chay lai: trang thai + gio du lieu moi
+        ui.set_live(stt["active"], stt["ts"], LAST)
+        ctx = {"last": LAST, "fresh": FRESH, "live": stt}
+        if SEC == "tong-quan":
             import pages_khac as pk
-            pk.ck_the_gioi(ctx, NAVK)
+            {"tong-quan": pk.tong_quan, "kho": pk.kho_du_lieu, "excel": pk.xuat_excel}[SUB](ctx)
+        elif SEC == "live":
+            import pages_live as pl
+            pl.live(ctx)
+        elif SEC == "ttck":
+            if SUB == "vn":
+                import pages_ck as pc
+                {"hieu-suat": pc.hieu_suat, "dong-tien": pc.dong_tien, "dinh-gia": pc.dinh_gia,
+                 "nha-dau-tu": pc.nha_dau_tu}[NAVK](ctx)
+            elif SUB == "the-gioi":
+                import pages_khac as pk
+                pk.ck_the_gioi(ctx, NAVK)
+            else:
+                import pages_khac as pk
+                pk.trai_phieu(ctx, NAVK)
+        elif SEC == "vi-mo":
+            import pages_vimo as pv
+            if SUB == "viet-nam":
+                pv.viet_nam(ctx, NAVK)
+            else:
+                pv.the_gioi(ctx, NAVK)
         else:
             import pages_khac as pk
-            pk.trai_phieu(ctx, NAVK)
-    elif SEC == "vi-mo":
-        import pages_vimo as pv
-        if SUB == "viet-nam":
-            pv.viet_nam(ctx, NAVK)
-        else:
-            pv.the_gioi(ctx, NAVK)
+            pk.tin_tuc(ctx)
+        if stt["active"] and CO_LIVE:
+            st.markdown(f'<div class="gn-note" style="text-align:right">● LIVE · render lúc {rt.now_vn():%H:%M:%S} '
+                        f'({_t.time() - _t0:.1f} s) · dữ liệu bộ thu {stt["ts"]:%H:%M:%S}</div>', unsafe_allow_html=True)
+
+    # chi cac trang co the live moi chay trong fragment (Tong quan, TTCK VN, CK the gioi); trang Live co fragment rieng;
+    # vi mo / trai phieu / kho / excel / tin tuc khong co diem hom nay -> render thuong (chan the ghi "Lich su toi dd/mm")
+    CO_LIVE = (SEC == "tong-quan" and SUB == "tong-quan") or (SEC == "ttck" and SUB in ("vn", "the-gioi"))
+    if LIVE_STATE["active"] and CO_LIVE:
+        st.fragment(run_every=LIVE_FREQ)(_render)()
     else:
-        import pages_khac as pk
-        pk.tin_tuc(ctx)
+        _render()
 
 st.markdown(f'<div class="gn-note" style="margin-top:10px">Phiên gần nhất: {LAST:%d/%m/%Y} · '
             f'Dữ liệu đọc từ <code>{dl.BASE}</code> · Giao diện cũ: <code>app_legacy.py</code></div>',

@@ -93,9 +93,8 @@ def _p_at(px: pd.DataFrame, end: pd.Timestamp, h: str):
     return px.loc[ix[-1]] if len(ix) else None
 
 
-@st.cache_data(show_spinner=False)
-def _sector_returns(mt: float, end: str, pn: tuple, san: tuple) -> pd.DataFrame:
-    _, px, _ = dl.prices(since="2016-01-01")
+def sector_returns_from(px: pd.DataFrame, end, pn: tuple, san: tuple) -> pd.DataFrame:
+    """Hieu suat nganh 1D...5Y gia quyen von hoa dau ky tu ma tran gia `px` (co the da ghep hang hom nay - live)."""
     m = dl.meta(pn)
     sh = m.total_shares_outstanding_fundamental
     exch = m.exchange.reindex(px.columns)
@@ -122,13 +121,18 @@ def _sector_returns(mt: float, end: str, pn: tuple, san: tuple) -> pd.DataFrame:
     return out
 
 
+@st.cache_data(show_spinner=False)
+def _sector_returns(mt: float, end: str, pn: tuple, san: tuple) -> pd.DataFrame:
+    _, px, _ = dl.prices(since="2016-01-01")
+    return sector_returns_from(px, end, pn, san)
+
+
 def sector_returns(end, pn=None, san=("HOSE",)) -> pd.DataFrame:
     return _sector_returns(dl._mtime(dl.REGISTRY["tv_history"][2]), str(pd.Timestamp(end).date()), tuple(pn or dl.PN), tuple(san))
 
 
-@st.cache_data(show_spinner=False)
-def _stock_returns(mt: float, nhom: str, end: str, pn: tuple) -> pd.DataFrame:
-    _, px, _ = dl.prices(since="2016-01-01")
+def stock_returns_from(px: pd.DataFrame, nhom: str, end, pn: tuple) -> pd.DataFrame:
+    """Bang hieu suat co phieu trong nganh tu ma tran gia `px` (co the da ghep hang hom nay - live)."""
     m = dl.meta(pn)
     cols = [c for c in px.columns if m.nhom.get(c) == nhom]
     if not cols:
@@ -148,6 +152,12 @@ def _stock_returns(mt: float, nhom: str, end: str, pn: tuple) -> pd.DataFrame:
     out.index.name = "Mã"
     out = out[p1.reindex(out.index).notna()]
     return out.sort_values("Vốn hoá (tỷ)", ascending=False)
+
+
+@st.cache_data(show_spinner=False)
+def _stock_returns(mt: float, nhom: str, end: str, pn: tuple) -> pd.DataFrame:
+    _, px, _ = dl.prices(since="2016-01-01")
+    return stock_returns_from(px, nhom, end, pn)
 
 
 def stock_returns(nhom, end, pn=None) -> pd.DataFrame:
@@ -184,8 +194,35 @@ def resample_flow(df: pd.DataFrame, freq: str) -> pd.DataFrame:
     return df if rule is None else df.resample(rule).sum(min_count=1).dropna(how="all")
 
 
+def _flows_mt() -> float:
+    return dl._mtime(dl.REGISTRY["flows"][2]) + dl._mtime(getattr(dl, "FS_VCI", "")) + dl._mtime(getattr(dl, "FS_VND", ""))
+
+
 def treemap_flows(kind: str, d0, d1, pn=None, san=("HOSE", "HNX", "UPCOM"), topn=250) -> pd.DataFrame:
-    """Rong theo ma trong ky, kem nhom nganh (kind: 'kn' | 'td')."""
+    """Rong theo ma trong ky, kem nhom nganh (kind: 'kn' | 'td'). Cache theo (ky, pn) de fragment LIVE chay lai nhanh."""
+    return _treemap_flows(_flows_mt(), kind, pd.Timestamp(d0), pd.Timestamp(d1), tuple(pn or dl.PN), tuple(san), topn)
+
+
+@st.cache_data(show_spinner=False)
+def flows_sector_c(mt: float, d0, d1, san: tuple, tan: str, chi_tieu: str, pn: tuple):
+    return dl.flows_sector(d0, d1, san, tan, chi_tieu, pn)
+
+
+@st.cache_data(show_spinner=False)
+def prop_sector_c(mt: float, d0, d1, san: tuple, pn: tuple):
+    return dl.prop_sector(d0, d1, san, pn)
+
+
+def flows_sector(d0, d1, san, tan, chi_tieu, pn):
+    return flows_sector_c(_flows_mt(), pd.Timestamp(d0), pd.Timestamp(d1), tuple(san), tan, chi_tieu, tuple(pn or dl.PN))
+
+
+def prop_sector(d0, d1, san, pn):
+    return prop_sector_c(_flows_mt(), pd.Timestamp(d0), pd.Timestamp(d1), tuple(san), tuple(pn or dl.PN))
+
+
+@st.cache_data(show_spinner=False)
+def _treemap_flows(mt: float, kind: str, d0, d1, pn: tuple, san: tuple, topn: int) -> pd.DataFrame:
     d = dl._loc_fs(d0, d1, san, pn) if kind == "kn" else dl._loc_prop(d0, d1, san, pn)
     if d.empty:
         return pd.DataFrame()

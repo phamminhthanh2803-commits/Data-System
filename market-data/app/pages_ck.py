@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+import data_live as rt
 import datalib as dl
 import data_ext as dx
 import ui_genea as ui
@@ -43,7 +44,7 @@ def hieu_suat(ctx):
                  "Nguồn indices-master (VCI) và tv-history (VNMidcap/VNSmallcap).",
                  key="vni_nen", chips=IDX, chip_default="VNINDEX", chip_fmt=TEN.get, toggles={"Kiểu": ["Nến", "Đường"]},
                  default="1Y") as c:
-        o = dx.index_ohlc(c.chip)
+        o = rt.with_live(dx.index_ohlc(c.chip), "index_ohlc", code=c.chip)
         oc = c.cut(o)
         last2 = o.close.dropna()
         sub = ui.delta_html(last2.iloc[-1], last2.iloc[-2] if len(last2) > 1 else None, 2, "điểm") if len(last2) else ""
@@ -58,12 +59,12 @@ def hieu_suat(ctx):
     with ui.card("Hiệu suất chỉ số", "rebase 100 đầu kỳ", help="Mỗi chỉ số quy về 100 tại phiên đầu khung thời gian.",
                  key="idx_rebase", chips=IDX, chip_default=["VNINDEX", "VN30", "VNMIDCAP", "VNSMALLCAP"], chip_multi=True,
                  chip_fmt=TEN.get, default="YTD") as c:
-        px = c.cut(dx.index_close(c.chip))
-        reb = ui.rebase100(px)
+        px = c.cut(rt.with_live(dx.index_close(c.chip), "index_close", codes=c.chip))
+        reb = rt.mark_live(ui.rebase100(px), px)
         fig = ui.fig_line(reb, "rebase 100", hover_nd=1)
         if fig is not None:
             ui.add_hline(fig, 100, color=ui.TOK["gray"])
-        perf = (reb.iloc[-1] - 100).round(2) if len(reb) else pd.Series(dtype=float)
+        perf = (reb.ffill().iloc[-1] - 100).round(2) if len(reb) else pd.Series(dtype=float)
         c.chart(fig, reb, ten="Hieu suat chi so rebase 100",
                 note_text=" · ".join(f"{k} {ui.fmt_vn(v, 1, dau=True)}%" for k, v in perf.items()) if len(perf) else None)
 
@@ -72,9 +73,9 @@ def hieu_suat(ctx):
                  help="Toàn thị trường: % cổ phiếu có giá dưới MA20/50/100/200. Theo sàn: số mã dưới MA50/200/300 "
                       "(giá điều chỉnh TradingView, tính trong datalib.breadth).",
                  key="breadth", chips=["Toàn thị trường", "HOSE", "HNX", "UPCOM"], chip_default="Toàn thị trường", default="1Y") as c:
-        br = c.cut(dl.breadth_df())
+        br = c.cut(rt.with_live(dl.breadth_df(), "breadth"))
         if c.chip == "Toàn thị trường":
-            d = pd.DataFrame({f"% dưới MA{w}": 100 - br[f"% mã trên MA{w}"] for w in (20, 50, 100, 200)})
+            d = rt.mark_live(pd.DataFrame({f"% dưới MA{w}": 100 - br[f"% mã trên MA{w}"] for w in (20, 50, 100, 200)}), br)
             fig = ui.fig_line(d, "% số mã", zero=True, hover_nd=1)
             if fig is not None:
                 ui.add_hline(fig, 50, color=ui.TOK["gray"])
@@ -89,7 +90,9 @@ def hieu_suat(ctx):
                  help="Chỉ số ngành tự tính: tổng vốn hoá các mã HOSE trong ngành (ICB Vietcap), quy về 100 tại đầu kỳ; "
                       "rổ = mã có giá ở cả đầu và cuối kỳ.", key="sec_rebase", toggles=PN_TOGGLE, default="YTD") as c:
         pn = _pn(c)
-        sec, _ = dl.sector_caps(dl._mtime(dl.REGISTRY["tv_history"][2]), c.d0.strftime("%Y-%m-%d"), c.d1.strftime("%Y-%m-%d"), pn)
+        sec, _ = dl.sector_caps(dl._mtime(dl.REGISTRY["tv_history"][2]), c.d0.strftime("%Y-%m-%d"),
+                                min(c.d1, LAST).strftime("%Y-%m-%d"), pn)
+        sec = rt.with_live(sec, "sector_caps", pn=pn)
         ds = [x for x in sec.columns if x != "Toàn HOSE"]
         kk = f"sec_pick_{pn[0]}"
         mac = [x for x in ("Ngân hàng", "Bất động sản", "Dịch vụ tài chính", "Vingroup", "Tài nguyên cơ bản", "Thực phẩm & đồ uống",
@@ -106,7 +109,10 @@ def hieu_suat(ctx):
                  "tính đến phiên gần nhất. 'Toàn thị trường' = toàn bộ HOSE.",
                  key="sec_chg", chips=dx.HORIZONS, chip_default="1M", toggles=PN_TOGGLE, controls=False) as c:
         pn = _pn(c)
-        r = dx.sector_returns(LAST, pn)
+        r_hist = dx.sector_returns(LAST, pn)
+        r, live_ts = rt.sector_returns_live(pn, ("HOSE",))
+        if r is None:
+            r = r_hist
         if r.empty or c.chip not in r:
             c.empty()
         else:
@@ -115,7 +121,9 @@ def hieu_suat(ctx):
             s = s.drop("Toàn thị trường", errors="ignore").sort_values(ascending=False)
             s.loc["Toàn thị trường"] = tt
             fig = ui.fig_hbar(s, "%", sign=True, highlight="Toàn thị trường", nd=1)
-            c.chart(fig, r.round(2), last=r.attrs.get("end"), ten=f"Thay doi von hoa nganh {c.chip}")
+            if live_ts is not None:
+                r.attrs["live"] = {"ts": live_ts, "hist_end": LAST}
+            c.chart(fig, r.round(2), last=r.attrs.get("end"), ten=f"Thay doi von hoa nganh {c.chip}", df_export=r_hist.round(2))
 
     # (6) bang hieu suat co phieu trong nganh
     with ui.card("Hiệu suất cổ phiếu trong ngành", "%", help="Biến động giá điều chỉnh của từng mã đến phiên gần nhất; "
@@ -127,20 +135,25 @@ def hieu_suat(ctx):
             st.session_state[kk] = "Ngân hàng" if "Ngân hàng" in ds else ds[0]
         c1, c2 = st.columns([1.5, 4])
         ng = c1.selectbox("Ngành", ds, key=kk)
-        t = dx.stock_returns(ng, LAST, pn)
+        t_hist = dx.stock_returns(ng, LAST, pn)
+        t, live_ts = rt.stock_returns_live(ng, pn)
+        if t is None:
+            t = t_hist
         if t.empty:
             c.empty()
         else:
             n_hien = c2.slider("Số mã hiển thị", 10, max(10, len(t)), min(30, len(t)), key=f"n_{kk}")
-            c.table(t.head(n_hien), ten=f"Hieu suat co phieu {ng}", html=True, pct_cols=dx.HORIZONS, name_col="Tên công ty")
-            ui.note(f"{len(t)} mã trong ngành {ng} (ICB cấp {pn[0]}). Tính đến {LAST:%d/%m/%Y}.")
+            c.table(t.head(n_hien), ten=f"Hieu suat co phieu {ng}", html=True, pct_cols=dx.HORIZONS, name_col="Tên công ty",
+                    df_export=t_hist, live_ts=live_ts)
+            ui.note(f"{len(t)} mã trong ngành {ng} (ICB cấp {pn[0]}). " +
+                    (f"Tính với giá live {live_ts:%H:%M:%S} (1D = so với đóng cửa phiên trước)." if live_ts is not None else f"Tính đến {LAST:%d/%m/%Y}."))
 
     ui.h2("Cổ phiếu")
     # (7) co phieu
     with ui.card("Giá cổ phiếu", "", help="Nến/đường + khối lượng từ tv-history (giá điều chỉnh).", key="stock_px",
                  toggles={"Kiểu": ["Nến", "Đường"]}, default="1Y") as c:
         ma, m = _ma_chon("px")
-        o = dx.stock_ohlc(ma)
+        o = rt.with_live(dx.stock_ohlc(ma), "stock_ohlc", code=ma)
         oc = c.cut(o)
         if o.empty:
             c.empty()
@@ -170,14 +183,14 @@ def dong_tien(ctx):
     with ui.card("Giá trị giao dịch", "tỷ đồng", help="GTGD khớp lệnh + thoả thuận theo phiên (VCI accumulatedValue); phiên VCI chưa có "
                  "được ước tính bằng close×KL. Đường = MA20 / MA50.", key="gtgd", chips=SAN, chip_default="Toàn thị trường",
                  toggles={"Gộp": ["Phiên", "Tuần", "Tháng"]}, default="1Y") as c:
-        to = dl.turnover_df()
+        to = rt.with_live(dl.turnover_df(), "turnover")
         col = c.chip
         d = to[[col]].copy()
         d["MA20"] = d[col].rolling(20).mean()
         d["MA50"] = d[col].rolling(50).mean()
         d = c.cut(d)
         if c.toggle["Gộp"] != "Phiên":
-            d = dx.resample_flow(d[[col]], c.toggle["Gộp"])
+            d = rt.mark_live(dx.resample_flow(d[[col]], c.toggle["Gộp"]), d)
             fig = ui.fig_bars(d, col, "tỷ đồng", sign=False, hover_nd=0)
         else:
             fig = ui.fig_bars(d, col, "tỷ đồng", sign=False, lines=["MA20", "MA50"], hover_nd=0)
@@ -186,12 +199,15 @@ def dong_tien(ctx):
     with ui.card("Giá trị giao dịch theo nhà đầu tư", "tỷ đồng", help="Khối ngoại và tự doanh = (mua + bán)/2 từ flows-master; "
                  "trong nước khác = GTGD toàn thị trường trừ hai nhóm trên.", key="gtgd_ndt",
                  toggles={"Gộp": ["Phiên", "Tuần", "Tháng"], "Hiển thị": ["Giá trị", "Tỷ trọng"]}, default="1Y") as c:
-        d = dx.resample_flow(c.cut(dx.flows_investor()), c.toggle["Gộp"])
+        fi = c.cut(rt.with_live(dx.flows_investor(), "flows_investor"))
+        d = rt.mark_live(dx.resample_flow(fi, c.toggle["Gộp"]), fi)
         fig = ui.fig_stack(d, "tỷ đồng", normalize=c.toggle["Hiển thị"] == "Tỷ trọng",
                            colors={"Khối ngoại": ui.TOK["orange"], "Tự doanh": ui.TOK["brown"], "Trong nước khác": ui.TOK["gray_light"]})
         tt = d.sum()
         note = ("Cả kỳ: khối ngoại " + ui.fmt_vn(tt.get("Khối ngoại", 0) / tt.sum() * 100, 1) + "%, tự doanh " +
                 ui.fmt_vn(tt.get("Tự doanh", 0) / tt.sum() * 100, 1) + "%") if len(d) and tt.sum() else None
+        if "live" in d.attrs:
+            note = (note or "") + " · hôm nay: tự doanh chưa có (không live)"
         c.chart(fig, d, ten="GTGD theo nha dau tu", note_text=note)
 
     with ui.card("Giá trị giao dịch bình quân theo tháng", "tỷ đồng / phiên", help="Bình quân GTGD toàn thị trường mỗi phiên trong tháng; "
@@ -200,11 +216,14 @@ def dong_tien(ctx):
         fig = ui.fig_bars(m, "GTGD bình quân phiên", "tỷ đồng", sign=False, faded_mask=m["Chưa kết thúc"], hover_nd=0)
         c.chart(fig, m, ten="GTGD binh quan thang")
 
-    nf = dx.net_flows()
+    nf = rt.with_live(dx.net_flows(), "net_flows")
     for ten, col, key in (("Giao dịch ròng tự doanh", "Tự doanh ròng", "td_rong"), ("Giao dịch ròng khối ngoại", "Khối ngoại ròng", "kn_rong")):
-        with ui.card(ten, "tỷ đồng", help="Mua ròng cam, bán ròng xám; đường nâu = luỹ kế trong kỳ (trục phải). Toàn 3 sàn.",
+        with ui.card(ten, "tỷ đồng", help="Mua ròng cam, bán ròng xám; đường nâu = luỹ kế trong kỳ (trục phải). Toàn 3 sàn."
+                     + (" Hôm nay: khối ngoại live (Σ ròng theo mã từ bộ thu); tự doanh không live." if key == "kn_rong" else
+                        " Tự doanh KHÔNG live (chỉ có sau phiên)."),
                      key=key, toggles={"Gộp": ["Phiên", "Tuần", "Tháng"]}, default="1Y") as c:
-            d = dx.resample_flow(c.cut(nf[[col]]).dropna(), c.toggle["Gộp"])
+            d0 = c.cut(nf[[col]]).dropna()
+            d = rt.mark_live(dx.resample_flow(d0, c.toggle["Gộp"]), d0)
             d["Luỹ kế"] = d[col].cumsum()
             fig = ui.fig_bars(d, col, "tỷ đồng", sign=True, cum="Luỹ kế", hover_nd=0)
             tong = d[col].sum() if len(d) else np.nan
@@ -214,9 +233,14 @@ def dong_tien(ctx):
     for ten, kind, key in (("Bản đồ tự doanh theo mã", "td", "tm_td"), ("Bản đồ khối ngoại theo mã", "kn", "tm_kn")):
         with ui.card(ten, "ròng trong kỳ, tỷ đồng", help="Ô = |giá trị ròng| của mã trong kỳ, gom theo ngành ICB; xanh mua ròng, đỏ bán ròng. "
                      "Tối đa 250 mã lớn nhất.", key=key, toggles=PN_TOGGLE, default="1M") as c:
-            d = dx.treemap_flows(kind, c.d0, c.d1, _pn(c))
+            d_hist = dx.treemap_flows(kind, c.d0, min(c.d1, LAST), _pn(c))
+            d, live_ts = (rt.treemap_add_today(d_hist, _pn(c)) if kind == "kn" and c.d1 >= rt.today_ts() else (d_hist, None))
             fig = ui.fig_treemap(d)
-            c.chart(fig, d.set_index("Mã") if len(d) else d, last=c.d1, ten=ten)
+            dd = d.set_index("Mã") if len(d) else d
+            if live_ts is not None:
+                dd.attrs["live"] = {"ts": live_ts, "hist_end": LAST, "src": rt.LIVE_1M}
+            c.chart(fig, dd, last=min(c.d1, LAST) if live_ts is None else c.d1, ten=ten,
+                    df_export=d_hist.set_index("Mã") if len(d_hist) else d_hist)
 
     ui.h2("Ngành")
     ui.card_empty("Dòng tiền chủ động theo ngành", "tỷ đồng", "Chưa có dữ liệu khớp lệnh chủ động (mua lên / bán xuống) theo mã trong hệ thống.",
@@ -225,26 +249,32 @@ def dong_tien(ctx):
                  key="kn_nganh", toggles={"Hiển thị": ["Cả kỳ", "Tuần", "Tháng"], **PN_TOGGLE}, default="3M") as c:
         pn = _pn(c)
         tan = {"Cả kỳ": "M", "Tuần": "W", "Tháng": "M"}[c.toggle["Hiển thị"]]
-        piv, tong = dl.flows_sector(c.d0, c.d1, ("HOSE", "HNX", "UPCOM"), tan, "netVal", pn)
+        piv, tong = dx.flows_sector(c.d0, min(c.d1, LAST), ("HOSE", "HNX", "UPCOM"), tan, "netVal", pn)
         if tong.empty:
             c.empty()
         elif c.toggle["Hiển thị"] == "Cả kỳ":
-            c.chart(ui.fig_hbar(tong["Ròng (tỷ)"], "tỷ đồng", nd=0), tong, last=c.d1, ten="Khoi ngoai rong theo nganh")
+            tong_hist = tong
+            tong, live_ts = (rt.sector_flows_add_today(tong, pn) if c.d1 >= rt.today_ts() else (tong, None))
+            if live_ts is not None:
+                tong.attrs["live"] = {"ts": live_ts, "hist_end": LAST, "src": rt.LIVE_1M}
+            c.chart(ui.fig_hbar(tong["Ròng (tỷ)"], "tỷ đồng", nd=0), tong, last=c.d1 if live_ts is not None else min(c.d1, LAST),
+                    ten="Khoi ngoai rong theo nganh", df_export=tong_hist)
         else:
             c.chart(ui.fig_stack(piv, "tỷ đồng"), piv, ten="Khoi ngoai rong theo nganh")
     with ui.card("Tự doanh ròng theo ngành", "tỷ đồng", help="Tổng tự doanh ròng của các mã trong ngành (VNDirect theo mã, từ 05/2022).",
                  key="td_nganh", toggles=PN_TOGGLE, default="3M") as c:
-        s = dl.prop_sector(c.d0, c.d1, ("HOSE", "HNX", "UPCOM"), _pn(c))
-        c.chart(ui.fig_hbar(s, "tỷ đồng", nd=0) if len(s) else None, s.to_frame("Ròng (tỷ)"), last=c.d1, ten="Tu doanh rong theo nganh")
+        s = dx.prop_sector(c.d0, min(c.d1, LAST), ("HOSE", "HNX", "UPCOM"), _pn(c))
+        c.chart(ui.fig_hbar(s, "tỷ đồng", nd=0) if len(s) else None, s.to_frame("Ròng (tỷ)"), last=min(c.d1, LAST), ten="Tu doanh rong theo nganh")
 
     ui.h2("Cổ phiếu")
     with ui.card("Giao dịch khối ngoại & tự doanh theo mã", "tỷ đồng", help="Ròng theo phiên của 1 mã; đường = luỹ kế trong kỳ.",
                  key="ma_flow", chips=["Khối ngoại", "Tự doanh"], chip_default="Khối ngoại", toggles={"Gộp": ["Phiên", "Tuần", "Tháng"]},
                  default="6M") as c:
         ma, _ = _ma_chon("flow")
-        f = dx.stock_flows(ma)
+        f = rt.with_live(dx.stock_flows(ma), "stock_flows", code=ma)
         col = f"{c.chip} ròng"
-        d = dx.resample_flow(c.cut(f[[col]]).dropna(), c.toggle["Gộp"])
+        d0 = c.cut(f[[col]]).dropna()
+        d = rt.mark_live(dx.resample_flow(d0, c.toggle["Gộp"]), d0)
         if d.empty:
             c.empty()
         else:
@@ -267,6 +297,7 @@ def _val_card(ct, ten, key):
         p = vw[vw.code.isin(c.chip)].pivot_table(index="date", columns="code", values=ct, aggfunc="last")
         p.columns = [RO.get(x, x) for x in p.columns]
         p.index.name = "Ngày"
+        p = rt.with_live(p, "valuation", ratio_by_col={RO.get(k, k): rt.ratio_for_index(k) for k in c.chip})
         d = c.cut(p)
         fig = ui.fig_line(d, "lần", hover_nd=2)
         if fig is not None and len(d):
@@ -291,6 +322,9 @@ def dinh_gia(ctx):
         d = s[[ct, f"{ct}_adj"]].rename(columns={ct: "Toàn thị trường", f"{ct}_adj": "Loại nhóm Vingroup"})
         if ct == "roe":
             d = d * 100
+        else:
+            d = rt.with_live(d, "valuation", ratio_by_col={"Toàn thị trường": rt.ratio_for_index(c.chip),
+                                                          "Loại nhóm Vingroup": rt.ratio_for_index(c.chip, exclude_vin=True)})
         d.index.name = "Ngày"
         d = c.cut(d)
         c.chart(ui.fig_line(d, "%" if ct == "roe" else "lần", hover_nd=2, colors={"Loại nhóm Vingroup": ui.TOK["brown"]}), d,
@@ -317,6 +351,7 @@ def dinh_gia(ctx):
         chon = st.multiselect("Ngành", ds, default=[x for x in ("Ngân hàng", "Bất động sản", "Dịch vụ tài chính", "Bán lẻ") if x in ds], key="val_ng_pick")
         p = sw[sw.ten_nganh.isin(chon or ds[:4])].pivot_table(index="date", columns="ten_nganh", values=ct, aggfunc="last")
         p.index.name = "Ngày"
+        p = rt.with_live(p, "valuation", ratio_by_col={g: rt.ratio_for_sector(g) for g in p.columns})
         d = c.cut(p)
         c.chart(ui.fig_line(d, "lần", hover_nd=2), d, ten=f"{c.toggle['Chỉ tiêu']} theo nganh")
 
@@ -329,7 +364,8 @@ def dinh_gia(ctx):
         if s.empty or ct not in s:
             c.empty()
         else:
-            d = c.cut(s[[ct]].rename(columns={ct: f"{c.toggle['Chỉ tiêu']} {ma}"}))
+            col = f"{c.toggle['Chỉ tiêu']} {ma}"
+            d = c.cut(rt.with_live(s[[ct]].rename(columns={ct: col}), "valuation", ratio_by_col={col: rt.ratio_for_stock(ma)}))
             d.index.name = "Ngày"
             fig = ui.fig_line(d, "lần", hover_nd=2)
             if fig is not None and len(d):

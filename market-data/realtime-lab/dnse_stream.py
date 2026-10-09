@@ -18,8 +18,14 @@ Giao thuc (theo developers.dnse.com.vn + github dnse-tech/openapi-sdk, da kiem c
 Ket noi (moi ket noi 1 nhom kenh, tu reconnect + dang ky lai):
   [market]    market_index x 10 chi so, estimated_market_index.VN30, market_index_influence (VNINDEX/VN30/HNX/HNX30/VN100),
               ohlc.1 + ohlc_closed.1 cho chi so + phai sinh, session STO/STX/UPX/FIO
-  [watch-N]   tick_extra.G1, top_price.G1, foreign.G1, ohlc.1, ohlc_closed.1, expected_price.G1 cho tung lo <= 15 ma
-              cua dnse_symbols.txt (mac dinh VN30 + VN30F1M -> 3 ket noi). --foreign-universe VN100: them foreign.G1 cho VN100.
+  [watch-N]   tick_extra.G1, top_price.G1, foreign.G1, ohlc.1, ohlc_closed.1, expected_price.G1 cho tung lo <= 16 ma
+              cua dnse_symbols.txt (mac dinh VN30 + VN30F1M -> 2 ket noi). --foreign-universe VN100: them foreign.G1 cho VN100.
+  [universe]  09/10/2026 "live toan san": tick_extra.G1 cho TOAN BO co phieu HOSE + HNX (+ UPCOM neu con cho) ngoai VN30,
+              nhet vao cho trong cua cac ket noi tren roi mo them ket noi moi (uni-N) cho den khi het 10 ket noi.
+              Server bao subscriptions_max = 100 stream/ket noi (auth_success) -> 10 x 100 = 1.000 stream la tran.
+              Danh sach ma + gia tham chieu/tran/san + khoi ngoai toan san lay tu SSI iBoard (poll_realtime.fetch_stocks_ssi,
+              1 request/san, moi 60 s, khong can key) vi REST /price/instruments cua DNSE khong ton tai (404).
+              -> gia khop HOSE/HNX la tick DNSE (5 s), UPCOM + khoi ngoai ngoai VN30 la snapshot SSI (60 s).
 
 Luu: data/realtime.duckdb (1 process ghi). Xuat parquet cho app moi 5 s vao data/<YYYY-MM-DD>/:
   index_latest.parquet   diem + do rong + GTGD tung chi so, basis VN30F1M
@@ -28,12 +34,18 @@ Luu: data/realtime.duckdb (1 process ghi). Xuat parquet cho app moi 5 s vao data
   market_summary.parquet lich su 5 s cua market_index (ve duong do rong / GTGD / khoi ngoai VN30 trong phien)
   influence_latest.parquet  anh huong tung ma len chi so (gia, GTGD, KL cua MOI ma trong ro VNINDEX/HNX -> toan san)
   foreign_latest.parquet    khoi ngoai luy ke theo ma
+  stocks_latest.parquet     TOAN SAN (~1.500 ma, moi 5 s): symbol, exchange (HOSE/HNX/UPCOM), ref, ceiling, floor, price, change,
+                            change_pct, open, high, low, avg, total_vol (CP; DNSE phat /10 -> da x10), total_val (TY dong), fr_buy_val, fr_sell_val,
+                            fr_net_val (TY dong), src (dnse|ssi), ts (gio nhan), ts_ssi (gio snapshot SSI).
+                            GIA = DONG (nhu tv-history; DNSE phat nghin dong -> x1000). App dung lam "overlay hom nay".
 
 Chay:
   python dnse_stream.py --check                      # kiem tra key
   python dnse_stream.py                              # 08:45-15:10 T2-T6, tu thoat
   python dnse_stream.py --force --duration 60        # thu ngoai gio
+  python dnse_stream.py --force --duration 90 --db data/test.duckdb --out data/test   # thu SONG SONG bo thu that (DB + thu muc rieng)
   python dnse_stream.py --backfill                   # chi keo lai nen 1 phut hom nay qua REST roi thoat
+  python dnse_stream.py --no-universe                # chi VN30 + chi so nhu truoc 09/10
 """
 from __future__ import annotations
 
@@ -70,7 +82,11 @@ REST_URL = "https://openapi.dnse.com.vn"
 INDICES = ["VNINDEX", "VN30", "HNX", "HNX30", "UPCOM", "VN100", "VNXALLSHARE", "VNMITECH", "VN50GROWTH", "VNDIVIDEND"]
 INFLUENCE = ["VNINDEX", "VN30", "HNX", "HNX30", "VN100"]
 FUTURES = ["VN30F1M", "VN30F2M"]
-WATCH_CHUNK = 15              # ma / ket noi watch (6 kenh x 15 = 90 stream, duoi muc 100 server bao)
+WATCH_CHUNK = 16              # ma / ket noi watch (6 kenh x 16 = 96 stream, duoi muc subscriptions_max = 100 server bao)
+STREAM_MAX = 100              # auth_success: rate_limit.subscriptions_max = 100 (tai lieu ghi 200 nhung server bao 100)
+CONN_MAX = 10                 # 10 ket noi / user
+UNIVERSE_EXCH = ("hose", "hnx", "upcom")   # thu tu uu tien khi het cho stream
+UNIVERSE_INTERVAL = 60        # s, poll SSI iBoard toan san
 MAX_RAW = 300
 
 SCHEMA = {
@@ -244,6 +260,9 @@ class Store:
         self.q: queue.Queue = queue.Queue()
         self.latest: dict[str, dict] = {}           # symbol -> gia/bid/ask/khoi ngoai moi nhat
         self.index_latest: dict[str, dict] = {}     # index -> market_index moi nhat
+        self.universe: dict[str, dict] = {}         # symbol -> snapshot SSI iBoard toan san (ref/tran/san/gia/KN), 60 s
+        self.universe_ts: dt.datetime | None = None
+        self.secdef: dict[str, dict] = {}           # symbol -> ref/ceiling/floor tu kenh security_definition (nghin dong)
         self.lock = threading.Lock()
         self.raw_left = MAX_RAW
 
@@ -300,6 +319,67 @@ class Store:
             self._copy("SELECT * FROM influence ORDER BY index_name, influence DESC", os.path.join(day_dir, "influence_latest.parquet"))
             self._copy(f"SELECT * FROM foreign_flow WHERE CAST(ts_recv AS DATE) = DATE '{today}' QUALIFY row_number() OVER "
                        "(PARTITION BY symbol ORDER BY ts_recv DESC) = 1", os.path.join(day_dir, "foreign_latest.parquet"))
+            sl = self.stocks_latest_frame()
+        if sl is not None and len(sl):
+            # ghi file tam roi doi ten: app doc moi 5 s, tranh doc trung luc ghi do
+            p = os.path.join(day_dir, "stocks_latest.parquet")
+            sl.to_parquet(p + ".tmp", index=False)
+            os.replace(p + ".tmp", p)
+
+    def stocks_latest_frame(self) -> pd.DataFrame | None:
+        """Bang gia TOAN SAN = snapshot SSI (nen, 60 s) + tick DNSE (gia/KL/GTGD/cao/thap/avg, 5 s) + khoi ngoai DNSE (VN30).
+        Don vi: gia DONG, total_val / fr_* TY dong. Goi trong lock."""
+        if not self.universe and not self.latest:
+            return None
+        rows: dict[str, dict] = {}
+        for sym, u in self.universe.items():
+            rows[sym] = dict(u)
+        skip = set(INDICES) | set(FUTURES)
+        for sym, l in list(self.latest.items()):          # list(): thread WS dang them ma moi
+            if sym in skip or str(sym).startswith("VN30F"):
+                continue
+            r = rows.get(sym)
+            if r is None:
+                r = rows[sym] = {"symbol": sym, "exchange": None, "ref": None, "ceiling": None, "floor": None, "price": None,
+                                 "open": None, "high": None, "low": None, "avg": None, "total_vol": None, "total_val": None,
+                                 "fr_buy_val": None, "fr_sell_val": None, "src": None, "ts": None, "ts_ssi": None}
+            ts_d, ts_s = l.get("ts_recv"), r.get("ts_ssi")
+            newer = ts_s is None or ts_d is None or ts_d >= ts_s
+            if l.get("price") is not None and newer:
+                r.update(price=l["price"] * 1000.0, src="dnse", ts=ts_d)
+                for k_src, k_dst in (("open", "open"), ("high", "high"), ("low", "low"), ("avg_price", "avg")):
+                    if l.get(k_src) is not None:
+                        r[k_dst] = l[k_src] * 1000.0
+                if l.get("total_vol") is not None:
+                    # DNSE totalVolumeTraded = so CP / 10 (doi chieu SSI + GTGD/gia BQ 13:02 09/10: ti le dung 10,000 ca 3 san)
+                    r["total_vol"] = l["total_vol"] * 10
+                if l.get("total_val") is not None:
+                    v = float(l["total_val"])
+                    r["total_val"] = v / 1e9 if v > 1e5 else v          # grossTradeAmount: dong -> ty
+            if l.get("fr_buy_val") is not None or l.get("fr_sell_val") is not None:   # foreign.G1 (VN30) luy ke -> ty
+                if newer or r.get("fr_buy_val") is None:
+                    r["fr_buy_val"] = (l.get("fr_buy_val") or 0) / 1e9
+                    r["fr_sell_val"] = (l.get("fr_sell_val") or 0) / 1e9
+            if r.get("ref") is None and sym in self.secdef and self.secdef[sym].get("ref"):
+                sd = self.secdef[sym]
+                r["ref"], r["ceiling"], r["floor"] = sd["ref"] * 1000.0, (sd.get("ceiling") or 0) * 1000.0 or None, (sd.get("floor") or 0) * 1000.0 or None
+        df = pd.DataFrame(list(rows.values()))
+        for c in ("ref", "ceiling", "floor", "price", "open", "high", "low", "avg", "total_vol", "total_val", "fr_buy_val", "fr_sell_val"):
+            if c not in df:
+                df[c] = None
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+        df["change"] = df["price"] - df["ref"]
+        df["change_pct"] = df["change"] / df["ref"].where(df["ref"] > 0) * 100
+        df["fr_net_val"] = df["fr_buy_val"] - df["fr_sell_val"]
+        cols = ["symbol", "exchange", "ref", "ceiling", "floor", "price", "change", "change_pct", "open", "high", "low", "avg",
+                "total_vol", "total_val", "fr_buy_val", "fr_sell_val", "fr_net_val", "src", "ts", "ts_ssi"]
+        for c in cols:
+            if c not in df:
+                df[c] = None
+        df = df[cols]
+        df["ts"] = pd.to_datetime(df["ts"], errors="coerce")
+        df["ts_ssi"] = pd.to_datetime(df["ts_ssi"], errors="coerce")
+        return df.sort_values("symbol").reset_index(drop=True)
 
     def counts(self) -> dict[str, int]:
         with self.lock:
@@ -401,9 +481,12 @@ def handle(store: Store, conn: str, m: dict) -> None:
                                "exp_price": _f(m.get("expectedTradePrice")), "exp_qty": _i(m.get("expectedTradeQuantity")),
                                "time": _ts(m.get("time"))})
     elif T == "sd":
-        store.put("secdef", {"ts_recv": ts, "symbol": m.get("symbol"), "board": m.get("boardId"), "market": _ts(m.get("marketId")),
-                             "ref": _f(m.get("basicPrice")), "ceiling": _f(m.get("ceilingPrice")), "floor": _f(m.get("floorPrice")),
-                             "status": _ts(m.get("securityStatus")), "time": _ts(m.get("time"))})
+        row = {"ts_recv": ts, "symbol": m.get("symbol"), "board": m.get("boardId"), "market": _ts(m.get("marketId")),
+               "ref": _f(m.get("basicPrice")), "ceiling": _f(m.get("ceilingPrice")), "floor": _f(m.get("floorPrice")),
+               "status": _ts(m.get("securityStatus")), "time": _ts(m.get("time"))}
+        store.put("secdef", row)
+        if row["symbol"] and row["ref"]:
+            store.secdef[row["symbol"]] = row
     elif T == "s":
         store.put("sessions", {"ts_recv": ts, "market": _ts(m.get("marketId")), "board": m.get("boardId"), "event": _ts(m.get("eventId")),
                                "session_id": _ts(m.get("tradingSessionId")), "prod_grp": m.get("tscProdGrpId"),
@@ -465,8 +548,76 @@ class Conn:
                 await asyncio.sleep(delay)
 
 
-def build_channels(symbols: list[str], foreign_extra: list[str]) -> dict[str, list[dict]]:
-    """Chia kenh theo ket noi. Tra {ten_ket_noi: [channel dict]}."""
+def n_streams(channels: list[dict]) -> int:
+    return sum(max(1, len(c["symbols"])) for c in channels)
+
+
+# ----------------------------------------------------------------------------- SSI iBoard toan san (khong can key)
+def universe_snapshot() -> tuple[pd.DataFrame, dt.datetime]:
+    """1 request/san SSI iBoard -> DataFrame toan san (co phieu thuong), gia DONG, GTGD/KN DONG. Dung poll_realtime.fetch_stocks_ssi."""
+    sys.path.insert(0, HERE)
+    import poll_realtime as pr
+    df = pr.fetch_stocks_ssi()
+    ts = naive_now()
+    if "stock_type" in df.columns:
+        df = df[df["stock_type"].isin(["s", "STOCK"]) | df["stock_type"].isna()]
+    df = df[df["symbol"].notna()].copy()
+    df["exchange"] = df["exchange"].astype(str).str.upper()
+    return df, ts
+
+
+def universe_rows(df: pd.DataFrame, ts: dt.datetime) -> dict[str, dict]:
+    """DataFrame SSI -> {symbol: row chuan stocks_latest} (gia dong, GTGD/KN ty)."""
+    out = {}
+    g = lambda r, k: (None if (k not in r or pd.isna(r[k])) else float(r[k]))  # noqa: E731
+    for r in df.to_dict("records"):
+        sym = str(r["symbol"]).upper()
+        price = g(r, "price")
+        val = g(r, "value")
+        fb, fs = g(r, "fr_buy_val"), g(r, "fr_sell_val")
+        out[sym] = {"symbol": sym, "exchange": r.get("exchange"), "ref": g(r, "ref"), "ceiling": g(r, "ceiling"), "floor": g(r, "floor"),
+                    "price": price if price else None, "open": g(r, "open") or None, "high": g(r, "high") or None,
+                    "low": g(r, "low") or None, "avg": g(r, "avg_price") or None, "total_vol": g(r, "volume"),
+                    "total_val": (val / 1e9) if val is not None else None,
+                    "fr_buy_val": (fb / 1e9) if fb is not None else None, "fr_sell_val": (fs / 1e9) if fs is not None else None,
+                    "src": "ssi", "ts": ts, "ts_ssi": ts}
+    return out
+
+
+def universe_symbols(df: pd.DataFrame, exclude: set[str]) -> list[str]:
+    """Thu tu dang ky tick DNSE: HOSE -> HNX -> UPCOM, trong san theo GTGD giam dan (phien truoc neu moi mo cua) roi ABC."""
+    d = df[~df["symbol"].isin(exclude)].copy()
+    d["_ex"] = d["exchange"].str.lower().map({e: i for i, e in enumerate(UNIVERSE_EXCH)}).fillna(9)
+    d["_val"] = -pd.to_numeric(d.get("value"), errors="coerce").fillna(0)
+    d = d.sort_values(["_ex", "_val", "symbol"])
+    return d["symbol"].astype(str).str.upper().tolist()
+
+
+def universe_loop(store: "Store", stop_evt: threading.Event, interval: int = UNIVERSE_INTERVAL) -> None:
+    """Thread: moi `interval` s poll SSI toan san -> store.universe (nen cho stocks_latest: ref/tran/san, UPCOM, khoi ngoai)."""
+    fails = 0
+    while not stop_evt.is_set():
+        t0 = time.time()
+        try:
+            df, ts = universe_snapshot()
+            rows = universe_rows(df, ts)
+            with store.lock:
+                store.universe = rows
+                store.universe_ts = ts
+            if fails:
+                log(f"[universe] SSI OK tro lai ({len(rows)} ma)")
+            fails = 0
+        except Exception as e:  # noqa: BLE001
+            fails += 1
+            if fails <= 3 or fails % 10 == 0:
+                log(f"[universe] ! SSI iBoard loi lan {fails}: {type(e).__name__}: {str(e)[:120]}")
+        wait = max(5.0, interval - (time.time() - t0))
+        stop_evt.wait(wait)
+
+
+def build_channels(symbols: list[str], foreign_extra: list[str], universe: list[str] | None = None) -> dict[str, list[dict]]:
+    """Chia kenh theo ket noi. Tra {ten_ket_noi: [channel dict]}.
+    universe: ma them tick_extra.G1 (toan san) -> nhet vao cho trong (<= STREAM_MAX/ket noi) roi mo ket noi uni-N toi CONN_MAX."""
     idx_syms = INDICES + FUTURES
     market = [{"name": f"market_index.{i}.json", "symbols": []} for i in INDICES]
     market += [{"name": "estimated_market_index.VN30.json", "symbols": []}]
@@ -482,8 +633,24 @@ def build_channels(symbols: list[str], foreign_extra: list[str]) -> dict[str, li
             {"name": "ohlc_closed.1.json", "symbols": chunk}, {"name": "expected_price.G1.json", "symbols": chunk},
         ]
     extra = [s for s in foreign_extra if s not in symbols]
-    for k in range(0, len(extra), 90):
-        conns[f"foreign-{k // 90 + 1}"] = [{"name": "foreign.G1.json", "symbols": extra[k:k + 90]}]
+    for k in range(0, len(extra), STREAM_MAX - 10):
+        conns[f"foreign-{k // (STREAM_MAX - 10) + 1}"] = [{"name": "foreign.G1.json", "symbols": extra[k:k + STREAM_MAX - 10]}]
+    uni = [s for s in (universe or []) if s not in symbols]
+    if uni:
+        # 1) lap cho trong cac ket noi da co
+        for name, ch in list(conns.items()):
+            free = STREAM_MAX - n_streams(ch)
+            if free > 0 and uni:
+                take, uni = uni[:free], uni[free:]
+                ch.append({"name": "tick_extra.G1.json", "symbols": take})
+        # 2) mo ket noi moi toi tran CONN_MAX
+        k = 1
+        while uni and len(conns) < CONN_MAX:
+            take, uni = uni[:STREAM_MAX], uni[STREAM_MAX:]
+            conns[f"uni-{k}"] = [{"name": "tick_extra.G1.json", "symbols": take}]
+            k += 1
+        if uni:
+            log(f"[universe] het cho stream: {len(uni)} ma chi co snapshot SSI 60 s (vd {', '.join(uni[:5])} ...)")
     return conns
 
 
@@ -525,6 +692,10 @@ def main() -> None:
     ap.add_argument("--foreign-universe", default="", help="ten ro (vd VN100) de them kenh khoi ngoai cho ca ro")
     ap.add_argument("--duration", type=int, default=0)
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--db", default=os.environ.get("DNSE_DB", DB_PATH), help="duong dan DuckDB (test: data/test.duckdb)")
+    ap.add_argument("--out", default=os.environ.get("DNSE_OUT", DATA), help="thu muc goc xuat parquet (test: data/test)")
+    ap.add_argument("--no-universe", action="store_true", help="khong dang ky tick toan san + khong poll SSI")
+    ap.add_argument("--universe-interval", type=int, default=UNIVERSE_INTERVAL)
     a = ap.parse_args()
 
     cred = load_credentials()
@@ -539,10 +710,12 @@ def main() -> None:
         return
 
     symbols = load_symbols(a.symbols)
-    store = Store(DB_PATH)
+    store = Store(os.path.abspath(a.db))
     day = now_vn().date()
-    day_dir = os.path.join(DATA, day.strftime("%Y-%m-%d"))
+    day_dir = os.path.join(os.path.abspath(a.out), day.strftime("%Y-%m-%d"))
     client = rest_client(key, sec)
+    if a.db != DB_PATH or a.out != DATA:
+        log(f"DB {a.db} | xuat {day_dir}")
 
     if not a.no_backfill:
         n = backfill_bars(client, store, INDICES, "INDEX", day) + backfill_bars(client, store, FUTURES, "DERIVATIVE", day)
@@ -561,9 +734,29 @@ def main() -> None:
         except Exception as e:  # noqa: BLE001
             log(f"  ! khong lay duoc ro {a.foreign_universe}: {e}")
 
-    conns = build_channels(symbols, foreign_extra)
-    log(f"{len(conns)} ket noi: " + ", ".join(f"{n} ({sum(max(1, len(c['symbols'])) for c in ch)} stream)" for n, ch in conns.items()))
     stop_evt = threading.Event()
+    universe: list[str] = []
+    th_uni = None
+    if not a.no_universe:
+        try:                                     # snapshot dau: danh sach ma toan san + ref/tran/san (SSI, khong can key)
+            udf, uts = universe_snapshot()
+            with store.lock:
+                store.universe, store.universe_ts = universe_rows(udf, uts), uts
+            universe = universe_symbols(udf, set(symbols))
+            ex_cnt = udf["exchange"].str.upper().value_counts().to_dict()
+            log(f"[universe] SSI iBoard: {len(udf)} ma {ex_cnt} -> dang ky tick DNSE cho {len(universe)} ma ngoai watch")
+        except Exception as e:  # noqa: BLE001
+            log(f"[universe] ! khong lay duoc snapshot SSI ({type(e).__name__}: {str(e)[:120]}) -> dung danh sach symbols.txt")
+            try:
+                universe = [s for s in load_symbols(os.path.join(HERE, "symbols.txt")) if s not in symbols]
+            except Exception:  # noqa: BLE001
+                universe = []
+        th_uni = threading.Thread(target=universe_loop, args=(store, stop_evt, a.universe_interval), daemon=True)
+        th_uni.start()
+
+    conns = build_channels(symbols, foreign_extra, universe)
+    log(f"{len(conns)} ket noi, {sum(n_streams(ch) for ch in conns.values())} stream: " +
+        ", ".join(f"{n} ({n_streams(ch)})" for n, ch in conns.items()))
     th = threading.Thread(target=lambda: asyncio.run(run_all(conns, key, sec, store, stop_evt)), daemon=True)
     th.start()
 
@@ -580,7 +773,11 @@ def main() -> None:
                 last_export = time.time()
             if time.time() - last_log >= 60:
                 vni = store.index_latest.get("VNINDEX", {})
-                log(f"{store.counts()} | VNINDEX {vni.get('value')} tang/giam {vni.get('advances')}/{vni.get('declines')}")
+                with store.lock:
+                    n_px = sum(1 for v in store.latest.values() if v.get("price") is not None)
+                    n_uni = len(store.universe)
+                log(f"{store.counts()} | VNINDEX {vni.get('value')} tang/giam {vni.get('advances')}/{vni.get('declines')} "
+                    f"| tick DNSE co gia: {n_px} ma | SSI toan san: {n_uni} ma")
                 last_log = time.time()
             if a.duration and time.time() - t0 >= a.duration:
                 break

@@ -61,6 +61,41 @@ def set_data_end(d):
     DATA_END = pd.Timestamp(d).date()
 
 
+# ---- LIVE toan app (09/10/2026): app.py dat moi lan chay; Card dung de ve dau LIVE, cat ky toi hom nay, xuat lich su
+LIVE = {"active": False, "ts": None, "hist_end": None}
+
+
+def set_live(active: bool, ts=None, hist_end=None):
+    LIVE["active"], LIVE["ts"], LIVE["hist_end"] = bool(active), ts, hist_end
+
+
+def _today():
+    return pd.Timestamp(date.today())
+
+
+def live_bar(state: dict, freq_key="live_freq_all", on_key="live_on", freqs=("5 s", "15 s", "60 s")):
+    """Hang dieu khien LIVE duoi header: cong tac ● LIVE + tan suat + trang thai. Tra (on, freq_label)."""
+    c1, c2, c3 = st.columns([1.1, 1.6, 5])
+    with c1:
+        on = st.toggle("● LIVE", key=on_key, help="Bật: mọi biểu đồ có điểm hôm nay cập nhật liên tục trong phiên "
+                       "(mặc định bật 08:45–15:10 T2–T6). Nút tải CSV/Excel luôn chỉ xuất dữ liệu lịch sử.")
+    with c2:
+        f = st.segmented_control("Tần suất", list(freqs), key=freq_key, label_visibility="collapsed", disabled=not on)
+    with c3:
+        if on and state.get("active"):
+            ts = state.get("ts")
+            lag = state.get("lag")
+            txt = (f'<span style="color:{TOK["up"]};font-weight:600">● LIVE</span> dữ liệu {ts:%H:%M:%S}'
+                   + (f' · trễ {lag:,.0f} s' if lag is not None else "") + f' · làm mới mỗi {f or "15 s"}'
+                   " · chỉ số + giá HOSE/HNX 5 s (DNSE) · UPCOM + khối ngoại theo mã 1 phút (SSI) · ○ = điểm hôm nay · tải về = lịch sử")
+        elif on:
+            txt = f'<span style="color:{TOK["ink3"]};font-weight:600">○ LIVE</span> chờ dữ liệu ({state.get("reason") or "—"})'
+        else:
+            txt = f'<span style="color:{TOK["ink3"]}">○ Live tắt</span> · dữ liệu lịch sử tới phiên gần nhất'
+        st.markdown(f'<div class="gn-note" style="margin-top:9px">{txt}</div>', unsafe_allow_html=True)
+    return on, f
+
+
 # ---------------------------------------------------------------------- CSS
 CSS = """
 <style>
@@ -333,29 +368,47 @@ class Card:
     def cut(self, df: pd.DataFrame, keep_history=False):
         if df is None or df.empty or not isinstance(df.index, pd.DatetimeIndex):
             return df
-        if keep_history:
-            return df[df.index <= self.d1]
-        return df[(df.index >= self.d0) & (df.index <= self.d1)]
+        d1 = self.d1
+        if LIVE["active"] and "live" in getattr(df, "attrs", {}):      # hang LIVE hom nay luon nam trong khung
+            d1 = max(d1, _today())
+        out = df[df.index <= d1] if keep_history else df[(df.index >= self.d0) & (df.index <= d1)]
+        out.attrs = dict(df.attrs)
+        return out
 
     # ---- ve
-    def chart(self, fig, df=None, last=None, ten=None, note_text=None, height=None, legend_html=None):
-        """Ve Plotly trong than the; nut xuat CSV/Excel (va Anh neu co kaleido) o hang dieu khien; dong 'Cap nhat lan cuoi'."""
+    def chart(self, fig, df=None, last=None, ten=None, note_text=None, height=None, legend_html=None, df_export=None):
+        """Ve Plotly trong than the; nut xuat CSV/Excel (va Anh neu co kaleido) o hang dieu khien; dong 'Cap nhat lan cuoi'.
+        df_export: bang de tai ve (mac dinh = df bo hang live hom nay)."""
         if fig is None:
             self.empty()
             return
         if height:
             fig.update_layout(height=height)
         _xaxis_fmt(fig, self.months)
+        live = (df.attrs.get("live") if df is not None and hasattr(df, "attrs") else None) if LIVE["active"] else None
+        if live and isinstance(df, pd.DataFrame) and isinstance(df.index, pd.DatetimeIndex) and \
+                (df.empty or pd.Timestamp(df.index.max()).normalize() != _today()):
+            live = None                                      # hang hom nay da bi loai (dropna...) -> coi nhu lich su
+        if live:
+            add_live_marker(fig, df, live.get("ts"), live.get("src"))
         with self._body:
             if legend_html:
                 st.markdown(legend_html, unsafe_allow_html=True)
             st.plotly_chart(fig, width="stretch", config=PLOTLY_CONFIG, key=f"fig_{self.key}_{abs(hash(ten or '')) % 9973}")
-        self.export(df, ten, fig)
+        self.export(df_export if df_export is not None else df, ten, fig)
         if last is None and df is not None and len(df) and isinstance(df.index, pd.DatetimeIndex):
             last = df.index.max()
         txt = []
-        if last is not None and pd.notna(last):
-            txt.append(f"Cập nhật lần cuối: {pd.Timestamp(last):%d/%m/%Y}")
+        if live:
+            hist_end = live.get("hist_end")
+            ts = live.get("ts")
+            src = f' ({live["src"]})' if live.get("src") else ""
+            txt.append(f'<span style="color:{TOK["up"]};font-weight:600">● LIVE {ts:%H:%M:%S}{src}</span>' if ts is not None else "● LIVE")
+            if hist_end is not None and pd.notna(hist_end):
+                txt.append(f"lịch sử tới {pd.Timestamp(hist_end):%d/%m/%Y} · tải về không gồm live")
+        elif last is not None and pd.notna(last):
+            txt.append((f"Lịch sử tới {pd.Timestamp(last):%d/%m/%Y}" if LIVE["active"] else
+                        f"Cập nhật lần cuối: {pd.Timestamp(last):%d/%m/%Y}"))
         if note_text:
             txt.append(note_text)
         if txt:
@@ -366,15 +419,23 @@ class Card:
         if df is None or (hasattr(df, "empty") and df.empty):
             return
         ten = ten or self.title
+        help_txt = None
+        live = df.attrs.get("live") if hasattr(df, "attrs") else None
+        if live and isinstance(df, pd.DataFrame) and isinstance(df.index, pd.DatetimeIndex):
+            df = df[df.index < _today()]                     # tai ve: CHI lich su, khong gom hang live hom nay
+            he = live.get("hist_end")
+            help_txt = f"Dữ liệu lịch sử tới {pd.Timestamp(he):%d/%m/%Y}, không gồm live" if he is not None and pd.notna(he) else "Không gồm live"
+            if df.empty:
+                return
         with self._slot:
             n = 3 if (HAS_KALEIDO and fig is not None) else 2
             cols = st.columns(n)
             csv = df.to_csv(encoding="utf-8-sig").encode("utf-8-sig") if isinstance(df, pd.DataFrame) else str(df).encode("utf-8")
             cols[0].download_button("⤓ CSV", csv, file_name=f"{ten_file(ten)}.csv", mime="text/csv",
-                                    key=f"csv_{self.key}_{slug(ten)[:20]}", width="stretch")
+                                    key=f"csv_{self.key}_{slug(ten)[:20]}", width="stretch", help=help_txt)
             cols[1].download_button("⤓ Excel", _xlsx(df, ten), file_name=f"{ten_file(ten)}.xlsx",
                                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                    key=f"xls_{self.key}_{slug(ten)[:20]}", width="stretch")
+                                    key=f"xls_{self.key}_{slug(ten)[:20]}", width="stretch", help=help_txt)
             if n == 3:
                 try:
                     png = fig.to_image(format="png", scale=2)
@@ -383,8 +444,9 @@ class Card:
                 except Exception:  # noqa: BLE001
                     pass
 
-    def table(self, df, ten=None, height=None, pct_cols=None, name_col=None, html=False, total_row=None):
-        """Bang trong the: html=True ve bang % kieu Genea (Ma dam + ten nho, % xanh/do)."""
+    def table(self, df, ten=None, height=None, pct_cols=None, name_col=None, html=False, total_row=None, df_export=None, live_ts=None):
+        """Bang trong the: html=True ve bang % kieu Genea (Ma dam + ten nho, % xanh/do). df_export: bang tai ve (lich su);
+        live_ts: bang da tinh voi gia hom nay -> ghi 'LIVE hh:mm:ss'."""
         with self._body:
             if df is None or df.empty:
                 st.markdown('<div class="gn-empty">Chưa có dữ liệu</div>', unsafe_allow_html=True)
@@ -394,7 +456,11 @@ class Card:
                             unsafe_allow_html=True)
             else:
                 st.dataframe(df, width="stretch", **({"height": height} if height else {}))
-        self.export(df, ten)
+        self.export(df_export if df_export is not None else df, ten)
+        if live_ts is not None and LIVE["active"]:
+            with self._foot:
+                st.markdown(f'<div class="gn-note"><span style="color:{TOK["up"]};font-weight:600">● LIVE {live_ts:%H:%M:%S}</span>'
+                            ' · tính với giá hôm nay · tải về = lịch sử</div>', unsafe_allow_html=True)
 
     def empty(self, msg="Chưa có dữ liệu", note_text=None):
         with self._body:
@@ -741,6 +807,44 @@ def add_hline(fig, y, text=None, color=None, dash="dash"):
     kw = dict(annotation_text=text, annotation_position="top right",
               annotation_font=dict(size=11, color=color or TOK["down"])) if text else {}
     fig.add_hline(y=y, line=dict(color=color or TOK["down"], width=1.2, dash=dash), **kw)
+    return fig
+
+
+def _marker(fig, x, y, col, yaxis="y", size=10):
+    fig.add_trace(go.Scatter(x=[x], y=[y], mode="markers", showlegend=False, hoverinfo="skip", yaxis=yaxis or "y",
+                             marker=dict(symbol="circle-open", size=size, color=col, line=dict(width=2, color=col))))
+
+
+def add_live_marker(fig, df: pd.DataFrame, ts=None, src=None):
+    """Diem cuoi (hom nay) = dau tron RONG tren moi duong/cot/nen + nhan 'LIVE hh:mm:ss' (goc tren phai)."""
+    if df is None or df.empty or not isinstance(df.index, pd.DatetimeIndex):
+        return fig
+    x_last = df.index.max()
+    for tr in list(fig.data):
+        try:
+            if tr.x is None or len(tr.x) == 0:
+                continue
+            xs = pd.to_datetime(pd.Index(tr.x))
+            if xs[-1] != x_last:
+                continue
+            if tr.type == "scatter" and tr.y is not None:
+                y = tr.y[-1]
+                if y is None or (isinstance(y, float) and np.isnan(y)):
+                    continue
+                col = (tr.line.color if tr.line is not None and tr.line.color else None) or TOK["orange"]
+                _marker(fig, x_last, y, col, getattr(tr, "yaxis", "y"))
+            elif tr.type == "bar" and tr.y is not None:
+                y = tr.y[-1]
+                if y is None or (isinstance(y, float) and np.isnan(y)):
+                    continue
+                _marker(fig, x_last, y, TOK["ink"], getattr(tr, "yaxis", "y"), 9)
+            elif tr.type == "candlestick" and tr.close is not None:
+                _marker(fig, x_last, tr.close[-1], TOK["ink"])
+        except Exception:  # noqa: BLE001
+            continue
+    label = (f"LIVE {ts:%H:%M:%S}" if ts is not None else "LIVE") + (f" · {src}" if src else "")
+    fig.add_annotation(x=1, y=1, xref="paper", yref="paper", xanchor="right", yanchor="bottom", text=label, showarrow=False,
+                       font=dict(size=11, color="#fff"), bgcolor=TOK["up"], borderpad=3, yshift=2)
     return fig
 
 

@@ -31,7 +31,7 @@ có thì mỗi thẻ thêm nút **⧉ Ảnh**.
 
 | Cấp 1 (viên thuốc) | Cấp 2 (tab gạch chân) | Cấp 3 (segment) → các mục / thẻ |
 |---|---|---|
-| **Tổng quan** | Tổng quan | *(dòng KPI live nhỏ → link trang Live, chỉ khi hôm nay có dữ liệu DNSE)* · 6 KPI + VN-Index · GTGD · Độ rộng · Khối ngoại · bảng độ tươi 21 bộ dữ liệu · nút xoá cache / chạy pipeline |
+| **Tổng quan** | Tổng quan | *(dòng KPI live nhỏ → link trang Live, chỉ khi hôm nay có dữ liệu DNSE; KPI + 4 thẻ có điểm hôm nay LIVE)* · 6 KPI + VN-Index · GTGD · Độ rộng · Khối ngoại · bảng độ tươi 21 bộ dữ liệu · nút xoá cache / chạy pipeline |
 | **Live** | — | real-time DNSE (xem mục **Live** bên dưới): KPI strip · Diễn biến trong phiên · Độ rộng · GTGD luỹ kế vs bình quân · Khối ngoại · Ảnh hưởng lên chỉ số · Bảng giá VN30 + phái sinh · Nến 1 phút từng mã · Trạng thái bộ thu |
 | | Kho dữ liệu | mở bất kỳ dataset trong REGISTRY, lọc, vẽ cột, tải |
 | | Xuất Excel | tick bảng → 1 file nhiều sheet; Chart Pack |
@@ -82,6 +82,43 @@ App **không mở** `realtime.duckdb` (1 tiến trình ghi). Đổi thư mục b
   nút **Bật** (`Start-Process Chay-realtime.bat`, Windows) / **Tắt** (terminate PID).
 - Trục giờ: chuỗi 5 s theo `ts_recv` **không cắt** 11:30–13:00 (DNSE vẫn phát market_index trong giờ nghỉ, đường nằm ngang);
   nến 1 phút có cắt khoảng nghỉ trưa. Code: `pages_live.py` (trang) + `data_live.py` (dữ liệu). Ảnh: `design\screens\10-live.png`.
+
+### Live TOÀN APP (09/10/2026 chiều) — "chart nào live được thì live hết, tải về dùng lịch sử"
+
+- **Công tắc ● LIVE + tần suất 5/15/60 s** ngay dưới header (`ui_genea.live_bar`), nhớ trong `session_state` + query param
+  `?live=1|0&tan=5|15|60`. Mặc định **BẬT trong 08:45–15:10 T2–T6, ngoài giờ tự TẮT** (trừ khi người dùng tự bấm). Bật thì trang đang xem
+  (trừ trang Live đã có fragment riêng) render trong `st.fragment(run_every=…)` → mọi thẻ tự làm mới; tắt thì như trước.
+  `live_state()` chỉ coi là *active* khi có thư mục dữ liệu hôm nay và bộ thu còn phát (trễ < 300 s trong giờ).
+- **Lớp overlay hôm nay** (`data_live.with_live(df, kind, **kw)`): lịch sử (cache dài như cũ) + **1 hàng hôm nay** tính từ parquet của bộ thu
+  (`stocks_latest` toàn sàn ~1.500 mã, `index_latest`, `index_1m`), thay thế hàng cùng ngày nếu có, gắn `df.attrs["live"] = {ts, hist_end}`.
+  Cache ttl 4 s theo mtime file, overlay < 300 ms (độ rộng ~55 ms, hiệu suất ngành ~120 ms), không mở `realtime.duckdb`.
+
+  | `kind` | Hàng hôm nay lấy từ | Dùng ở thẻ |
+  |---|---|---|
+  | `index_ohlc`, `index_close`, `world_close` | `index_latest` (điểm, cao/thấp, KL, GTGD tỷ) + nến 1 phút đầu (open) | Chỉ số nến, rebase, CK thế giới rebase + bảng 1D…5Y (chỉ VN-Index), Tổng quan VN-Index |
+  | `turnover` | GTGD 3 sàn = `total_val` VNINDEX/HNX/UPCOM, MA20/50 tính lại, Nguồn = "LIVE DNSE" | GTGD, Tổng quan GTGD + KPI |
+  | `breadth` | giá khớp toàn sàn + 299 phiên trước → % trên/dưới MA20…300, số mã tăng/giảm theo `change` | Độ rộng dưới MA, Tổng quan độ rộng + KPI |
+  | `flows_vn`, `net_flows`, `flows_investor` | Σ `fr_net_val` theo sàn (khối ngoại); **tự doanh = NaN (không live)** | Khối ngoại ròng, GTGD theo NĐT, Tổng quan KN |
+  | `stock_ohlc`, `stock_flows` | 1 mã trong `stocks_latest` | Giá cổ phiếu, KN theo mã |
+  | `valuation` | giá trị cuối × **hệ số vốn hoá** = Σ(giá×CP)/Σ(tham chiếu×CP) của rổ (HOSE/VN30/HNX/UPCoM, loại Vin, ngành, mã) | P/E, P/B theo rổ, có/không Vin, theo ngành ICB, từng mã, KPI P/E |
+  | `sector_caps` | chỉ số ngành cuối × hệ số vốn hoá ngành (HOSE) | Hiệu suất ngành rebase |
+  | `sector_returns_live`, `stock_returns_live` | `px_with_today()` = ma trận giá + hàng hôm nay → tính lại 1D…5Y | Thay đổi vốn hoá ngành, bảng hiệu suất cổ phiếu |
+  | `treemap_add_today`, `sector_flows_add_today` | cộng KN ròng hôm nay theo mã / theo ngành vào kỳ | Bản đồ khối ngoại, KN theo ngành (Cả kỳ) |
+
+- **Trên thẻ**: điểm hôm nay = **dấu tròn rỗng** trên mỗi đường/cột/nến + nhãn **LIVE hh:mm:ss** góc trên phải (`ui_genea.add_live_marker`);
+  chân thẻ "● LIVE hh:mm:ss · lịch sử tới dd/mm · tải về không gồm live". Thẻ không live được (vĩ mô, VSDC, trái phiếu, tự doanh, ngũ phân vị,
+  thanh khoản USD…) khi LIVE bật ghi **"Lịch sử tới dd/mm"**. `Card.cut` luôn giữ hàng hôm nay dù ô "đến ngày" còn là phiên trước.
+- **⤓ CSV / ⤓ Excel**: luôn xuất **lịch sử** (bỏ hàng hôm nay; thẻ tính lại với giá live truyền `df_export=` bản lịch sử), tooltip ghi
+  "tới dd/mm, không gồm live". Hàm `rt.mark_live(df, src)` chép attrs sau các phép `diff/rolling/resample` làm mất attrs.
+- **Bộ thu phủ toàn sàn** (`dnse_stream.py`, cùng ngày): server DNSE báo `subscriptions_max = 100 stream/kết nối` (không phải 200) và
+  **10 kết nối/user** → 1.000 stream. Dùng: market (100: chỉ số + influence + ohlc + session + 56 mã), watch-1/2 (VN30 + F1M × 6 kênh = 96 + 4 mã),
+  uni-1…7 (tick_extra 100 mã/kết nối) = **10/10 kết nối, 1.000/1.000 stream** → tick DNSE 5 s cho **toàn bộ HOSE (406) + HNX (299) + ~60 mã UPCOM
+  thanh khoản nhất**; ~720 mã UPCOM còn lại + khối ngoại ngoài VN30 + giá tham chiếu/trần/sàn lấy từ **SSI iBoard** (1 request/sàn, 60 s,
+  không cần key; REST `/price/instruments` của DNSE không tồn tại nên không lấy được rổ qua API). Xuất thêm
+  `data\<ngày>\stocks_latest.parquet` mỗi 5 s (giá **đồng**, `total_val`/`fr_*` **tỷ**, `src` = dnse|ssi, ghi file tạm rồi `os.replace`).
+  Test song song bộ thu thật: `--db data/test.duckdb --out data/test` (nhưng 10 kết nối là chung cho cả user → test chỉ nối được phần còn trống).
+- Ảnh: `design\screens\11-live-toan-app-*.png`. Lịch sử `indices-master` có thể thiếu phiên gần nhất (pipeline kéo PM) → KPI ±% VN-Index khi live
+  dùng `change_pct` của feed, còn đường chỉ số sẽ nối từ phiên lịch sử cuối sang điểm hôm nay.
 
 ## Giải phẫu 1 thẻ (`ui_genea.card`)
 

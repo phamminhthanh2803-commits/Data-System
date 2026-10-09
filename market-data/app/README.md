@@ -56,11 +56,11 @@ Bảng giá toàn sàn, Nến 1 phút). `pages_live.py` đã xoá, `data_live.py
 trước commit "app: bo han trang Live"). Phần **giữ lại** = cách "tích hợp live vào các trang khác":
 
 - **Công tắc ● LIVE + overlay hàng hôm nay** trên mọi biểu đồ lịch sử (mục *Live TOÀN APP* dưới) — nguồn là bộ thu
-  `D:\market-dataealtime-lab\dnse_stream.py` (task "Realtime DNSE", 08:45–15:10 T2–T6, `Chay-realtime.bat`) xuất **mỗi 5 giây** vào
+  `D:\market-data\realtime-lab\dnse_stream.py` (task "Realtime DNSE", 08:45–15:10 T2–T6, `Chay-realtime.bat`) xuất **mỗi 5 giây** vào
   `realtime-lab\data\<YYYY-MM-DD>\`; app đọc `index_latest`, `index_1m`, `stocks_latest` (toàn sàn ~1.500 mã), **không mở** `realtime.duckdb`.
   Đổi thư mục bằng env `RT_ROOT`.
 - **Khối "Bộ thu real-time DNSE"** cuối trang **Kho dữ liệu** (tình trạng nguồn, không phải thẻ live): tiến trình có chạy không (psutil),
-  3 dòng log cuối `realtime-lab\logsealtime_<yyyymmdd>.log`, nút **▶ Bật** (`Start-Process Chay-realtime.bat`) / **■ Tắt** (terminate PID),
+  3 dòng log cuối `realtime-lab\logs\realtime_<yyyymmdd>.log`, nút **▶ Bật** (`Start-Process Chay-realtime.bat`) / **■ Tắt** (terminate PID),
   thư mục dữ liệu phiên gần nhất. `pages_khac._bo_thu_realtime`.
 - Đơn vị dữ liệu bộ thu: điểm chỉ số; `total_val` chỉ số đã là **tỷ**; `stocks_latest` giá **đồng**, `total_val`/`fr_*` **tỷ**; khối lượng là
   **số cổ phiếu** (DNSE phát /10, bộ thu nhân 10 lúc parse từ 09/10/2026 13:12 — docstring "DON VI KHOI LUONG" trong `dnse_stream.py`).

@@ -1,0 +1,32 @@
+{
+ "data": [
+  {
+   "code": "VNINDEX",
+   "type": "INDEX",
+   "tradingDate": "2026-10-07",
+   "floor": "HOSE",
+   "buyVal": 1588067768530.0,
+   "sellVal": 2499677779720.0,
+   "netVal": -911610011190.0,
+   "buyVol": 48578180.0,
+   "sellVol": 94451886.0,
+   "netVol": -45873706.0
+  },
+  {
+   "code": "VNINDEX",
+   "type": "INDEX",
+   "tradingDate": "2026-10-06",
+   "floor": "HOSE",
+   "buyVal": 2141939084680.0,
+   "sellVal": 4755317777210.0,
+   "netVal": -2613378692530.0,
+   "buyVol": 82474800.0,
+   "sellVol": 154090942.0,
+   "netVol": -71616142.0
+  }
+ ],
+ "currentPage": 1,
+ "size": 2,
+ "totalElements": 2017,
+ "totalPages": 1009
+}

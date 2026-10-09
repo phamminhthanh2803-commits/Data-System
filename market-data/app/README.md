@@ -1,93 +1,98 @@
 # Market Data App — xem toàn bộ dữ liệu thị trường + xuất Excel
 
-App web chạy trên máy (Streamlit), đọc thẳng các master CSV trong `D:\market-data`.
-**Không kéo mạng** khi xem — chỉ bấm nút "Cập nhật dữ liệu" mới gọi pipeline.
+App web chạy trên máy (Streamlit), đọc thẳng các master CSV của hub market-data (thư mục `MD_ROOT`,
+mặc định `D:\market-data`; bản pipeline mới ở `D:\pipeline-data\market-data`). **Không kéo mạng** khi xem.
+
+**09/10/2026 — giao diện mới theo mẫu "Genea"** (nền be sáng `#faf8f6`, điều hướng 3 cấp trên đầu trang, thẻ biểu đồ
+trắng bo góc 12px, cam `#ed7d31`, font Inter, biểu đồ Plotly). Khảo sát + design tokens + kiểm kê thẻ:
+`design\genea-ui-spec.md`; ảnh chụp từng trang: `design\screens\`. Giao diện cũ (Bloomberg/Altair) giữ nguyên ở
+`app_legacy.py`, vẫn chạy được: `python -m streamlit run app_legacy.py --server.port 8769`.
 
 ## Chạy
 
-Nhấn đúp `Chay-app.bat` — hoặc `Chay-app-macro.bat` để mở thẳng vào trang **Vĩ mô & tiền tệ**
-(cùng một app, chỉ khác URL `?trang=vimo`). Hoặc:
+Nhấn đúp `Chay-app.bat` (cổng 8765) hoặc:
 
-```bash
-python -m streamlit run D:\market-data\app\app.py --server.port 8765
+```bat
+set MD_ROOT=D:\pipeline-data\market-data
+set SHIP_ROOT=D:\pipeline-data\shipping
+set BCTC_ROOT=D:ctc
+cd /d D:\market-datapp
+python -m streamlit run app.py --server.port 8765
 ```
 
-Trình duyệt mở `http://localhost:8765`. Đóng app = đóng cửa sổ đen.
+Trình duyệt mở `http://localhost:8765`. Lần đầu mất ~1 phút vì dựng cache parquet (`cache	v-history.parquet`,
+`cache	v-ohlc-vn.parquet` cho nến). Cần `plotly` (đã cài 09/10/2026, không dùng `--user`); `kaleido` tuỳ chọn —
+có thì mỗi thẻ thêm nút **⧉ Ảnh**.
 
-Lần chạy đầu mất ~30 giây vì phải dựng cache parquet cho `tv-history.csv` (233 MB
-→ `app\cache\tv-history.parquet`). Các lần sau vào ~2 giây; cache tự dựng lại khi
-file CSV mới hơn.
+**Deep-link** `?trang=<section>/<sub>/<nav>`: `ttck/vn/dong-tien`, `vi-mo/viet-nam/gia-ca`, `ttck/trai-phieu/gia-loi-suat`,
+`tong-quan/kho`, `tong-quan/excel`… Slug cũ (`vimo`, `vn`, `trai-phieu`, `kho`, `excel`, `khu-vuc`) vẫn mở đúng trang.
 
-## Các trang
+## Điều hướng & nội dung
 
-| Trang | Có gì |
-|---|---|
-| 🏠 **Tổng quan** | 6 chỉ báo nhanh (VN-Index, GTGD, khối ngoại, % trên MA200, % mã tăng, P/E) + 4 biểu đồ + **bảng tình trạng 15 dataset** (dữ liệu đến ngày nào, trễ mấy ngày) |
-| 📈 **Việt Nam** | 9 tab: Chỉ số & GTGD · Khối ngoại & tự doanh · Độ rộng · Dưới MA50/200/300 · Vốn hoá nhóm (VN30/Mid/Small) · Ngành · Định giá (thị trường, loại Vin, ngành ICB) · **Tăng trưởng EPS** · Tra cứu từng cổ phiếu |
-| 🌏 **Khu vực & thế giới** | Chỉ số rebase · thanh khoản quy USD · khối ngoại 7 thị trường · định giá 12 thị trường |
-| 🏦 **Vĩ mô & tiền tệ** | Dashboard 11 tab: **Bảng điều khiển** (8 KPI + 4 chart) · Lạm phát CPI (Cục Thống kê: CPI chung + lạm phát cơ bản + 11 nhóm hàng, so cùng kỳ/tháng trước/tháng 12/bình quân YTD; chỉ số mức 2024=100 IMF) · Tỷ giá & dự trữ (trung tâm, biên độ, VCB, chợ đen, swap point, dự trữ, tháng nhập khẩu) · Lãi suất & thanh khoản (LNH 6 kỳ hạn, lãi suất điều hành, OMO/tín phiếu bơm hút, huy động 1/6/12T, chênh cho vay - huy động) · Tín dụng & tiền tệ (tín dụng YTD, M2, LDR, vốn ngắn hạn cho vay TDH) · Thương mại, SX, bán lẻ & FDI (Cục Thống kê: XK/NK theo mặt hàng, IIP theo ngành, bán lẻ theo nhóm, FDI đăng ký luỹ kế; BOP NHNN) · Mỹ & khu vực (Fed, SOFR, UST, DXY + IMF 12 nước) · Toàn bộ 180 chuỗi · Niên giám NSO (333 bảng PX-Web: chọn lĩnh vực → bảng → chuỗi) · GDP & số quý (tăng trưởng GDP theo khu vực/ngành, quy mô GDP, PPI, XNK dịch vụ, vốn đầu tư toàn XH, thất nghiệp, lực lượng lao động — báo cáo quý NSO từ Q1/2023) |
-| 🧾 **Trái phiếu & NĐT** | Số tài khoản VSDC · **TPDN toàn thị trường** 5 tab: *Quy mô & đối chiếu VBMA* (riêng lẻ + công chúng + TP USD theo năm, bảng chênh lệch) · *Cơ cấu theo ngành* (9 ngành kiểu VBMA, giá trị / tỷ trọng) · *Lãi suất phát hành* (BQ gia quyền theo quý/năm × ngành, từng lô dạng bong bóng, bảng năm × ngành) · *Đáo hạn & tổ chức* · *Chi tiết* — lọc năm/ngành/loại/CTCK bảo lãnh là tuỳ chọn |
-| 📺 **Biểu đồ nhúng** | Chart VN (dchart VNDirect, nền TradingView) · **bản đồ nhiệt VN** dựng từ dữ liệu của mình · chart quốc tế + so sánh mã (widget TradingView) |
-| 🔎 **Kho dữ liệu** | Mở **bất kỳ** dataset nào, lọc theo mã/chuỗi, vẽ cột bất kỳ, tải Excel |
-| ⬇️ **Xuất Excel** | Tick các bảng cần → 1 file nhiều sheet; hoặc tải/cập nhật Chart Pack |
+| Cấp 1 (viên thuốc) | Cấp 2 (tab gạch chân) | Cấp 3 (segment) → các mục / thẻ |
+|---|---|---|
+| **Tổng quan** | Tổng quan | 6 KPI + VN-Index · GTGD · Độ rộng · Khối ngoại · bảng độ tươi 21 bộ dữ liệu · nút xoá cache / chạy pipeline |
+| | Kho dữ liệu | mở bất kỳ dataset trong REGISTRY, lọc, vẽ cột, tải |
+| | Xuất Excel | tick bảng → 1 file nhiều sheet; Chart Pack |
+| **Thị trường chứng khoán** | Chứng khoán Việt Nam | **Hiệu suất**: nến/đường 6 chỉ số + KL · rebase 100 · độ rộng dưới MA · hiệu suất ngành rebase · thay đổi vốn hoá ngành 1D…5Y · bảng hiệu suất cổ phiếu trong ngành · nến từng mã |
+| | | **Dòng tiền**: GTGD + MA20/50 · GTGD theo nhà đầu tư (giá trị/tỷ trọng, phiên/tuần/tháng) · bình quân tháng · tự doanh ròng + luỹ kế · khối ngoại ròng + luỹ kế · treemap tự doanh / khối ngoại · KN & TD theo ngành · theo mã · *(chưa có: dòng tiền chủ động, giao dịch nội bộ, ETF)* |
+| | | **Định giá**: P/E, P/B theo rổ · có/không Vingroup · ngũ phân vị P/E, P/B (theo ngành ICB cấp 3) · P/E ngành ICB · P/E-P/B từng mã |
+| | | **Nhà đầu tư**: TK mở mới ròng VSDC · số dư TK · *(chưa có: margin ×3)* |
+| | Chứng khoán thế giới | Chỉ số (rebase + bảng 1D…5Y) · Thanh khoản USD · Khối ngoại 7 thị trường · Định giá 12 thị trường |
+| | Trái phiếu | Phát hành (app vs VBMA, theo quý, đáo hạn, top hệ sinh thái/CTCK, chi tiết) · Cơ cấu & lãi suất · Giá & đường cong lợi suất (bond-pivot `yield_curve.py`) |
+| **Vĩ mô** | Vĩ mô Việt Nam | 9 navtab: Tăng trưởng & sản xuất · Giá cả · Lãi suất & tiền tệ · Hệ thống tài chính · Tài khoá · Tỷ giá · Dự trữ ngoại hối · Thương mại & CCTT · Đầu tư nước ngoài |
+| | Vĩ mô thế giới | Tỷ giá (DXY + 12 nước) · Lãi suất (Mỹ) · Chỉ số giá · Tăng trưởng & lao động |
+| **Tin tức** | — | placeholder + bảng dữ liệu vừa cập nhật |
 
-Mỗi bảng đều có nút **⬇️ Tải Excel** ngay bên dưới.
+Thẻ nào spec yêu cầu mà hệ thống chưa có nguồn (PMI, giá dầu/vàng, margin, ETF, giao dịch nội bộ, đóng góp CPI,
+GDP phía chi tiêu, dự toán NSNN, lãi suất điều hành châu Á, thất nghiệp quốc tế) vẫn hiện khung **"Chưa có dữ liệu"**
+nhạt kèm ghi chú nguồn dự kiến — không bỏ trống.
 
-## Biểu đồ
+## Giải phẫu 1 thẻ (`ui_genea.card`)
 
-- **Bảng màu** chọn ở thanh bên: *Báo cáo (nền trắng)* — đúng bộ màu các biểu đồ báo cáo
-  đang dùng (cam `#ED7D31`, cam nhạt `#F4B183`, đen `#262626`, xám `#A6A6A6`/`#BFBFBF`,
-  lưới `#D9D9D9`) — hoặc *Tối* cho hợp nền app.
-- **Ảnh biểu đồ**: dưới mỗi biểu đồ có 2 nút nhỏ — **📋 Copy ảnh** (một cú bấm, ảnh vào
-  clipboard, Ctrl+V dán thẳng vào slide/Word) và **⬇ PNG** (tải file). Không cần tải về
-  rồi chèn nữa. Độ nét 1x–4x chọn ở thanh bên (mặc định 2x). Menu ⋮ góc biểu đồ vẫn có
-  *Save as PNG/SVG* của trình duyệt.
-  - Ảnh dựng **ngay trong trình duyệt**: Streamlit vẽ biểu đồ bằng SVG, nút copy đọc lại
-    thẻ `<svg>` đó, vẽ vào canvas rồi ghi vào clipboard — không gọi server, không rerun,
-    không cần thư viện ngoài.
-  - Nếu báo *“Document is not focused”* thì bấm vào trang cho cửa sổ có focus rồi bấm lại;
-    trình duyệt chỉ cho ghi clipboard khi cửa sổ đang được focus.
-- Trục Y luôn có **đơn vị** (tỷ VND, điểm, %, số mã, lần…) và số chia theo kiểu Việt Nam
-  (`1.234,5`); trục X đổi định dạng theo độ dài khung (ngày / tháng / năm).
-- Khung hiển thị **cố định đúng khoảng thời gian đang chọn** — biểu đồ không tự phóng
-  to/kéo lệch khi rê chuột.
-- Giá trị giao dịch vẽ dạng **cột** (kèm MA20/MA50), có thêm kiểu *cột chồng 3 sàn* và
-  *đường*; ngoài ra có biểu đồ GTGD bình quân mỗi phiên theo tháng.
-- Bản đồ nhiệt VN là treemap ECharts: ô lớn = vốn hoá lớn, xanh/đỏ = tăng/giảm, chọn
-  biến động 1 phiên / 1 tuần / 1 tháng / 3 tháng / 12 tháng.
+```
+Tiêu đề (H3)  đơn vị nhạt  (?)                       [chip đối tượng · pills góc phải]
+[1M 3M 6M YTD 1Y 3Y 5Y All]  [từ ngày] [đến ngày]     [toggle Nến|Đường …]  [⤓ CSV] [⤓ Excel] [⧉ Ảnh*]
+(legend) ──── biểu đồ Plotly cao 380 ────
+Cập nhật lần cuối: dd/mm/yyyy · ghi chú kỳ
+```
 
-## Thanh bên
+- Period + 2 ô ngày nhớ theo `key` của thẻ trong `st.session_state` (`per_<key>`, `d0_<key>`, `d1_<key>`); bấm period
+  đặt lại 2 ô ngày, sửa ngày thì period về trống.
+- Chart: template Plotly `genea` (nền trong suốt, lưới `#ece8e4`, chữ trục 11px `#8c8c8c`, bảng màu cam/nâu/xám,
+  nến xanh `#12965a` / đỏ `#e23b3b`, KL soft, legend trên, số kiểu VN `1.234,5`).
+- Bảng %: `html_pct_table` (Mã đậm + tên nhỏ, % canh phải xanh/đỏ, "—" khi thiếu) hoặc `st.dataframe`.
 
-- **Khoảng thời gian**: 1T / 3T / 6T / YTD / 12T / 2N / 3N / 5N / 10N / Tất cả, hoặc
-  **Tuỳ chọn…** để nhập *từ ngày → đến ngày*. Áp cho **mọi** biểu đồ, bảng và file
-  Excel xuất ra. Dòng chữ ngay dưới luôn ghi rõ khung đang dùng.
-  - Chọn ngày kết thúc trong quá khứ thì cả app lùi về mốc đó: KPI, chỉ số ngành,
-    bảng tổng kết ngành đều tính **đến ngày đó**, không phải đến hôm nay.
-  - Chỉ số ngành và vốn hoá nhóm **rebase 100 tại ngày đầu khung** và dùng rổ cổ phiếu
-    có giá trong chính khung đó.
-- **⚙️ Dữ liệu → 🔄 Xoá cache**: nạp lại file sau khi pipeline chạy xong.
-- **⚙️ Dữ liệu → ▶️ Cập nhật dữ liệu**: gọi `Run-Market.ps1 -Slot AM|PM [-Only ...]`,
-  đúng runner mà Task Scheduler dùng. Có kết nối mạng, chạy vài phút.
+## Cấu trúc module
 
-## Xuất Excel data + chart (thanh bên → 📥 Xuất Excel)
+```
+app  app.py          khung trang: header ◆ Market Data + chip "Nguồn dữ liệu: N bộ", cây NAV 3 cấp, ?trang=, gọi module trang
+  ui_genea.py     tokens + CSS, nav(), card() / Card (chart, table, empty, export), template Plotly, fig_line/bars/stack/
+                  hbar/candle/treemap/group_bars/band/bubble, fmt_vn, html_pct_table, kpi_strip
+  data_ext.py     dữ liệu bổ sung trên datalib: OHLC VN (cache parquet), hiệu suất ngành/mã 1D…5Y, GTGD theo nhà đầu tư,
+                  treemap, ngũ phân vị, TPCP spot/snapshot, CAR, NSNN niên giám, VSDC
+  pages_ck.py     TTCK Việt Nam: hieu_suat · dong_tien · dinh_gia · nha_dau_tu
+  pages_vimo.py   Vĩ mô VN (9 navtab) + thế giới (4)
+  pages_khac.py   Tổng quan · Kho dữ liệu · Xuất Excel · CK thế giới · Trái phiếu (3 navtab) · Tin tức
+  datalib.py      LỚP DỮ LIỆU (giữ nguyên): REGISTRY 21 dataset, cache, độ rộng, MA, ngành, GTGD, flows, bonds, NSO, tm()
+  app_legacy.py   giao diện cũ (Bloomberg, Altair, xuat_excel.py) — không sửa
+  xuat_excel.py   chỉ app_legacy dùng (xuất data + chart Excel kiểu Altair)
+  design\         genea-ui-spec.md (spec), screens\*.png (ảnh chụp), screens\chup.sh (chụp lại bằng headless Chrome)
+  cache\          parquet cache, xoá được, tự dựng lại
+```
 
-- **Trang này**: mọi tab của trang đang xem. **Toàn app**: 5 trang dữ liệu (Tổng quan, Việt Nam,
-  Khu vực, Vĩ mô, Trái phiếu), app tự chạy lần lượt từng trang (~40 giây) rồi quay lại trang đang xem.
-- Nội dung = đúng những gì đang hiển thị: khoảng thời gian, phân ngành ICB, rổ/ngành/mã/chỉ tiêu đang chọn.
-- File: sheet **Mục lục** (thiết lập đang dùng + link tới từng khối) + mỗi tab 1 sheet. Mỗi khối =
-  tiêu đề, bảng data, bên phải là **biểu đồ Excel thật** (đường / cột / cột chồng / cột ngang /
-  cột + đường / đường + ngưỡng nét đứt) vẽ từ chính vùng data → sửa, đổi màu, copy sang PPT được.
-- **Định dạng giữ như app**: bảng màu đang chọn (Báo cáo / Tối), màu từng series đúng thứ tự Vega gán
-  (domain sắp tăng dần), cột dương xanh / âm đỏ từng cột, cột xám / cam như app, nét 1,9px, ngưỡng nét đứt,
-  lưới ngang nhạt, không lưới dọc, nền + không viền, chữ trục 11px màu ink2, số 2/1/0 chữ số lẻ theo độ lớn,
-  trục ngày dd/mm · mm/yyyy · yyyy theo độ dài khung và cố định đúng khung đang xem, tiêu đề đậm căn trái.
-  Bảng: header xám nhạt, màu chữ / đậm / nền lấy từ Styler của app, precision của Styler. KPI như st.metric.
-- KPI đầu trang → bảng "Chỉ số nhanh"; bảng dữ liệu → bảng; bản đồ nhiệt → chỉ data;
-  widget TradingView / chart nhúng (iframe) không xuất được. Bảng > 6.000 dòng chỉ giữ 6.000 dòng cuối.
-- Code: `xuat_excel.py` (ghi lại + dựng file bằng openpyxl). Hàm vẽ trong app.py gọi `xuat.ghi(...)`,
-  `st.dataframe`/`subheader`/`markdown` được bọc để ghi bảng + tiêu đề, tab dùng `xuat.tabs(...)`.
-  Vẽ biểu đồ mới: dùng các hàm `line/bars/bars_stack/hbars/bars_lines/line_nguong` là tự có trong file
-  xuất; chart Altair tự dựng gọi `show(ch)` thì được tách data theo encoding x/y/color.
+## Thêm 1 thẻ mới
+
+```python
+with ui.card("Tên thẻ", "đơn vị", help="giải thích ?", key="ten_the",
+             chips=["A", "B"], chip_default="A",            # tuỳ chọn, pills góc phải (chip_multi=True cho đa chọn)
+             toggles={"Kiểu": ["Nến", "Đường"]},            # tuỳ chọn, segment bên phải hàng điều khiển
+             periods=ui.PERIODS, default="1Y") as c:        # PERIODS_MACRO cho chuỗi tháng/quý
+    d = c.cut(dl.ham_nao_do())                              # cắt theo c.d0 / c.d1; c.chip, c.toggle["Kiểu"]
+    c.chart(ui.fig_line(d, "đơn vị"), d, ten="ten file")    # tự thêm nút CSV/Excel + "Cập nhật lần cuối"
+```
+Không có dữ liệu: `ui.card_empty("Tên", "đơn vị", "ghi chú nguồn dự kiến", key=...)`. Thêm dataset mới: 1 dòng trong
+`REGISTRY` (datalib.py) → Kho dữ liệu, chip nguồn, bảng độ tươi tự có.
 
 ## Ghi chú số liệu
 
@@ -134,25 +139,3 @@ Mỗi bảng đều có nút **⬇️ Tải Excel** ngay bên dưới.
   dữ liệu VN, cho nhúng. Nếu khung nhúng trống thì trình duyệt đang chặn iframe: bấm link
   *“Mở trong tab mới”* ngay dưới biểu đồ.
 
-## Cấu trúc
-
-```
-app\
-  app.py        giao diện (8 trang) + helper biểu đồ (line/bars/bars_lines/hbars/treemap)
-  datalib.py    REGISTRY 15 dataset + cache + tính độ rộng / MA / ngành / GTGD / bản đồ nhiệt
-  Chay-app.bat        launcher (mở trang Tổng quan)
-  Chay-app-macro.bat  launcher mở thẳng trang Vĩ mô
-  cache\              parquet cache, xoá được, tự dựng lại
-```
-
-Thêm pipeline mới: thêm 1 dòng vào `REGISTRY` trong `datalib.py` là trang
-"Kho dữ liệu", "Xuất Excel" và bảng tình trạng tự có.
-
-## Giao diện Bloomberg Terminal & hiển thị theo tháng (07/10/2026)
-- Bảng màu mặc định **Bloomberg Terminal**: nền đen, chữ amber `#ffa028`/trắng, font IBM Plex Mono, ô KPI viền mỏng, tab dạng phím lệnh, thanh trạng thái trên cùng (trang · khung thời gian · tần suất · ICB · độ tươi dữ liệu · giờ). Theme Streamlit nền (`.streamlit/config.toml`) đặt base=dark + amber. CSS trong `CSS_BLOOMBERG`, bảng màu chart `MAU_BLOOMBERG`; vẫn chọn được 'Báo cáo (nền trắng)' / 'Tối' ở thanh bên.
-- Toggle thanh bên **Hiển thị theo tháng** (mặc định bật): mọi chuỗi theo ngày đi qua `cut()` được gộp 1 điểm/tháng (`thang()`): giá, lãi suất, tỷ giá, số dư/đang lưu hành = giá trị cuối tháng; mua/bán ròng, GTGD, bơm/hút trong ngày, khối lượng, lượt = cộng dồn tháng. Mốc = ngày đầu tháng để khớp số NSO/IMF. Tắt để vẽ theo ngày.
-
-## Khung phân tích & đồng bộ tab/bộ lọc (07/10/2026)
-- `dl.KHUNG_VI_MO` là khung phân loại dùng chung toàn hệ thống: trang Vĩ mô có 9 tab theo khung (Bảng điều khiển · Tăng trưởng & đầu tư · Giá cả · Đối ngoại · Tiền tệ & thanh khoản · Hệ thống ngân hàng · Lao động · Thế giới · Dữ liệu gốc); mỗi khối nội dung gắn tab bằng `with T["..."]:` nên một tab nhận nhiều khối. Nhóm dataset trong REGISTRY đặt theo `Khối · Nhóm` (Vĩ mô / Cổ phiếu / Khu vực / Trái phiếu), Kho dữ liệu xếp theo đó; số liệu NSO lọc theo `dl.NHOM_NSO_TX`.
-- `tabs_bb(names, key)`: tab là segmented control, tab đang mở được nhớ trong session (`_tab_<key>`) nên đổi trang/rerun vẫn giữ; tab không chọn chỉ ẩn bằng CSS (`st.container(key=)` + `.st-key-…{display:none}`) nên Xuất Excel toàn app vẫn đủ. Khi đang xuất dùng `st.tabs` gốc.
-- `filt(kieu, label, options, default, key, col)`: multiselect/selectbox/radio có nhớ (`_f_<key>`), dùng cho mọi bộ lọc chính (CPI nhóm hàng, mặt hàng XK/NK, ngành IIP/GDP, niên giám, dataset Kho…) → chọn ở tab này, sang trang khác quay lại vẫn giữ.

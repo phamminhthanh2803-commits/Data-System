@@ -1,0 +1,96 @@
+{
+ "Data": [
+  {
+   "Symbol": "AAA",
+   "TradeCenterId": 1,
+   "CategoryId": 344,
+   "CompanyName": "Công ty Cổ phần Nhựa An Phát Xanh",
+   "CategoryName": "Nguyên vật liệu",
+   "Price": 7.2,
+   "TotalCompany": 410
+  },
+  {
+   "Symbol": "AAM",
+   "TradeCenterId": 1,
+   "CategoryId": 338,
+   "CompanyName": "Công ty Cổ phần Thủy sản Mekong",
+   "CategoryName": "Nông nghiệp",
+   "Price": 7.8,
+   "TotalCompany": 410
+  },
+  {
+   "Symbol": "AAN",
+   "TradeCenterId": 1,
+   "CategoryId": 0,
+   "CompanyName": "Công ty cổ phần Lương thực A An",
+   "CategoryName": "",
+   "Price": 15.4,
+   "TotalCompany": 410
+  },
+  {
+   "Symbol": "AAT",
+   "TradeCenterId": 1,
+   "CategoryId": 339,
+   "CompanyName": "Công ty Cổ phần Tập đoàn Tiên Sơn Thanh Hóa",
+   "CategoryName": "Hàng tiêu dùng",
+   "Price": 1.8,
+   "TotalCompany": 410
+  },
+  {
+   "Symbol": "ABR",
+   "TradeCenterId": 1,
+   "CategoryId": 339,
+   "CompanyName": "Công ty Cổ phần Đầu tư Nhãn hiệu Việt",
+   "CategoryName": "Hàng tiêu dùng",
+   "Price": 10.35,
+   "TotalCompany": 410
+  },
+  {
+   "Symbol": "ABS",
+   "TradeCenterId": 1,
+   "CategoryId": 338,
+   "CompanyName": "Công ty cổ phần Dịch vụ Nông nghiệp Bình Thuận",
+   "CategoryName": "Nông nghiệp",
+   "Price": 2.88,
+   "TotalCompany": 410
+  },
+  {
+   "Symbol": "ABT",
+   "TradeCenterId": 1,
+   "CategoryId": 338,
+   "CompanyName": "Công ty Cổ phần Xuất nhập khẩu Thủy sản Bến Tre",
+   "CategoryName": "Nông nghiệp",
+   "Price": 49.35,
+   "TotalCompany": 410
+  },
+  {
+   "Symbol": "ACB",
+   "TradeCenterId": 1,
+   "CategoryId": 341,
+   "CompanyName": "Ngân hàng Thương mại Cổ phần Á Châu",
+   "CategoryName": "Tài chính",
+   "Price": 20.65,
+   "TotalCompany": 410
+  },
+  {
+   "Symbol": "ACC",
+   "TradeCenterId": 1,
+   "CategoryId": 345,
+   "CompanyName": "Công ty Cổ phần Đầu tư và Xây dựng Bình Dương ACC",
+   "CategoryName": "Bất động sản và Xây dựng",
+   "Price": 3.67,
+   "TotalCompany": 410
+  },
+  {
+   "Symbol": "ACG",
+   "TradeCenterId": 1,
+   "CategoryId": 339,
+   "CompanyName": "Công ty Cổ phần Gỗ An Cường",
+   "CategoryName": "Hàng tiêu dùng",
+   "Price": 30.95,
+   "TotalCompany": 410
+  }
+ ],
+ "Message": null,
+ "Success": true
+}

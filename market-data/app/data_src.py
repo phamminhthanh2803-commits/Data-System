@@ -15,6 +15,11 @@ Nguon (khong can key, header User-Agent Mozilla, 0,3-1 s/request):
                 3 request/ngay), foreigns (khoi ngoai theo chi so tu 08/2018 + theo ma theo ngay), proprietary_trading
                 (tu doanh theo chi so tu 05/2022), ratios (P/E P/B P/S co tuc von hoa thi truong + 55 nganh ICB).
   EOD bo thu    realtime-lab\data\<ngay>\stocks_latest.parquet / index_latest.parquet (snapshot cuoi phien) - du phong khi VNDirect loi.
+  CafeF         cafef.vn/du-lieu/Ajax/PageNew/DataHistory/GDCoDong.ashx?Symbol=&StartDate=MM/dd/yyyy&EndDate=&PageIndex=&PageSize=
+                GIAO DICH NOI BO (co dong noi bo + nguoi lien quan + co dong lon): dang ky mua/ban, ket qua thuc hien, KL truoc/sau,
+                ty le so huu. Can curl_cffi impersonate chrome + header Referer + X-Requested-With (0,1-0,4 s/request); Symbol rong
+                KHONG tra gi -> phai goi tung ma (1.525 ma, ThreadPool 6). Loc StartDate theo PublishedDate (MM/dd/yyyy!); ban ghi
+                duoc CAP NHAT TAI CHO khi co ket qua (PublishedDate giu nguyen) -> tang dan phai keo lai ca dang ky con mo.
 
 File cache (long-format, parquet, ghi tmp roi os.replace):
   index_daily.parquet        date, index_code (VNINDEX VN30 HNXINDEX UPCOM HNX30 VN30F1M), open high low close volume value(trieu VND) src
@@ -23,6 +28,11 @@ File cache (long-format, parquet, ghi tmp roi os.replace):
   foreign_stocks_tail.parquet  khoi ngoai theo ma (code,date,floor,buyVal,sellVal,netVal,...) cac ngay sau pipeline
   valuation_daily.parquet    code,date,ratio,value (VNINDEX/HNX/UPCOM/VN30 x 5 ratio)
   sectors_tail.parquet       code,date,ratio,value (55 nganh ICB) cac ngay sau pipeline
+  insider.parquet            giao dich noi bo CafeF (long, 1 dong = 1 dang ky/thuc hien): symbol, nguoi, chuc_vu, nguoi_lien_quan,
+                             chuc_vu_lq, kl_truoc, kl_dk_mua, kl_dk_ban, ngay_dk_bd, ngay_dk_kt, kl_thuc_mua, kl_thuc_ban,
+                             ngay_thuc_hien, ngay_cong_bo, kl_sau, ty_le_sau (%), ghi_chu, url, loai (Dang ky|Thuc hien),
+                             rong_thuc (= mua - ban, co phieu), kl_rong_tinh (rong da sua loi nhap thua chu so theo KL truoc/sau),
+                             gia_tri_uoc (ty VND = kl_rong_tinh x close ngay thuc hien, stock_daily; NaN neu > so CP luu hanh)
   status.json                trang thai tung dataset (nguon, ngay cuoi, so dong, cap nhat luc, loi, tien do keo nen)
 
 Chinh sach gop (datalib.load / datalib.tv): nguon live-first la CHINH (thay the hang cung ngay cua pipeline, vi pipeline hay
@@ -111,7 +121,18 @@ DATASETS = {   # ten file parquet -> (ten hien thi, nguon, pipeline tuong ung (k
     "foreign_stocks_tail": ("Khối ngoại theo mã (ngày sau pipeline)", "VNDirect foreigns type:STOCK", "flows"),
     "valuation_daily": ("Định giá thị trường VN (P/E, P/B…)", "VNDirect ratios", "valuation_wide"),
     "sectors_tail": ("Định giá 55 ngành ICB (ngày sau pipeline)", "VNDirect ratios (batch 55 mã)", "sectors_wide"),
+    "insider": ("Giao dịch nội bộ & người liên quan (CafeF)", "CafeF GDCoDong.ashx theo từng mã", "insider"),
 }
+CAFEF = "https://cafef.vn/du-lieu/Ajax/PageNew/DataHistory/GDCoDong.ashx"
+CAFEF_PAGE = 500
+INSIDER_THREADS = 6
+INSIDER_MIN_GAP = 2 * 3600       # tang dan: toi thieu 2 h giua 2 lan keo (1.525 request/lan; cong bo noi bo tre T+n ngay nen khong can 30 phut)
+INSIDER_COLS = ["symbol", "nguoi", "chuc_vu", "nguoi_lien_quan", "chuc_vu_lq", "kl_truoc", "kl_dk_mua", "kl_dk_ban",
+                "ngay_dk_bd", "ngay_dk_kt", "kl_thuc_mua", "kl_thuc_ban", "ngay_thuc_hien", "ngay_cong_bo", "kl_sau",
+                "ty_le_sau", "ghi_chu", "url", "loai", "rong_thuc", "kl_rong_tinh", "gia_tri_uoc"]
+INSIDER_MAX_SHARES = 2_000_000_000   # 1 giao dich > 2 ty co phieu = loi nguon -> gia_tri_uoc NaN
+INSIDER_KEY = ["symbol", "nguoi", "ngay_dk_bd", "kl_dk_mua", "kl_dk_ban", "ngay_cong_bo"]
+_CAFEF_SESSION = None
 _LOCK = threading.RLock()
 _STATUS_LOCK = threading.Lock()
 _BG = {"thread": None, "started": None}
@@ -202,11 +223,12 @@ def read(name) -> pd.DataFrame:
     return pd.DataFrame()
 
 
-def _write(name, df: pd.DataFrame):
+def _write(name, df: pd.DataFrame, force=False):
     """Ghi parquet (tmp + os.replace). KHONG ghi neu noi dung khong doi (cung shape + cung tong so 300 dong cuoi) de mtime
-    khong doi -> cache st.cache_data cua app khong phai dung lai moi 30 phut."""
+    khong doi -> cache st.cache_data cua app khong phai dung lai moi 30 phut. force=True: luon ghi (insider: ban ghi giua bang
+    duoc cap nhat tai cho, 300 dong cuoi khong phan anh)."""
     p = _path(name)
-    if os.path.exists(p):
+    if os.path.exists(p) and not force:
         try:
             old = pd.read_parquet(p)
             if old.shape == df.shape and list(old.columns) == list(df.columns):
@@ -287,9 +309,9 @@ def status_line() -> str:
     err = [n for n in DATASETS if s.get(n, {}).get("phase") == "error"]
     base = [n for n in DATASETS if s.get(n, {}).get("phase") == "base"]
     parts = [f"live-first {len(ok)}/{len(DATASETS)} bộ"]
-    if base:
-        d = s[base[0]]
-        parts.append(f"đang kéo nền giá {d.get('done', 0)}/{d.get('total', 0)} mã")
+    for n in base:
+        d = s[n]
+        parts.append(f"đang kéo nền {'giá' if n == 'stock_daily' else 'GD nội bộ'} {d.get('done', 0)}/{d.get('total', 0)} mã")
     if err:
         parts.append(f"lỗi {len(err)} bộ (dùng pipeline)")
     last = max((s.get(n, {}).get("updated") or "" for n in DATASETS), default="")
@@ -716,6 +738,252 @@ def sectors_wide_from_long(long: pd.DataFrame) -> pd.DataFrame:
               "doanh_thu_ttm", "co_tuc_ttm", "roe_ttm"]].sort_values(["code", "date"]).reset_index(drop=True)
 
 
+
+# ============================================================================================ 6. GIAO DICH NOI BO (CafeF)
+def _cafef_sess():
+    """curl_cffi Session bat tay TLS nhu Chrome (nhu mdlib.cffi_session) - requests thuong bi CafeF chan (403/HTML)."""
+    global _CAFEF_SESSION
+    if _CAFEF_SESSION is None:
+        try:
+            from curl_cffi import requests as cr
+            _CAFEF_SESSION = cr.Session(impersonate="chrome")
+        except ImportError:
+            _CAFEF_SESSION = requests.Session()
+            _CAFEF_SESSION.headers.update(HDR)
+    return _CAFEF_SESSION
+
+
+def _cafef_get(sym, page, start=None, end=None, tries=4):
+    """1 trang GDCoDong cua 1 ma -> (TotalCount, list dict). Loi mang / 429 / 5xx -> sleep tang dan roi thu lai."""
+    hdr = {"Referer": f"https://cafef.vn/du-lieu/lich-su-giao-dich-{sym.lower()}-6.chn", "X-Requested-With": "XMLHttpRequest",
+           "Accept": "application/json, text/javascript, */*; q=0.01"}
+    params = {"Symbol": sym, "StartDate": f"{start:%m/%d/%Y}" if start is not None else "",
+              "EndDate": f"{end:%m/%d/%Y}" if end is not None else "", "PageIndex": page, "PageSize": CAFEF_PAGE}
+    last = None
+    for i in range(tries):
+        try:
+            r = _cafef_sess().get(CAFEF, params=params, headers=hdr, timeout=30)
+            if r.status_code in (429, 503) or r.status_code >= 500:
+                last = RuntimeError(f"HTTP {r.status_code}")
+                time.sleep(3.0 * (i + 1))
+                continue
+            if r.status_code != 200:
+                raise RuntimeError(f"HTTP {r.status_code}")
+            j = r.json()
+            d = (j or {}).get("Data") or {}
+            if isinstance(d, list):               # phong truong hop CafeF tra thang list
+                return len(d), d
+            return int(d.get("TotalCount") or 0), (d.get("Data") or [])
+        except Exception as e:  # noqa: BLE001
+            last = e
+            time.sleep(1.5 * (i + 1))
+    raise RuntimeError(f"CafeF {sym}: {type(last).__name__}: {str(last)[:80]}")
+
+
+def _ms_date(v):
+    """'/Date(1782147600000)/' -> Timestamp ngay (gio VN). None/'' -> NaT."""
+    if not v or not isinstance(v, str):
+        return pd.NaT
+    try:
+        ms = int(v[v.index("(") + 1:v.index(")")].split("+")[0].split("-")[0])
+    except Exception:  # noqa: BLE001
+        return pd.NaT
+    return pd.Timestamp(ms, unit="ms", tz="UTC").tz_convert(VN_TZ).normalize().tz_localize(None)
+
+
+def _url_cafef(sym, raw):
+    """Cot Url cua CafeF la <a href='/du-lieu/ceo/...'>ten</a> (nguoi noi bo) hoac chi la ten -> link tuyet doi."""
+    raw = str(raw or "")
+    if "href=" in raw:
+        m = raw.split("href=")[1].strip()
+        q = m[0] if m and m[0] in "'\"" else None
+        m = m[1:].split(q)[0] if q else m.split(">")[0]
+        if m.startswith("/"):
+            return "https://cafef.vn" + m
+        return m
+    return f"https://cafef.vn/du-lieu/lich-su-giao-dich-{sym.lower()}-6.chn"
+
+
+def cafef_insider(sym, start: pd.Timestamp | None = None, end: pd.Timestamp | None = None) -> pd.DataFrame:
+    """Toan bo ban ghi GD noi bo cua 1 ma (phan trang) -> DataFrame cot INSIDER_COLS (gia_tri_uoc = NaN, tinh sau)."""
+    sym = str(sym).upper()
+    rows, page = [], 1
+    while True:
+        total, data = _cafef_get(sym, page, start, end)
+        rows.extend(data)
+        if len(data) < CAFEF_PAGE or len(rows) >= total or page >= 40:
+            break
+        page += 1
+        time.sleep(0.1)
+    if not rows:
+        return pd.DataFrame(columns=INSIDER_COLS)
+    d = pd.DataFrame(rows)
+
+    def g(c):
+        return d[c] if c in d else pd.Series([None] * len(d))
+
+    def num(c):
+        return pd.to_numeric(g(c), errors="coerce").fillna(0).astype("int64")
+
+    out = pd.DataFrame({
+        "symbol": sym,
+        "nguoi": g("TransactionMan").fillna("").astype(str).str.strip(),
+        "chuc_vu": g("TransactionManPosition").fillna("").astype(str).str.strip(),
+        "nguoi_lien_quan": g("RelatedMan").fillna("").astype(str).str.strip(),
+        "chuc_vu_lq": g("RelatedManPosition").fillna("").astype(str).str.strip(),
+        "kl_truoc": num("VolumeBeforeTransaction"), "kl_dk_mua": num("PlanBuyVolume"), "kl_dk_ban": num("PlanSellVolume"),
+        "ngay_dk_bd": g("PlanBeginDate").map(_ms_date), "ngay_dk_kt": g("PlanEndDate").map(_ms_date),
+        "kl_thuc_mua": num("RealBuyVolume"), "kl_thuc_ban": num("RealSellVolume"),
+        "ngay_thuc_hien": g("RealEndDate").map(_ms_date), "ngay_cong_bo": g("PublishedDate").map(_ms_date),
+        "kl_sau": num("VolumeAfterTransaction"),
+        "ty_le_sau": pd.to_numeric(g("TyLeSoHuu"), errors="coerce") * 100.0,
+        "ghi_chu": g("TransactionNote").fillna("").astype(str).str.strip(),
+        "url": g("Url").map(lambda x: _url_cafef(sym, x)),
+    })
+    out["loai"] = np.where(out.ngay_thuc_hien.notna(), "Thực hiện", "Đăng ký")
+    out["rong_thuc"] = out.kl_thuc_mua - out.kl_thuc_ban
+    out["kl_rong_tinh"] = out.rong_thuc
+    out["gia_tri_uoc"] = np.nan
+    for c in ("ngay_dk_bd", "ngay_dk_kt", "ngay_thuc_hien", "ngay_cong_bo"):
+        out[c] = pd.to_datetime(out[c])
+    return out[INSIDER_COLS]
+
+
+def _shares_outstanding() -> pd.Series:
+    """So CP luu hanh hien tai theo ma (index-fetcher\raw\vn_screener_meta.csv, TradingView) - rong neu khong co file."""
+    try:
+        base = os.path.normpath(os.environ.get("MD_ROOT", "D:/market-data"))
+        f = os.path.join(base, "index-fetcher", "raw", "vn_screener_meta.csv")
+        m = pd.read_csv(f, usecols=["name", "total_shares_outstanding_fundamental"])
+        return pd.to_numeric(m.set_index(m.name.astype(str).str.upper()).total_shares_outstanding_fundamental, errors="coerce").dropna()
+    except Exception:  # noqa: BLE001
+        return pd.Series(dtype=float)
+
+
+def _kl_rong_tinh(df: pd.DataFrame) -> pd.Series:
+    """KL rong DUNG DE TINH GIA TRI: = rong_thuc (mua - ban) khi khop voi KL truoc/sau; CafeF hay nhap thua chu so
+    (DLR 11/2025 mua 1.630.016.300 cp nhung KL sau = 16.300; RCC ban 40.961.250 cp nhung KL truoc 6.241.075 -> sau 1.279.825).
+    Khi KL sau > 0 va |KL truoc + rong - KL sau| > 50% |rong|: mua -> min(rong, KL sau - KL truoc) (KL truoc = 0: min(rong, KL sau));
+    ban -> max(rong, KL sau - KL truoc) chi khi KL truoc > KL sau > 0; truong hop khac giu rong."""
+    rong = df.rong_thuc.astype("float64")
+    truoc, sau = df.kl_truoc.astype("float64"), df.kl_sau.astype("float64")
+    diff = sau - truoc
+    bad = (sau > 0) & ((truoc + rong - sau).abs() > 0.5 * rong.abs()) & (rong != 0)
+    adj = rong.copy()
+    buy = bad & (rong > 0) & ((diff > 0) | (truoc == 0))
+    adj[buy] = np.minimum(rong[buy], np.where(truoc[buy] > 0, diff[buy], sau[buy]))
+    sell = bad & (rong < 0) & (truoc > 0) & (diff < 0)        # KL sau > KL truoc khi 'ban' = KL sau khong cung doi tuong -> giu rong
+    adj[sell] = np.maximum(rong[sell], diff[sell])
+    return adj.round().astype("int64")
+
+
+def _insider_value(df: pd.DataFrame) -> pd.DataFrame:
+    """gia_tri_uoc (ty VND) = rong_thuc x gia dong cua ngay thuc hien (stock_daily, gia CHUA dieu chinh = gia thuc te ngay do);
+    ngay thuc hien khong phai phien (cuoi tuan) -> phien gan nhat truoc do (merge_asof, toi da 10 ngay)."""
+    df = df.copy().reset_index(drop=True)
+    df["gia_tri_uoc"] = np.nan
+    px = read("stock_daily")
+    if px.empty or not len(df):
+        return df
+    px = px[["symbol", "date", "close"]].dropna().sort_values("date")
+    df["kl_rong_tinh"] = _kl_rong_tinh(df)
+    m = df[df.ngay_thuc_hien.notna() & (df.kl_rong_tinh != 0)][["symbol", "ngay_thuc_hien", "kl_rong_tinh"]].reset_index()
+    if m.empty:
+        return df
+    m = m.sort_values("ngay_thuc_hien")
+    m = pd.merge_asof(m, px, left_on="ngay_thuc_hien", right_on="date", by="symbol", direction="backward",
+                      tolerance=pd.Timedelta(days=10))
+    m["gia_tri_uoc"] = m.kl_rong_tinh * m.close / 1e9
+    # van qua lon: |KL rong| > so CP luu hanh hien tai (vn_screener_meta, TradingView) hoac > INSIDER_MAX_SHARES -> khong tinh
+    cap = m.symbol.map(_shares_outstanding()).fillna(INSIDER_MAX_SHARES).clip(upper=INSIDER_MAX_SHARES)
+    m.loc[m.kl_rong_tinh.abs() > cap, "gia_tri_uoc"] = np.nan
+    df.loc[m["index"].values, "gia_tri_uoc"] = m.gia_tri_uoc.values
+    return df
+
+
+def _insider_pull(symbols, starts: dict | None, name="insider", phase="base") -> tuple[pd.DataFrame, int]:
+    """Keo nhieu ma bang ThreadPool 6; starts = {sym: StartDate} (None = toan bo lich su). Tra (df, so loi)."""
+    total, done, errs = len(symbols), 0, 0
+    _status_set(name, phase=phase, done=0, total=total, started=now_vn().strftime("%Y-%m-%d %H:%M:%S"))
+    parts, t0 = [], time.time()
+    with ThreadPoolExecutor(max_workers=INSIDER_THREADS) as ex:
+        futs = {ex.submit(cafef_insider, s, (starts or {}).get(s)): s for s in symbols}
+        for f in as_completed(futs):
+            done += 1
+            try:
+                d = f.result()
+                if len(d):
+                    parts.append(d)
+            except Exception as e:  # noqa: BLE001
+                errs += 1
+                if errs <= 3:
+                    _status_set(name, last_error=f"{type(e).__name__}: {str(e)[:120]}")
+                if "429" in str(e) or "503" in str(e):
+                    time.sleep(10)
+            if done % 50 == 0 or done == total:
+                _status_set(name, done=done, total=total, errors=errs, elapsed=round(time.time() - t0))
+    df = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=INSIDER_COLS)
+    return df, errs
+
+
+def update_insider(full=False, symbols=None, force=False) -> pd.DataFrame:
+    """Lan dau (hoac --full): toan bo lich su moi ma (1.525 ma x 0,1-0,4 s / 6 thread ~ 1-2 phut). Sau do tang dan:
+    moi ma keo tu (ngay cong bo cuoi cache - 7 ngay), rieng ma dang co DANG KY CON MO (chua co ngay thuc hien, ngay ket thuc dang ky
+    >= hom nay - 60 ngay) keo tu ngay cong bo cua dang ky do (CafeF cap nhat ket qua tai cho, PublishedDate khong doi).
+    Dedup theo INSIDER_KEY giu ban moi nhat. Toi thieu INSIDER_MIN_GAP giua 2 lan tang dan (tru force)."""
+    name = "insider"
+    old = pd.DataFrame(columns=INSIDER_COLS) if full else read(name)
+    syms = [s.upper() for s in symbols] if symbols else symbols_all()
+    if not syms:
+        raise RuntimeError("Không có danh sách mã (realtime-lab\\symbols.txt)")
+    today = pd.Timestamp(now_vn().date())
+    if len(old) == 0:
+        new, errs = _insider_pull(syms, None, name, "base")
+        note = f"kéo nền {len(syms)} mã, {errs} lỗi"
+    else:
+        st_ = _status_read().get(name, {})
+        upd = st_.get("updated")
+        have = set(old.symbol.unique())
+        missing = [s for s in syms if s not in have]
+        if (not force and not symbols and upd and len(missing) < 50
+                and (now_vn() - pd.Timestamp(upd)).total_seconds() < INSIDER_MIN_GAP):
+            _status_set(name, phase="ok")
+            return old
+        last_pub = pd.to_datetime(old.ngay_cong_bo).max()
+        start0 = (last_pub if pd.notna(last_pub) else today) - pd.Timedelta(days=7)
+        opn = old[(old.loai == "Đăng ký") & ((old.kl_dk_mua > 0) | (old.kl_dk_ban > 0)) &
+                  (pd.to_datetime(old.ngay_dk_kt) >= today - pd.Timedelta(days=60))]
+        opn_start = opn.groupby("symbol").ngay_cong_bo.min()
+        starts = {s: (min(start0, opn_start[s]) if s in opn_start.index and pd.notna(opn_start[s]) else start0) for s in syms}
+        for s in missing:                             # ma moi chua co trong cache -> toan bo lich su
+            starts[s] = None
+        new, errs = _insider_pull(syms, starts, name, "base" if len(missing) >= 50 else "running")
+        note = f"tăng dần từ {start0:%d/%m} ({len(opn_start)} mã có đăng ký mở kéo lại, {len(missing)} mã mới), {errs} lỗi"
+    if new.empty and old.empty:
+        raise RuntimeError("CafeF không trả dữ liệu giao dịch nội bộ")
+    df = pd.concat([old, new], ignore_index=True) if len(old) else new
+    for c in ("ngay_dk_bd", "ngay_dk_kt", "ngay_thuc_hien", "ngay_cong_bo"):
+        df[c] = pd.to_datetime(df[c], errors="coerce")
+    df = df.drop_duplicates(INSIDER_KEY, keep="last")
+    # cung dang ky (khong ke ngay cong bo) ma da co ban 'Thuc hien' -> bo ban 'Dang ky' cu (CafeF dang lai voi PublishedDate khac)
+    k2 = ["symbol", "nguoi", "nguoi_lien_quan", "ngay_dk_bd", "ngay_dk_kt", "kl_dk_mua", "kl_dk_ban"]
+    dup = df[df.ngay_thuc_hien.notna() & df.ngay_dk_bd.notna()][k2].drop_duplicates()
+    if len(dup):
+        mark = df.merge(dup.assign(_d=1), on=k2, how="left")["_d"].fillna(0).values == 1
+        df = df[~(mark & df.ngay_thuc_hien.isna().values)]
+    df = _insider_value(df)
+    df = df.sort_values(["ngay_cong_bo", "symbol"], ascending=[False, True]).reset_index(drop=True)
+    for c in ("kl_truoc", "kl_dk_mua", "kl_dk_ban", "kl_thuc_mua", "kl_thuc_ban", "kl_sau", "rong_thuc", "kl_rong_tinh"):
+        df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0).astype("int64")
+    for c in ("symbol", "nguoi", "chuc_vu", "nguoi_lien_quan", "chuc_vu_lq", "ghi_chu", "url", "loai"):
+        df[c] = df[c].fillna("").astype(str)
+    df = df[INSIDER_COLS]
+    _write(name, df, force=True)
+    _done(name, df, dcol="ngay_cong_bo", note=f"{df.symbol.nunique()} mã có dữ liệu · {note}")
+    _status_set(name, symbols=int(df.symbol.nunique()), errors=int(errs))
+    return df
+
+
 # ============================================================================================ CAP NHAT TONG
 def pipeline_ends() -> dict:
     """Ngay cuoi cua cac file pipeline lien quan (de keo phan duoi): doc nhanh cot date."""
@@ -751,6 +1019,7 @@ def refresh_all(full=False, only=None) -> dict:
         ("sectors_tail", lambda: update_sectors_tail(ends.get("sectors"), full)),
         ("foreign_stocks_tail", lambda: update_foreign_stocks_tail(ends.get("foreign_stocks"), full)),
         ("stock_daily", lambda: update_stock_daily(full)),      # nang nhat de cuoi
+        ("insider", lambda: update_insider(full)),              # can stock_daily (gia dong cua) de tinh gia_tri_uoc
     ]
     for name, fn in steps:
         if only and name not in only:
@@ -793,9 +1062,14 @@ if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser(description="Cap nhat cache nguon live-first (chay tay / test)")
     ap.add_argument("--full", action="store_true")
-    ap.add_argument("--only", help="vd index_daily,flows_daily")
+    ap.add_argument("--only", help="vd index_daily,flows_daily,insider")
+    ap.add_argument("--symbols", help="chi insider: keo thu vai ma, vd FPT,HPG,VNM (ghi vao cache nhu binh thuong)")
     a = ap.parse_args()
     t0 = time.time()
+    if a.symbols:
+        d = update_insider(a.full, symbols=a.symbols.split(","), force=True)
+        print(d.head(10).to_string(), f"\n{len(d)} dòng, {d.symbol.nunique()} mã, {time.time() - t0:.1f}s")
+        raise SystemExit(0)
     r = refresh_all(a.full, a.only.split(",") if a.only else None)
     print(json.dumps(r, ensure_ascii=False, indent=1), f"{time.time() - t0:.0f}s")
     print(source_status().to_string())

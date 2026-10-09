@@ -429,3 +429,135 @@ def gdp_sector_share() -> pd.DataFrame:
         return pd.DataFrame()
     d = hh[kv]
     return d.div(d.sum(axis=1), axis=0) * 100
+
+
+# ------------------------------------------------------------- GIAO DICH NOI BO (CafeF, live-first - data_src.update_insider)
+def _insider_mt() -> float:
+    return dl._src_mt("insider")
+
+
+@st.cache_data(show_spinner=False)
+def _insider_all(mt: float) -> pd.DataFrame:
+    d = dl.load("insider")
+    if d is None or d.empty:
+        return pd.DataFrame()
+    d = d.copy()
+    for c in ("ngay_dk_bd", "ngay_dk_kt", "ngay_thuc_hien", "ngay_cong_bo"):
+        d[c] = pd.to_datetime(d[c], errors="coerce")
+    return d
+
+
+def insider_all() -> pd.DataFrame:
+    """Toan bo ban ghi GD noi bo (cot xem data_src.INSIDER_COLS); rong neu chua keo duoc CafeF."""
+    return _insider_all(_insider_mt())
+
+
+@st.cache_data(show_spinner=False)
+def _insider_market(mt: float) -> pd.DataFrame:
+    d = _insider_all(mt)
+    if d.empty:
+        return pd.DataFrame()
+    x = d[d.ngay_thuc_hien.notna() & d.gia_tri_uoc.notna()]
+    g = x.groupby("ngay_thuc_hien").gia_tri_uoc
+    out = pd.DataFrame({"Mua ròng nội bộ": g.sum(),
+                        "Mua": x[x.gia_tri_uoc > 0].groupby("ngay_thuc_hien").gia_tri_uoc.sum(),
+                        "Bán": x[x.gia_tri_uoc < 0].groupby("ngay_thuc_hien").gia_tri_uoc.sum(),
+                        "Số giao dịch": g.size()}).fillna(0).sort_index()
+    out.index.name = "Ngày"
+    return out
+
+
+def insider_market() -> pd.DataFrame:
+    """Gia tri thuc hien uoc tinh cua noi bo + nguoi lien quan toan thi truong theo NGAY THUC HIEN (ty): Mua rong, Mua, Ban, so GD."""
+    return _insider_market(_insider_mt())
+
+
+@st.cache_data(show_spinner=False)
+def _last_close(mt: float) -> pd.Series:
+    """Gia dong cua gan nhat moi ma (stock_daily live-first, dong) - de uoc gia tri dang ky dang chay."""
+    try:
+        px = dl.src.read("stock_daily")[["symbol", "date", "close"]]
+    except Exception:  # noqa: BLE001
+        return pd.Series(dtype=float)
+    if px.empty:
+        return pd.Series(dtype=float)
+    return px.sort_values("date").groupby("symbol").close.last()
+
+
+def insider_top(d0, d1, n=15):
+    """Top n ma mua rong / ban rong noi bo (gia tri thuc hien uoc, ty) trong [d0, d1] theo ngay thuc hien.
+    Tra (top_mua, top_ban) voi cot: Ròng (tỷ), KL ròng (cp) (= kl_rong_tinh, da sua loi nhap), Số GD, Giao dịch lớn nhất."""
+    d = insider_all()
+    cols = ["Ròng (tỷ)", "KL ròng (cp)", "Số GD", "Giao dịch lớn nhất"]
+    if d.empty:
+        e = pd.DataFrame(columns=cols)
+        return e, e
+    x = d[d.ngay_thuc_hien.notna() & d.gia_tri_uoc.notna() & (d.ngay_thuc_hien >= pd.Timestamp(d0)) & (d.ngay_thuc_hien <= pd.Timestamp(d1))]
+    if x.empty:
+        e = pd.DataFrame(columns=cols)
+        return e, e
+    g = x.groupby("symbol")
+    big = x.reindex(x.gia_tri_uoc.abs().groupby(x.symbol).idxmax().values).set_index("symbol")
+    t = pd.DataFrame({"Ròng (tỷ)": g.gia_tri_uoc.sum().round(1), "KL ròng (cp)": g.kl_rong_tinh.sum(), "Số GD": g.size(),
+                      "Giao dịch lớn nhất": (big.nguoi + (" (" + big.chuc_vu + ")").where(big.chuc_vu != "", "")
+                                             + " " + big.gia_tri_uoc.map(lambda v: f"{v:+,.1f} tỷ".replace(",", "X").replace(".", ",").replace("X", "."))
+                                             + " " + big.ngay_thuc_hien.dt.strftime("%d/%m/%Y"))})
+    t.index.name = "Mã"
+    mua = t[t["Ròng (tỷ)"] > 0].sort_values("Ròng (tỷ)", ascending=False).head(n)
+    ban = t[t["Ròng (tỷ)"] < 0].sort_values("Ròng (tỷ)").head(n)
+    return mua, ban
+
+
+def insider_open(today=None, grace_days=3) -> pd.DataFrame:
+    """Dang ky dang chay: chua co ket qua (loai 'Dang ky'), co KL dang ky, ngay ket thuc >= hom nay - grace_days; sap theo ngay ket thuc.
+    'Giá trị ước (tỷ)' = (DK mua - DK ban) x gia dong cua gan nhat."""
+    d = insider_all()
+    if d.empty:
+        return pd.DataFrame()
+    today = pd.Timestamp(today or pd.Timestamp.now().normalize())
+    x = d[(d.loai == "Đăng ký") & ((d.kl_dk_mua > 0) | (d.kl_dk_ban > 0)) & d.ngay_dk_kt.notna()
+          & (d.ngay_dk_kt >= today - pd.Timedelta(days=grace_days))].copy()
+    if x.empty:
+        return pd.DataFrame()
+    lc = _last_close(_insider_mt())
+    x["gia_tri"] = (x.kl_dk_mua - x.kl_dk_ban) * x.symbol.map(lc) / 1e9
+    out = pd.DataFrame({"Mã": x.symbol, "Người": x.nguoi, "Chức vụ": x.chuc_vu,
+                        "Liên quan": (x.nguoi_lien_quan + (" (" + x.chuc_vu_lq + ")").where(x.chuc_vu_lq != "", "")).where(x.nguoi_lien_quan != "", ""),
+                        "ĐK mua (cp)": x.kl_dk_mua, "ĐK bán (cp)": x.kl_dk_ban, "Giá trị ước (tỷ)": x.gia_tri.round(1),
+                        "Từ ngày": x.ngay_dk_bd, "Đến ngày": x.ngay_dk_kt, "Công bố": x.ngay_cong_bo,
+                        "KL trước (cp)": x.kl_truoc, "Ghi chú": x.ghi_chu, "CafeF": x.url})
+    return out.sort_values(["Đến ngày", "Giá trị ước (tỷ)"], ascending=[True, False]).reset_index(drop=True)
+
+
+def insider_symbol(code: str) -> pd.DataFrame:
+    """Lich su GD noi bo 1 ma (moi nhat tren), index = ngay cong bo (de c.cut)."""
+    d = insider_all()
+    if d.empty:
+        return pd.DataFrame()
+    x = d[d.symbol == str(code).upper()]
+    if x.empty:
+        return pd.DataFrame()
+    out = pd.DataFrame({"Công bố": x.ngay_cong_bo, "Người": x.nguoi, "Chức vụ": x.chuc_vu,
+                        "Liên quan": (x.nguoi_lien_quan + (" (" + x.chuc_vu_lq + ")").where(x.chuc_vu_lq != "", "")).where(x.nguoi_lien_quan != "", ""),
+                        "ĐK mua": x.kl_dk_mua, "ĐK bán": x.kl_dk_ban, "Từ": x.ngay_dk_bd, "Đến": x.ngay_dk_kt,
+                        "Thực mua": x.kl_thuc_mua, "Thực bán": x.kl_thuc_ban, "Ngày TH": x.ngay_thuc_hien, "KL ròng tính": x.kl_rong_tinh,
+                        "Giá trị ước (tỷ)": x.gia_tri_uoc.round(2), "KL sau": x.kl_sau, "Tỷ lệ sau (%)": x.ty_le_sau.round(2),
+                        "Loại": x.loai, "Ghi chú": x.ghi_chu, "CafeF": x.url})
+    out = out.set_index("Công bố").sort_index(ascending=False)
+    return out
+
+
+def insider_symbol_monthly(code: str) -> pd.DataFrame:
+    """Gia tri mua / ban thuc hien (ty) theo thang cua 1 ma (Ban am) + KL."""
+    d = insider_all()
+    if d.empty:
+        return pd.DataFrame()
+    x = d[(d.symbol == str(code).upper()) & d.ngay_thuc_hien.notna() & d.gia_tri_uoc.notna()]
+    if x.empty:
+        return pd.DataFrame()
+    m = x.ngay_thuc_hien.dt.to_period("M").dt.to_timestamp("M")
+    out = pd.DataFrame({"Mua": x[x.gia_tri_uoc > 0].groupby(m[x.gia_tri_uoc > 0]).gia_tri_uoc.sum(),
+                        "Bán": x[x.gia_tri_uoc < 0].groupby(m[x.gia_tri_uoc < 0]).gia_tri_uoc.sum(),
+                        "KL mua (cp)": x.groupby(m).kl_thuc_mua.sum(), "KL bán (cp)": x.groupby(m).kl_thuc_ban.sum()}).fillna(0).sort_index()
+    out.index.name = "Tháng"
+    return out

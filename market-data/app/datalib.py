@@ -130,6 +130,10 @@ REGISTRY = {
     "tpcp_curve": ("Đường cong spot TPCP (HNX)", "Trái phiếu · Giao dịch & lợi suất",
                    os.path.join(BOND, "data", "processed", "tpcp_curve.csv"), "ngay", "ky_han",
                    "spot rate 11 kỳ hạn 3T–20N theo ngày, benchmark phi rủi ro"),
+    "insider": ("Giao dịch nội bộ & người liên quan (CafeF)", "Cổ phiếu · Dòng tiền",
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "src", "insider.parquet"), "ngay_cong_bo", "symbol",
+                "đăng ký / kết quả giao dịch của cổ đông nội bộ, người liên quan, cổ đông lớn theo mã (CafeF, chỉ live-first, "
+                "không có pipeline); gia_tri_uoc = KL ròng thực hiện × giá đóng cửa ngày thực hiện (tỷ)"),
 }
 
 
@@ -139,7 +143,8 @@ REGISTRY = {
 # nguon, de moi cache dan xuat (price_matrix, breadth, turnover, sector_caps, hieu suat...) tu lam moi khi nguon cap nhat.
 # -> _mtime() KHONG con la thoi diem sua file; can gio sua that thi dung _raw_mt().
 SRC_KEYS = {"indices": "index_daily", "flows": "flows_daily", "valuation_wide": "valuation_daily",
-            "sectors_wide": "sectors_tail", "tv_history": "stock_daily"}
+            "sectors_wide": "sectors_tail", "tv_history": "stock_daily", "insider": "insider"}
+SRC_ONLY = {"insider"}                 # chi co nguon live-first (parquet cache\src), khong co file pipeline de gop
 _PATH2KEY = {os.path.normpath(REGISTRY[k][2]): k for k in SRC_KEYS}
 
 
@@ -168,6 +173,11 @@ def live_first(key) -> bool:
 # ---------------------------------------------------------------- LOADERS
 @st.cache_data(show_spinner=False)
 def read_csv(path: str, mt: float, **kw) -> pd.DataFrame:
+    if str(path).lower().endswith(".parquet"):     # dataset chi co ban live-first (insider): parquet cache\src
+        if not os.path.exists(path):
+            return pd.DataFrame()
+        df = pd.read_parquet(path)
+        return df
     df = pd.read_csv(path, **kw)
     for c in df.columns:
         if c in ("date", "ngay_phat_hanh", "ngay_dao_han", "ngay_bao_cao", "ngay", "ngay_moc"):
@@ -179,6 +189,8 @@ def load(key: str, **kw) -> pd.DataFrame:
     """Dataset trong REGISTRY. indices / flows / valuation_wide / sectors_wide: nguon live-first la chinh (thay hang cung ngay
     cua pipeline), lich su pipeline noi phia truoc; nguon chua co / loi -> pipeline nguyen ban. Cot tra ve giu nguyen."""
     path = REGISTRY[key][2]
+    if key in SRC_ONLY:
+        return read_csv(path, _raw_mt(path))
     if not kw and key != "tv_history" and live_first(key):
         try:
             return _load_merged(key, _mtime(path))

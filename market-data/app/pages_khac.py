@@ -220,6 +220,8 @@ def xuat_excel(ctx):
             "Tỷ giá & dự trữ": lambda: cut(dl.tm(["fx_central", "fx_vcb_sell", "fx_free_sell", "fx_reserves", "fx_import_cover"])),
             "Lãi suất & OMO": lambda: cut(dl.tm(["ib_on", "ib_1w", "ib_1m", "ib_3m", "policy_refinance", "omo_net_outstanding", "deposit_12m_avg"])),
             "Xuất nhập khẩu": lambda: cut(dl.trade_nso()),
+            "Giao dịch nội bộ toàn TT (CafeF, ngày)": lambda: cut(dx.insider_market()),
+            "Giao dịch nội bộ - bản ghi (CafeF)": lambda: dx.insider_all().set_index("ngay_cong_bo").pipe(cut),
         }
         pick = st.multiselect("Bảng", list(CHON), default=list(CHON)[:6], key="xl_pick")
         if st.button("📦 Tạo file Excel", type="primary"):

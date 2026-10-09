@@ -35,7 +35,7 @@ có thì mỗi thẻ thêm nút **⧉ Ảnh**.
 | | Kho dữ liệu | mở bất kỳ dataset trong REGISTRY, lọc, vẽ cột, tải · khối **Bộ thu real-time DNSE** (PID, 3 dòng log, Bật/Tắt) |
 | | Xuất Excel | tick bảng → 1 file nhiều sheet; Chart Pack |
 | **Thị trường chứng khoán** | Chứng khoán Việt Nam | **Hiệu suất**: nến/đường 6 chỉ số + KL · rebase 100 · độ rộng dưới MA · hiệu suất ngành rebase · thay đổi vốn hoá ngành 1D…5Y · bảng hiệu suất cổ phiếu trong ngành · nến từng mã |
-| | | **Dòng tiền**: GTGD + MA20/50 · GTGD theo nhà đầu tư (giá trị/tỷ trọng, phiên/tuần/tháng) · bình quân tháng · tự doanh ròng + luỹ kế · khối ngoại ròng + luỹ kế · treemap tự doanh / khối ngoại · KN & TD theo ngành · theo mã · *(chưa có: dòng tiền chủ động, giao dịch nội bộ, ETF)* |
+| | | **Dòng tiền**: GTGD + MA20/50 · GTGD theo nhà đầu tư (giá trị/tỷ trọng, phiên/tuần/tháng) · bình quân tháng · tự doanh ròng + luỹ kế · khối ngoại ròng + luỹ kế · treemap tự doanh / khối ngoại · KN & TD theo ngành · theo mã · **Giao dịch nội bộ** (CafeF: toàn thị trường / theo mã) · *(chưa có: dòng tiền chủ động, ETF)* |
 | | | **Định giá**: P/E, P/B theo rổ · có/không Vingroup · ngũ phân vị P/E, P/B (theo ngành ICB cấp 3) · P/E ngành ICB · P/E-P/B từng mã |
 | | | **Nhà đầu tư**: TK mở mới ròng VSDC · số dư TK · *(chưa có: margin ×3)* |
 | | Chứng khoán thế giới | Chỉ số (rebase + bảng 1D…5Y) · Thanh khoản USD · Khối ngoại 7 thị trường · Định giá 12 thị trường |
@@ -44,7 +44,7 @@ có thì mỗi thẻ thêm nút **⧉ Ảnh**.
 | | Vĩ mô thế giới | Tỷ giá (DXY + 12 nước) · Lãi suất (Mỹ) · Chỉ số giá · Tăng trưởng & lao động |
 | **Tin tức** | — | placeholder + bảng dữ liệu vừa cập nhật |
 
-Thẻ nào spec yêu cầu mà hệ thống chưa có nguồn (PMI, giá dầu/vàng, margin, ETF, giao dịch nội bộ, đóng góp CPI,
+Thẻ nào spec yêu cầu mà hệ thống chưa có nguồn (PMI, giá dầu/vàng, margin, ETF, đóng góp CPI,
 GDP phía chi tiêu, dự toán NSNN, lãi suất điều hành châu Á, thất nghiệp quốc tế) vẫn hiện khung **"Chưa có dữ liệu"**
 nhạt kèm ghi chú nguồn dự kiến — không bỏ trống.
 
@@ -121,6 +121,7 @@ và mỗi 30 phút, không chặn render), hôm nay trong phiên vẫn do `data_
 | khối ngoại theo mã (`foreign_stocks`) | VNDirect `foreigns type:STOCK` theo ngày — **chỉ các ngày sau pipeline** (Vietcap theo mã) | — | toàn bộ lịch sử Vietcap |
 | `valuation_wide` | VNDirect `ratios` 4 rổ × 5 chỉ tiêu (cột suy ra + `close/eps_index` tính lại từ indices) | 12/2017 | — (`valuation_adjusted` loại Vin vẫn pipeline) |
 | `sectors_wide` | VNDirect `ratios` batch 55 mã ICB — chỉ các ngày sau pipeline | — | lịch sử 55 ngành |
+| `insider` (**mới 09/10/2026**, giao dịch nội bộ) | CafeF `GDCoDong.ashx` theo từng mã (curl_cffi impersonate chrome + Referer + X-Requested-With) | 2005 | — (không có pipeline; chỉ cache `cache\src\insider.parquet`) |
 
 - **Gộp** (`datalib.load`, `datalib.tv`): nguồn live-first là **chính** — thay hàng cùng ngày của pipeline (pipeline hay dính hàng
   *dở phiên*: VN-Index 07/10 pipeline 1.753,88 / GTGD 505 tỷ vs VNDirect 1.753,39 / 15.226 tỷ; khối ngoại 07/10 pipeline = 0);
@@ -140,6 +141,40 @@ và mỗi 30 phút, không chặn render), hôm nay trong phiên vẫn do `data_
   Tổng quan/Hiệu suất/Dòng tiền/Định giá có 08/10 + LIVE 09/10, render ấm 0,5–2 s/trang; lần đầu sau khi nguồn đổi ~10 s để ghép giá).
 - Chưa làm: rổ VNMidcap/VNSmallcap (không có rổ trong pipeline → vẫn tv-history, thiếu ngày pipeline chưa kéo); `valuation_adjusted`
   (loại Vin) và `stocks_wide`/`shares` vẫn pipeline; tự doanh theo mã (VNDirect T+1) vẫn pipeline.
+
+### Giao dịch nội bộ — nguồn CafeF (09/10/2026) — thẻ **"Giao dịch nội bộ"** ở TTCK VN › Dòng tiền › CỔ PHIẾU
+
+PV2 hỏi *"có thể kéo data về giao dịch người nội bộ trên DNSE không"* → DNSE Open API **không có** (docs chỉ market data / orders / accounts /
+corporate-action). Nguồn thay thế đã kiểm chứng: **CafeF** `https://cafef.vn/du-lieu/Ajax/PageNew/DataHistory/GDCoDong.ashx?Symbol=FPT&StartDate=&EndDate=&PageIndex=1&PageSize=500`
+(GET, JSON `{"Data":{"TotalCount","Data":[…]}}`, cần `curl_cffi` impersonate chrome + header `Referer https://cafef.vn/du-lieu/lich-su-giao-dich-fpt-6.chn`
++ `X-Requested-With: XMLHttpRequest`, 0,1–0,4 s/request). Phạm vi: **cổ đông nội bộ** (HĐQT, BĐH, BKS, KTT…), **người có liên quan** và **cổ đông lớn**;
+gồm cả chuyển nhượng / thừa kế / ESOP / góp vốn — không chỉ khớp lệnh trên sàn. Công bố trễ **T+n ngày** sau khi kết thúc giao dịch.
+
+- **Kéo** (`data_src.update_insider`, dataset `insider`, cột xem docstring `data_src.py`): `Symbol` rỗng không trả gì → gọi **từng mã**
+  (`symbols_all()` 1.525 mã, ThreadPool 6, lỗi/429/5xx → sleep tăng dần rồi thử lại). Lần đầu kéo nền toàn bộ lịch sử: **1.419 mã có dữ liệu,
+  67.830 bản ghi, 33 s, 0 lỗi** (09/10/2026). Sau đó tăng dần trong thread nền `start_background` (mỗi 30 phút gọi, nhưng **tối thiểu 2 h
+  giữa 2 lần** — `INSIDER_MIN_GAP`, vì mỗi lần vẫn là 1.525 request): từng mã `StartDate = ngày công bố cuối cache − 7 ngày`.
+  **Bẫy**: `StartDate`/`EndDate` là **MM/dd/yyyy** (không phải dd/MM) và lọc theo **PublishedDate**; CafeF **cập nhật kết quả tại chỗ**
+  (RealBuy/RealSell/RealEndDate điền vào bản ghi đăng ký, PublishedDate giữ nguyên) → mã nào còn **đăng ký mở** (chưa có ngày thực hiện,
+  ngày kết thúc ≥ hôm nay − 60 ngày) kéo lại từ ngày công bố của đăng ký đó. Dedup theo `(symbol, nguoi, ngay_dk_bd, kl_dk_mua, kl_dk_ban,
+  ngay_cong_bo)` giữ bản mới nhất; bản "Đăng ký" cũ của cùng đăng ký đã có bản "Thực hiện" bị bỏ. Chạy tay:
+  `python data_src.py --only insider` (toàn bộ) hoặc `--symbols FPT,HPG` (vài mã, tính lại giá trị cho cả bảng).
+- **Cột dẫn xuất**: `loai` = *Đăng ký* (chưa có RealEndDate) / *Thực hiện*; `rong_thuc` = KL thực mua − bán (như nguồn);
+  `kl_rong_tinh` = KL ròng **đã sửa lỗi nhập thừa chữ số** của CafeF theo KL trước/sau (DLR 11/2025 "mua 1.630.016.300 cp" nhưng KL sau
+  16.300; RCC "bán 40.961.250" nhưng KL trước 6,24 triệu → sau 1,28 triệu; 574 bản ghi được sửa); `gia_tri_uoc` (tỷ) = `kl_rong_tinh` ×
+  **giá đóng cửa ngày kết thúc giao dịch** (`stock_daily` live-first, phiên gần nhất ≤ ngày, tối đa 10 ngày; NaN nếu |KL| > số CP lưu hành
+  `vn_screener_meta` hoặc > 2 tỷ cp, hoặc trước 2012 không có giá Entrade — 9.245 bản ghi cũ). Lưu ý giá Entrade giai đoạn xa có thể đã điều chỉnh
+  (SAB 12/2017: 85.120 đ, thực tế ~320.000 đ) → giá trị ước các thương vụ cũ thấp hơn thực.
+- **Thẻ** (`pages_ck.dong_tien`, key `noi_bo`, toggle **Chế độ**): *Toàn thị trường* — cột mua ròng nội bộ theo ngày thực hiện (cam mua / xám bán,
+  gộp phiên/tuần/tháng) + luỹ kế trong kỳ; **Top 15 mua ròng / bán ròng** theo mã trong kỳ (giá trị, KL, số GD, giao dịch lớn nhất);
+  **Đăng ký đang chạy** (đăng ký có KL, chưa có kết quả, ngày kết thúc ≥ hôm nay − 3, sắp theo ngày kết thúc, giá trị ước theo giá gần nhất,
+  link CafeF); 3 nút CSV. *Theo mã* — ô chọn mã → cột mua/bán thực hiện theo tháng + bảng lịch sử công bố (người, chức vụ, liên quan, ĐK mua/bán,
+  thực hiện, KL sau, tỷ lệ, link CafeF) + CSV. Deep-link `?trang=ttck/vn/dong-tien&noibo=ma` mở sẵn chế độ Theo mã.
+  Bảng còn thấy ở **Kho dữ liệu** (dataset `insider`, REGISTRY) và **Xuất Excel** (2 bảng "Giao dịch nội bộ…"). Ảnh: `design\screens\15-giao-dich-noi-bo.png`
+  (server 8774, cache ấm: dữ liệu thẻ 0,4 s, trang Dòng tiền ~4 s).
+- **Chưa chắc**: 106 mã không có bản ghi (mã mới/UPCOM ít công bố); giá trị toàn thị trường bị chi phối bởi vài thương vụ chuyển nhượng lớn
+  (VIC 12/2025 +53 nghìn tỷ, SSH 10/2025 +31,5 nghìn tỷ, HVN→SCIC 9/2025 +29,7 nghìn tỷ) — nên xem *Top 15* hơn là tổng; cùng 1 đợt ESOP CafeF
+  đăng mỗi người 1 bản ghi (không trùng); bản ghi "liên quan" không có KL/ngày (2.159 dòng `ngay_dk_bd` rỗng) vẫn giữ trong bảng nhưng không vào chart.
 
 ## Giải phẫu 1 thẻ (`ui_genea.card`)
 
@@ -166,12 +201,12 @@ app  app.py          khung trang: header ◆ Market Data + chip "Nguồn dữ li
                   treemap, ngũ phân vị, TPCP spot/snapshot, CAR, NSNN niên giám, VSDC
   data_live.py    đọc parquet realtime-lab\data\<ngày>\ (retry + fallback) → overlay hàng hôm nay (with_live, ov_*), live_state,
                   trạng thái/bật/tắt bộ thu (trang Live + pages_live.py đã bỏ 09/10/2026)
-  data_src.py     lớp nguồn LIVE-FIRST: Entrade/VNDirect/EOD bộ thu → cache\src\*.parquet, thread nền cập nhật tăng dần,
+  data_src.py     lớp nguồn LIVE-FIRST: Entrade/VNDirect/EOD bộ thu + CafeF (giao dịch nội bộ) → cache\src\*.parquet, thread nền cập nhật tăng dần,
                   source_status(); datalib.load/tv gộp (xem mục "Nguồn live-first")
   pages_ck.py     TTCK Việt Nam: hieu_suat · dong_tien · dinh_gia · nha_dau_tu
   pages_vimo.py   Vĩ mô VN (9 navtab) + thế giới (4)
   pages_khac.py   Tổng quan · Kho dữ liệu (+ khối Bộ thu real-time) · Xuất Excel · CK thế giới · Trái phiếu (3 navtab) · Tin tức
-  datalib.py      LỚP DỮ LIỆU: REGISTRY 21 dataset (+ gộp nguồn live-first), cache, độ rộng, MA, ngành, GTGD, flows, bonds, NSO, tm()
+  datalib.py      LỚP DỮ LIỆU: REGISTRY 22 dataset (+ gộp nguồn live-first; `insider` chỉ có parquet cache\src), cache, độ rộng, MA, ngành, GTGD, flows, bonds, NSO, tm()
   app_legacy.py   giao diện cũ (Bloomberg, Altair, xuat_excel.py) — không sửa
   xuat_excel.py   chỉ app_legacy dùng (xuất data + chart Excel kiểu Altair)
   design\         genea-ui-spec.md (spec), screens\*.png (ảnh chụp), screens\chup.sh (chụp lại bằng headless Chrome)

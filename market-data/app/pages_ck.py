@@ -280,7 +280,100 @@ def dong_tien(ctx):
         else:
             d["Luỹ kế"] = d[col].cumsum()
             c.chart(ui.fig_bars(d, col, "tỷ đồng", sign=True, cum="Luỹ kế", hover_nd=1), d, ten=f"{ma} {col}")
-    ui.card_empty("Giao dịch nội bộ (cổ đông lớn, người nội bộ)", "", "Chưa có nguồn công bố giao dịch nội bộ trong hệ thống.", key="noi_bo")
+    # giao dich noi bo (CafeF, live-first) - ?noibo=ma mo san che do 'Theo ma'
+    _tk = f"tog_noi_bo_{ui.slug('Chế độ')}"
+    if st.query_params.get("noibo") == "ma" and _tk not in st.session_state:
+        st.session_state[_tk] = "Theo mã"
+    with ui.card("Giao dịch nội bộ", "tỷ đồng, giá trị thực hiện ước tính",
+                 help="Nguồn CafeF (GDCoDong.ashx, kéo theo từng mã, cache data_src insider). Phạm vi: cổ đông nội bộ (HĐQT, BĐH, BKS, "
+                      "kế toán trưởng…), người có liên quan và cổ đông lớn. Giá trị ước = KL thực hiện ròng × giá đóng cửa ngày kết thúc "
+                      "giao dịch (gồm cả chuyển nhượng, thừa kế, ESOP — không chỉ khớp lệnh trên sàn). Độ trễ: công bố T+n ngày sau khi "
+                      "kết thúc giao dịch; bản ghi đăng ký được cập nhật kết quả tại chỗ. Toàn thị trường: cột = mua ròng nội bộ theo ngày "
+                      "thực hiện (cam mua, xám bán), đường nâu = luỹ kế trong kỳ.",
+                 key="noi_bo", toggles={"Chế độ": ["Toàn thị trường", "Theo mã"], "Gộp": ["Phiên", "Tuần", "Tháng"]}, default="1Y") as c:
+        ins = dx.insider_all()
+        if ins.empty:
+            c.empty(note_text="Chưa kéo được dữ liệu CafeF — chạy <code>python data_src.py --only insider</code> hoặc đợi thread nền.")
+        elif c.toggle["Chế độ"] == "Toàn thị trường":
+            m = c.cut(dx.insider_market())
+            d = dx.resample_flow(m[["Mua ròng nội bộ"]], c.toggle["Gộp"]) if len(m) else m
+            if d.empty:
+                c.empty()
+            else:
+                d["Luỹ kế"] = d["Mua ròng nội bộ"].cumsum()
+                fig = ui.fig_bars(d, "Mua ròng nội bộ", "tỷ đồng", sign=True, cum="Luỹ kế", hover_nd=1)
+                tong = d["Mua ròng nội bộ"].sum()
+                mk = m[["Mua", "Bán", "Số giao dịch"]].sum()
+                c.chart(fig, d, last=LAST, ten="Noi bo mua rong toan thi truong",
+                        note_text=f"Cả kỳ: mua {ui.fmt_vn(mk['Mua'], 0)} tỷ · bán {ui.fmt_vn(-mk['Bán'], 0)} tỷ · ròng {ui.fmt_vn(tong, 0, dau=True)} tỷ · "
+                                  f"{int(mk['Số giao dịch'])} giao dịch · {ins.symbol.nunique()} mã có dữ liệu · công bố mới nhất {ins.ngay_cong_bo.max():%d/%m/%Y}",
+                        legend_html=ui.legend_html([("Mua ròng", ui.TOK["orange"]), ("Bán ròng", ui.TOK["gray"]), ("Luỹ kế", ui.TOK["brown"])]))
+                top_mua, top_ban = dx.insider_top(c.d0, c.d1, 15)
+                opn = dx.insider_open(pd.Timestamp.now().normalize())
+                cfg_top = {"Ròng (tỷ)": st.column_config.NumberColumn(format="%.1f"), "KL ròng (cp)": st.column_config.NumberColumn(format="%d"),
+                           "Giao dịch lớn nhất": st.column_config.TextColumn(width="large")}
+                with c.body():
+                    k1, k2 = st.columns(2)
+                    k1.markdown(f'<div class="gn-title" style="margin-top:8px"><h3>Top 15 mua ròng nội bộ</h3><span class="unit">{c.d0:%d/%m/%Y} – {c.d1:%d/%m/%Y}</span></div>', unsafe_allow_html=True)
+                    k1.dataframe(top_mua, width="stretch", column_config=cfg_top, height=380)
+                    k2.markdown(f'<div class="gn-title" style="margin-top:8px"><h3>Top 15 bán ròng nội bộ</h3><span class="unit">{c.d0:%d/%m/%Y} – {c.d1:%d/%m/%Y}</span></div>', unsafe_allow_html=True)
+                    k2.dataframe(top_ban, width="stretch", column_config=cfg_top, height=380)
+                    st.markdown(f'<div class="gn-title" style="margin-top:8px"><h3>Đăng ký đang chạy</h3><span class="unit">{len(opn)} đăng ký chưa có kết quả, '
+                                f'sắp theo ngày kết thúc · giá trị ước theo giá đóng cửa gần nhất</span></div>', unsafe_allow_html=True)
+                    if opn.empty:
+                        st.markdown('<div class="gn-empty">Không có đăng ký đang chạy</div>', unsafe_allow_html=True)
+                    else:
+                        st.dataframe(opn, width="stretch", hide_index=True, height=min(420, 38 + 35 * len(opn)),
+                                     column_config={"CafeF": st.column_config.LinkColumn(display_text="CafeF"),
+                                                    "Từ ngày": st.column_config.DateColumn(format="DD/MM/YYYY"),
+                                                    "Đến ngày": st.column_config.DateColumn(format="DD/MM/YYYY"),
+                                                    "Công bố": st.column_config.DateColumn(format="DD/MM/YYYY"),
+                                                    "Giá trị ước (tỷ)": st.column_config.NumberColumn(format="%.1f"),
+                                                    "ĐK mua (cp)": st.column_config.NumberColumn(format="%d"),
+                                                    "ĐK bán (cp)": st.column_config.NumberColumn(format="%d"),
+                                                    "KL trước (cp)": st.column_config.NumberColumn(format="%d")})
+                    b1, b2, b3, _ = st.columns([1, 1, 1, 3])
+                    top_x = pd.concat([top_mua.assign(Chiều="Mua ròng"), top_ban.assign(Chiều="Bán ròng")])
+                    b1.download_button("⤓ Top mua/bán (CSV)", top_x.to_csv(encoding="utf-8-sig").encode("utf-8-sig"),
+                                       file_name=f"{ui.ten_file('Top noi bo mua ban rong')}.csv", mime="text/csv", key="noibo_top_csv", width="stretch")
+                    b2.download_button("⤓ Đăng ký đang chạy (CSV)", opn.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig"),
+                                       file_name=f"{ui.ten_file('Dang ky noi bo dang chay')}.csv", mime="text/csv", key="noibo_open_csv", width="stretch")
+                    b3.download_button("⤓ Toàn bộ bản ghi (CSV)", ins.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig"),
+                                       file_name=f"{ui.ten_file('Giao dich noi bo CafeF')}.csv", mime="text/csv", key="noibo_all_csv", width="stretch")
+        else:
+            ma, _ = _ma_chon("noibo")
+            h = dx.insider_symbol(ma)
+            mo = dx.insider_symbol_monthly(ma)
+            if h.empty:
+                c.empty(note_text=f"{ma}: CafeF không có bản ghi giao dịch nội bộ.")
+            else:
+                moc = c.cut(mo) if len(mo) else mo
+                th = h[h["Loại"] == "Thực hiện"]
+                c.markdown(f'<div class="gn-title" style="margin-top:-6px"><h3>{ma}</h3><span class="unit">· {len(h)} bản ghi · '
+                           f'{len(th)} đã thực hiện · {len(h) - len(th)} đăng ký · công bố gần nhất {h.index.max():%d/%m/%Y}</span></div>')
+                fig = ui.fig_stack(moc[["Mua", "Bán"]], "tỷ đồng", colors={"Mua": ui.TOK["orange"], "Bán": ui.TOK["gray"]}) if len(moc) else None
+                if fig is None:
+                    c.empty(note_text="Không có giao dịch thực hiện trong kỳ (chỉ có đăng ký / bản ghi không giá).")
+                else:
+                    c.chart(fig, moc, last=LAST, ten=f"{ma} noi bo theo thang",
+                            note_text=f"Trong kỳ: mua {ui.fmt_vn(moc['Mua'].sum(), 1)} tỷ · bán {ui.fmt_vn(-moc['Bán'].sum(), 1)} tỷ · "
+                                      f"ròng {ui.fmt_vn(moc['Mua'].sum() + moc['Bán'].sum(), 1, dau=True)} tỷ",
+                            legend_html=ui.legend_html([("Mua thực hiện", ui.TOK["orange"]), ("Bán thực hiện", ui.TOK["gray"])]))
+                hc = h[(h.index >= c.d0) & (h.index <= max(c.d1, pd.Timestamp.now().normalize()))]
+                with c.body():
+                    st.markdown(f'<div class="gn-title" style="margin-top:8px"><h3>Lịch sử công bố</h3><span class="unit">{len(hc)} bản ghi '
+                                f'{c.d0:%d/%m/%Y} – {c.d1:%d/%m/%Y} (theo ngày công bố)</span></div>', unsafe_allow_html=True)
+                    st.dataframe(hc, width="stretch", height=min(520, 38 + 35 * max(1, len(hc))),
+                                 column_config={"Công bố": st.column_config.DateColumn(format="DD/MM/YYYY"),
+                                                "Từ": st.column_config.DateColumn(format="DD/MM/YYYY"), "Đến": st.column_config.DateColumn(format="DD/MM/YYYY"),
+                                                "Ngày TH": st.column_config.DateColumn(format="DD/MM/YYYY"),
+                                                "CafeF": st.column_config.LinkColumn(display_text="CafeF"),
+                                                "Giá trị ước (tỷ)": st.column_config.NumberColumn(format="%.2f"),
+                                                "Tỷ lệ sau (%)": st.column_config.NumberColumn(format="%.2f"),
+                                                **{k: st.column_config.NumberColumn(format="%d") for k in ("ĐK mua", "ĐK bán", "Thực mua", "Thực bán", "KL sau")}})
+                    b1, _ = st.columns([1, 5])
+                    b1.download_button("⤓ Lịch sử (CSV)", h.to_csv(encoding="utf-8-sig").encode("utf-8-sig"),
+                                       file_name=f"{ui.ten_file(f'{ma} giao dich noi bo')}.csv", mime="text/csv", key=f"noibo_hist_csv_{ma}", width="stretch")
 
     ui.h2("Quỹ ETF")
     ui.card_empty("Dòng tiền ETF ròng", "tỷ đồng", "Chưa có dữ liệu NAV / chứng chỉ quỹ ETF (29 quỹ) trong hệ thống.", key="etf")

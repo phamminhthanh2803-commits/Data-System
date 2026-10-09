@@ -343,7 +343,12 @@ class Store:
             # ghi file tam roi doi ten: app doc moi 5 s, tranh doc trung luc ghi do
             p = os.path.join(day_dir, "stocks_latest.parquet")
             sl.to_parquet(p + ".tmp", index=False)
-            os.replace(p + ".tmp", p)
+            for _i in range(5):                   # Windows: PermissionError neu app dang doc file dich -> thu lai
+                try:
+                    os.replace(p + ".tmp", p)
+                    break
+                except PermissionError:
+                    time.sleep(0.2)
 
     def stocks_latest_frame(self) -> pd.DataFrame | None:
         """Bang gia TOAN SAN = snapshot SSI (nen, 60 s) + tick DNSE (gia/KL/GTGD/cao/thap/avg, 5 s) + khoi ngoai DNSE (VN30).

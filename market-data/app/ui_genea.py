@@ -391,6 +391,7 @@ class Card:
         if height:
             fig.update_layout(height=height)
         _xaxis_fmt(fig, self.months)
+        apply_rangebreaks(fig)
         live = (df.attrs.get("live") if df is not None and hasattr(df, "attrs") else None) if LIVE["active"] else None
         if live and isinstance(df, pd.DataFrame) and isinstance(df.index, pd.DatetimeIndex) and \
                 (df.empty or pd.Timestamp(df.index.max()).normalize() != _today()):
@@ -641,6 +642,42 @@ def _xaxis_fmt(fig, months):
         fig.update_xaxes(dtick="M12" if months <= 180 else "M24")
 
 
+def apply_rangebreaks(fig):
+    """Truc ngay: an cuoi tuan + ngay le/ngay khong co du lieu (09/10/2026 PV2: bieu do dut quang vi ve ca ngay nghi).
+    Chi ap cho chuoi theo NGAY (buoc giua cac moc <= 3 ngay); chuoi trong phien (<2 ngay) va chuoi thang/quy giu nguyen."""
+    xs = []
+    for tr in fig.data:
+        x = getattr(tr, "x", None)
+        if x is None or len(x) == 0:
+            continue
+        try:
+            xi = pd.DatetimeIndex(pd.to_datetime(pd.Index(list(x)), errors="coerce")).dropna()
+        except Exception:  # noqa: BLE001
+            return
+        if len(xi):
+            xs.append(xi)
+    if not xs:
+        return
+    allx = xs[0]
+    for o in xs[1:]:
+        allx = allx.append(o)
+    if allx.max() - allx.min() < pd.Timedelta(days=2):
+        return                                                   # trong phien: khong dung
+    days = pd.DatetimeIndex(allx.normalize().unique()).sort_values()
+    if len(days) < 3:
+        return
+    step = pd.Series(days[1:] - days[:-1]).median()
+    if step > pd.Timedelta(days=3):
+        return                                                   # tuan/thang/quy: khong phai ngay nghi
+    full = pd.date_range(days.min(), days.max(), freq="D")
+    missing = full.difference(days)
+    rb = [dict(bounds=["sat", "mon"])]
+    hol = [d.strftime("%Y-%m-%d") for d in missing if d.weekday() < 5]
+    if hol:
+        rb.append(dict(values=hol))
+    fig.update_xaxes(rangebreaks=rb)
+
+
 def _is_time(df):
     return isinstance(df.index, pd.DatetimeIndex)
 
@@ -783,8 +820,7 @@ def fig_candle(o: pd.DataFrame, mode="Nến", volume=True, height=HEIGHT, name="
                                       tickfont=dict(size=10, color=TOK["ink3"]), showticklabels=False))
     fig.update_layout(height=height, xaxis=dict(rangeslider=dict(visible=False)), yaxis=dict(title=None, side="left"),
                       showlegend=bool(ma))
-    # bo ngay nghi: truc category gon hon nhung mat tickformat -> dung rangebreaks cuoi tuan
-    fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])])
+    apply_rangebreaks(fig)                                     # an cuoi tuan + ngay le
     return fig
 
 

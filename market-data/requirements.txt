@@ -28,6 +28,7 @@ yfinance==1.4.1
 tvdatafeed @ git+https://github.com/rongardF/tvdatafeed.git@e6f6aaa7de439ac6e454d9b26d2760ded8dc4923   # index-fetcher tv_history.py
 # ---- app Streamlit (market-data/app, shipping/port-tracker)
 streamlit==1.57.0
+plotly==7.1.0                # app giao dien moi (ui_genea.py); kaleido khong cai -> khong co nut Anh
 altair==6.1.0
 # ---- Excel / PDF / OCR
 openpyxl==3.1.5

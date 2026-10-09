@@ -135,6 +135,42 @@ App **không mở** `realtime.duckdb` (1 tiến trình ghi). Đổi thư mục b
 - Ảnh: `design\screens\11-live-toan-app-*.png`. Lịch sử `indices-master` có thể thiếu phiên gần nhất (pipeline kéo PM) → KPI ±% VN-Index khi live
   dùng `change_pct` của feed, còn đường chỉ số sẽ nối từ phiên lịch sử cuối sang điểm hôm nay.
 
+## Nguồn live-first (09/10/2026 chiều) — "data nào live được thì kéo live, không đợi pipeline"
+
+PV2: *"mấy data thiếu thì fill live luôn không đợi pull tại pipeline nữa"* và *"các data mà live được không cần historical của
+pipeline thì kéo live"*. Module **`data_src.py`** là lớp nguồn live-first: với dữ liệu mà nguồn REST công khai cung cấp được
+**cả lịch sử**, app kéo thẳng từ nguồn đó về cache parquet `cache\src\` (cập nhật **tăng dần** trong **thread nền** mỗi lần mở app
+và mỗi 30 phút, không chặn render), hôm nay trong phiên vẫn do `data_live.with_live` overlay. Pipeline chỉ còn cho thứ không live
+được (vĩ mô, VSDC, trái phiếu, tự doanh theo mã, định giá loại Vin, khu vực…).
+
+| Dataset (REGISTRY) | Nguồn live-first | Lịch sử từ | Pipeline còn dùng cho |
+|---|---|---|---|
+| `indices` (VNINDEX, VN30, HNXINDEX, UPCOM, + HNX30) | Entrade `chart-api/v2/ohlcs/index` (OHLCV) + VNDirect `vnmarket_prices` (GTGD `accumulatedVal` → triệu VND, value_usd theo fx-master) | VNINDEX 2000 (Entrade), 4 rổ kia 05/2020; GTGD 08/2017 | giai đoạn trước nguồn; chỉ số thế giới/khu vực; VNMidcap/VNSmallcap (tv-history, không có nguồn live) |
+| `tv_history` (giá ~1.500 mã) | Entrade `ohlcs/stock` kéo nền (ThreadPool 8, **112 s cho 1.525 mã, 3,5 triệu dòng**) + VNDirect `stock_prices` theo NGÀY cả sàn (3 request/ngày: ngày thiếu + 14 ngày gần nhất để có `ref` giá tham chiếu và GTGD thật) → fallback EOD `stocks_latest` bộ thu | 2012 | mã trước 2012 / sàn nước ngoài; **hệ số điều chỉnh giá** (xem dưới) |
+| `flows` (VN) | VNDirect `foreigns` + `proprietary_trading` theo chỉ số | 08/2018, tự doanh 05/2022 (T+1) | khu vực (KOSPI, TAIEX, SET…) |
+| khối ngoại theo mã (`foreign_stocks`) | VNDirect `foreigns type:STOCK` theo ngày — **chỉ các ngày sau pipeline** (Vietcap theo mã) | — | toàn bộ lịch sử Vietcap |
+| `valuation_wide` | VNDirect `ratios` 4 rổ × 5 chỉ tiêu (cột suy ra + `close/eps_index` tính lại từ indices) | 12/2017 | — (`valuation_adjusted` loại Vin vẫn pipeline) |
+| `sectors_wide` | VNDirect `ratios` batch 55 mã ICB — chỉ các ngày sau pipeline | — | lịch sử 55 ngành |
+
+- **Gộp** (`datalib.load`, `datalib.tv`): nguồn live-first là **chính** — thay hàng cùng ngày của pipeline (pipeline hay dính hàng
+  *dở phiên*: VN-Index 07/10 pipeline 1.753,88 / GTGD 505 tỷ vs VNDirect 1.753,39 / 15.226 tỷ; khối ngoại 07/10 pipeline = 0);
+  giai đoạn nguồn thiếu nối lịch sử pipeline phía trước; nguồn lỗi/offline → pipeline + lỗi ghi `cache\src\status.json`.
+  **Chữ ký hàm / cột trả về không đổi** nên pages_* và `with_live` chạy nguyên; khoá cache `_mtime()` = mtime file pipeline +
+  mtime parquet nguồn (cần giờ sửa thật dùng `_raw_mt`).
+- **Giá Entrade CHƯA điều chỉnh** (kiểm chứng VNM/FPT/HPG/MWG: tỷ lệ tv-history/Entrade bước thang đúng ngày GDKHQ, = 1 sau sự kiện
+  cuối). `datalib.adjust_stock_src`: trong giai đoạn trùng tv-history, hệ số = close_tv/close (làm tròn 4 số, ffill theo mã); bỏ hàng
+  tv ở ngày cuối (có thể dở phiên); **sau ngày cuối tv-history** phát hiện sự kiện quyền bằng giá tham chiếu VNDirect (`ref` ≠ close
+  hôm trước > 0,4%, chỉ HOSE/HNX — UPCOM tham chiếu là giá bình quân nên không xét) và nhân ngược về quá khứ như TradingView.
+  Đối chiếu 2,49 triệu dòng trùng: 99,74% lệch ≤ 0,1%; lệch > 1% tập trung 3 mã SHS/PPS/ANT (TradingView điều chỉnh khác — chưa rõ).
+  KL Entrade = **khớp lệnh**; hàng VNDirect cũng lấy `nmVolume` cho nhất quán, GTGD = khớp + thoả thuận. Cache gộp `cache\tv-live.parquet`.
+- **Trạng thái**: chip "Nguồn dữ liệu" (header) có dòng `● Live-first: n/6 bộ · đang kéo nền x/1.525 mã · cập nhật hh:mm` + bảng
+  `data_src.source_status()`; bảng độ tươi (Tổng quan) và Kho dữ liệu có cột/ghi chú **Nguồn: live-first / pipeline**.
+- Chạy tay: `python data_src.py [--full] [--only index_daily,flows_daily,...]`. Phiên hôm nay chỉ được nhận vào lịch sử sau **15:15**
+  (trước đó hàng hôm nay là của overlay live). Ảnh: `design\screens\13-live-first-*.png` (server test 8772, MD_ROOT pipeline-data:
+  Tổng quan/Hiệu suất/Dòng tiền/Định giá có 08/10 + LIVE 09/10, render ấm 0,5–2 s/trang; lần đầu sau khi nguồn đổi ~10 s để ghép giá).
+- Chưa làm: rổ VNMidcap/VNSmallcap (không có rổ trong pipeline → vẫn tv-history, thiếu ngày pipeline chưa kéo); `valuation_adjusted`
+  (loại Vin) và `stocks_wide`/`shares` vẫn pipeline; tự doanh theo mã (VNDirect T+1) vẫn pipeline.
+
 ## Giải phẫu 1 thẻ (`ui_genea.card`)
 
 ```
@@ -161,10 +197,12 @@ app  app.py          khung trang: header ◆ Market Data + chip "Nguồn dữ li
   pages_live.py   trang Live (DNSE real-time, st.fragment tự làm mới) + mini_strip() cho Tổng quan
   data_live.py    đọc parquet realtime-lab\data\<ngày>\ (retry + fallback), KPI, chuỗi 5 s, độ rộng, BQ 20 phiên, khối ngoại,
                   influence, bảng giá, trạng thái/bật/tắt bộ thu
+  data_src.py     lớp nguồn LIVE-FIRST: Entrade/VNDirect/EOD bộ thu → cache\src\*.parquet, thread nền cập nhật tăng dần,
+                  source_status(); datalib.load/tv gộp (xem mục "Nguồn live-first")
   pages_ck.py     TTCK Việt Nam: hieu_suat · dong_tien · dinh_gia · nha_dau_tu
   pages_vimo.py   Vĩ mô VN (9 navtab) + thế giới (4)
   pages_khac.py   Tổng quan · Kho dữ liệu · Xuất Excel · CK thế giới · Trái phiếu (3 navtab) · Tin tức
-  datalib.py      LỚP DỮ LIỆU (giữ nguyên): REGISTRY 21 dataset, cache, độ rộng, MA, ngành, GTGD, flows, bonds, NSO, tm()
+  datalib.py      LỚP DỮ LIỆU: REGISTRY 21 dataset (+ gộp nguồn live-first), cache, độ rộng, MA, ngành, GTGD, flows, bonds, NSO, tm()
   app_legacy.py   giao diện cũ (Bloomberg, Altair, xuat_excel.py) — không sửa
   xuat_excel.py   chỉ app_legacy dùng (xuất data + chart Excel kiểu Altair)
   design\         genea-ui-spec.md (spec), screens\*.png (ảnh chụp), screens\chup.sh (chụp lại bằng headless Chrome)

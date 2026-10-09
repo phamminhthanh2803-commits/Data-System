@@ -263,8 +263,9 @@ def ten_file(ten: str) -> str:
 
 
 # ------------------------------------------------------------------ HEADER
-def header(nguon_df: pd.DataFrame | None, n_bo: int):
-    """Dong 1: logo ◆ Market Data (trai) + chip 'Nguon du lieu: N bo' (phai, popover liet ke REGISTRY + do tuoi)."""
+def header(nguon_df: pd.DataFrame | None, n_bo: int, extra: str = "", src_df: pd.DataFrame | None = None):
+    """Dong 1: logo ◆ Market Data (trai) + chip 'Nguon du lieu: N bo' (phai, popover liet ke REGISTRY + do tuoi + cot Nguon
+    live-first/pipeline; `extra` = dong trang thai lop nguon live-first; `src_df` = bang data_src.source_status())."""
     c1, c2 = st.columns([5, 2])
     with c1:
         st.markdown('<div class="gn-logo"><span class="dia"></span>Market Data</div>', unsafe_allow_html=True)
@@ -272,11 +273,16 @@ def header(nguon_df: pd.DataFrame | None, n_bo: int):
         _, p = st.columns([1, 3])
         with p:
             with st.popover(f"Nguồn dữ liệu: {n_bo} bộ ▾", width="stretch"):
+                if extra:
+                    st.markdown(f'<div class="gn-note">● Live-first: {extra}</div>', unsafe_allow_html=True)
                 if nguon_df is not None and len(nguon_df):
                     d = nguon_df.copy()
                     st.dataframe(d, width="stretch", hide_index=True, height=min(520, 40 + 35 * len(d)))
                 else:
                     st.caption("Chưa đọc được bảng tình trạng dữ liệu.")
+                if src_df is not None and len(src_df):
+                    st.caption("Lớp nguồn live-first (Entrade / VNDirect / EOD bộ thu) — cache `cache\\src`, cập nhật tăng dần nền")
+                    st.dataframe(src_df, width="stretch", hide_index=True, height=40 + 35 * len(src_df))
 
 
 # ----------------------------------------------------------- DIEU HUONG

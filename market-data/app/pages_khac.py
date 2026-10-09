@@ -105,7 +105,8 @@ def tong_quan(ctx):
             t = fr.copy()
             t["Dữ liệu đến"] = pd.to_datetime(t["Dữ liệu đến"]).dt.strftime("%d/%m/%Y")
             t["Cập nhật lúc"] = pd.to_datetime(t["Cập nhật lúc"]).dt.strftime("%d/%m %H:%M")
-            t = t[["Dataset", "Nhóm", "Trạng thái", "Dữ liệu đến", "Trễ (ngày)", "Số dòng", "Cập nhật lúc", "Mô tả"]].set_index("Dataset")
+            cols = ["Dataset", "Nhóm", "Nguồn", "Trạng thái", "Dữ liệu đến", "Trễ (ngày)", "Số dòng", "Cập nhật lúc", "Mô tả"]
+            t = t[[x for x in cols if x in t.columns]].set_index("Dataset")
             c.table(t, ten="Tinh trang du lieu", height=min(620, 40 + 35 * len(t)))
     with st.expander("⚙️ Dữ liệu: xoá cache / chạy pipeline"):
         c1, c2 = st.columns([1, 3])
@@ -128,7 +129,9 @@ def kho_du_lieu(ctx):
     key = st.selectbox("Dataset", keys, key="kho_ds", format_func=lambda k: f"{dl.REGISTRY[k][1]}  ·  {dl.REGISTRY[k][0]}")
     ten, nhom, path, dcol, ecol, mota = dl.REGISTRY[key]
     with ui.card(ten, nhom, help=mota, key=f"kho_{key}", default="1Y") as c:
-        ui.note(f"{mota} · <code>{path}</code>")
+        lf = dl.live_first(key)
+        ui.note(f"{mota} · <code>{path}</code> · <b>Nguồn: {'live-first (' + dl.src.DATASETS[dl.SRC_KEYS[key]][1] + ')' if lf else 'pipeline'}</b>"
+                + (" — hàng cùng ngày lấy từ nguồn live-first, lịch sử pipeline nối phía trước" if lf else ""))
         d = dl.tv() if key == "tv_history" else dl.load(key)
         if key == "nso_monthly":
             nhom_tx = st.selectbox("Nhóm chỉ tiêu", list(dl.NHOM_NSO_TX), key="kho_nso_nhom")

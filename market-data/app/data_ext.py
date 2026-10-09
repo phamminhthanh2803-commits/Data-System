@@ -40,13 +40,37 @@ def _ohlc_vn(mt: float) -> pd.DataFrame:
 
 
 def ohlc_vn() -> pd.DataFrame:
-    return _ohlc_vn(dl._mtime(dl.REGISTRY["tv_history"][2]))
+    return _ohlc_vn(dl._raw_mt(dl.REGISTRY["tv_history"][2]))      # mtime THAT cua CSV (dl._mtime da gom cache nguon live-first)
 
 
 def stock_ohlc(code: str) -> pd.DataFrame:
+    """OHLCV 1 ma: tv-history (gia dieu chinh) + duoi live-first (Entrade/VNDirect x he so dieu chinh) sau ngay cuoi tv-history."""
     d = ohlc_vn()
     d = d[d.symbol == code].set_index("date").sort_index()[["open", "high", "low", "close", "volume", "value_approx"]]
-    return d[~d.index.duplicated(keep="last")]
+    d = d[~d.index.duplicated(keep="last")]
+    return _stock_ohlc_tail(code, d, dl._src_mt("tv_history"))
+
+
+@st.cache_data(show_spinner=False)
+def _stock_ohlc_tail(code: str, d: pd.DataFrame, mt_src: float) -> pd.DataFrame:
+    s = dl.stock_src_ohlc(code, mt_src)
+    if s.empty:
+        return d
+    tv_close = d[["close"]].reset_index().assign(symbol=code)[["symbol", "date", "close"]]
+    if len(tv_close):
+        tv_close = tv_close[tv_close.date < tv_close.date.max()]
+    exch = dl.exchange_map()
+    m = dl.adjust_stock_src(s, tv_close, exch).set_index("date")
+    start = tv_close.date.max() + pd.Timedelta(days=1) if len(tv_close) else pd.Timestamp("1900-01-01")
+    m = m[m.index >= start]
+    if m.empty:
+        return d
+    tail = pd.DataFrame({c: m[c] * m.adj for c in ("open", "high", "low", "close")})
+    tail["volume"] = m.volume
+    tail["value_approx"] = m.value
+    out = pd.concat([d[d.index < start], tail]).sort_index()
+    out.index.name = "date"
+    return out
 
 
 def index_ohlc(code: str) -> pd.DataFrame:

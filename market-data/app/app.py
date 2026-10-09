@@ -23,6 +23,12 @@ import datalib as dl  # noqa: E402
 import data_live as rt  # noqa: E402
 import ui_genea as ui  # noqa: E402
 
+try:                                   # lop nguon LIVE-FIRST (09/10/2026): cap nhat tang dan trong thread nen, khong chan render
+    import data_src as src  # noqa: E402
+    src.start_background()
+except Exception:  # noqa: BLE001
+    src = None
+
 st.set_page_config(page_title="Market Data", page_icon="◆", layout="wide", initial_sidebar_state="collapsed")
 ui.inject_css()
 
@@ -90,12 +96,16 @@ try:
     FRESH = dl.freshness_df()
     _fr = FRESH.copy()
     _fr["Dữ liệu đến"] = pd.to_datetime(_fr["Dữ liệu đến"]).dt.strftime("%d/%m/%Y")
-    NGUON = _fr[["Dataset", "Nhóm", "Trạng thái", "Dữ liệu đến", "Trễ (ngày)"]]
+    NGUON = _fr[["Dataset", "Nhóm", "Nguồn", "Trạng thái", "Dữ liệu đến", "Trễ (ngày)"]]
 except Exception:  # noqa: BLE001
     FRESH, NGUON = pd.DataFrame(), None
 
 # ------------------------------------------------------------------ HEADER
-ui.header(NGUON, len(dl.REGISTRY))
+try:
+    SRC_LINE = src.status_line() if src is not None else ""
+except Exception:  # noqa: BLE001
+    SRC_LINE = ""
+ui.header(NGUON, len(dl.REGISTRY), extra=SRC_LINE, src_df=dl.source_status_df())
 
 # ---------------------------------------------------------- LIVE TOAN APP (09/10/2026)
 # Cong tac ● LIVE (mac dinh BAT 08:45-15:10 T2-T6, ngoai gio tu TAT) + tan suat 5/15/60 s, nho session_state + ?live=1|0&tan=.

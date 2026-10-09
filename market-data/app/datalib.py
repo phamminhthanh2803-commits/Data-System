@@ -22,6 +22,11 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+try:                                   # lop nguon LIVE-FIRST (09/10/2026): Entrade / VNDirect / EOD bo thu, cache parquet cache\src
+    import data_src as src
+except Exception:  # noqa: BLE001
+    src = None
+
 BASE = os.path.normpath(os.environ.get("MD_ROOT", "D:/market-data"))   # MD_ROOT (cloud); mac dinh D:\market-data
 IDXD = os.path.join(BASE, "index-fetcher")
 RAW = os.path.join(IDXD, "raw")
@@ -130,11 +135,34 @@ REGISTRY = {
 
 # LUU Y: tham so cua ham @st.cache_data bat dau bang "_" KHONG duoc bam vao khoa cache.
 # Truoc day dat ten "_mt" -> file CSV doi ma app van tra ban cu. Tham so mtime phai ten "mt".
-def _mtime(path):
+# ---- LIVE-FIRST (09/10/2026): dataset nao co ban live-first (data_src) thi KHOA CACHE = mtime file pipeline + mtime parquet
+# nguon, de moi cache dan xuat (price_matrix, breadth, turnover, sector_caps, hieu suat...) tu lam moi khi nguon cap nhat.
+# -> _mtime() KHONG con la thoi diem sua file; can gio sua that thi dung _raw_mt().
+SRC_KEYS = {"indices": "index_daily", "flows": "flows_daily", "valuation_wide": "valuation_daily",
+            "sectors_wide": "sectors_tail", "tv_history": "stock_daily"}
+_PATH2KEY = {os.path.normpath(REGISTRY[k][2]): k for k in SRC_KEYS}
+
+
+def _raw_mt(path):
     try:
         return os.path.getmtime(path)
     except OSError:
         return 0.0
+
+
+def _src_mt(key) -> float:
+    return src.mtime(SRC_KEYS[key]) if src is not None and key in SRC_KEYS else 0.0
+
+
+def _mtime(path):
+    """Khoa phien ban cache cua 1 file pipeline (+ cache nguon live-first neu dataset do co ban live-first)."""
+    k = _PATH2KEY.get(os.path.normpath(str(path)))
+    return _raw_mt(path) + (_src_mt(k) if k else 0.0)
+
+
+def live_first(key) -> bool:
+    """Dataset dang duoc phuc vu tu nguon live-first (co cache data_src dung duoc)."""
+    return src is not None and key in SRC_KEYS and src.is_live_first(SRC_KEYS[key])
 
 
 # ---------------------------------------------------------------- LOADERS
@@ -148,8 +176,95 @@ def read_csv(path: str, mt: float, **kw) -> pd.DataFrame:
 
 
 def load(key: str, **kw) -> pd.DataFrame:
+    """Dataset trong REGISTRY. indices / flows / valuation_wide / sectors_wide: nguon live-first la chinh (thay hang cung ngay
+    cua pipeline), lich su pipeline noi phia truoc; nguon chua co / loi -> pipeline nguyen ban. Cot tra ve giu nguyen."""
     path = REGISTRY[key][2]
-    return read_csv(path, _mtime(path), **kw)
+    if not kw and key != "tv_history" and live_first(key):
+        try:
+            return _load_merged(key, _mtime(path))
+        except Exception as e:  # noqa: BLE001 - loi gop -> dung pipeline
+            st.session_state["_src_err"] = f"{key}: {type(e).__name__}: {str(e)[:120]}"
+    return read_csv(path, _raw_mt(path), **kw)
+
+
+@st.cache_data(show_spinner=False)
+def _load_merged(key: str, mt: float) -> pd.DataFrame:
+    path = REGISTRY[key][2]
+    pipe = read_csv(path, _raw_mt(path))
+    return {"indices": _merge_indices, "flows": _merge_flows, "valuation_wide": _merge_valuation,
+            "sectors_wide": _merge_sectors}[key](pipe)
+
+
+VN_IDX_SRC = ["VNINDEX", "VN30", "HNXINDEX", "UPCOM", "HNX30"]      # VN30F1M (phai sinh) khong dua vao indices
+
+
+def _merge_indices(pipe: pd.DataFrame) -> pd.DataFrame:
+    s = src.read("index_daily")
+    s = s[s.index_code.isin(VN_IDX_SRC)]
+    if s.empty:
+        return pipe
+    names = pipe.drop_duplicates("index_code").set_index("index_code").index_name
+    names = {**{"HNX30": "HNX30-Index"}, **names.to_dict()}
+    fx = read_csv(REGISTRY["fx"][2], _raw_mt(REGISTRY["fx"][2]))
+    rate = fx[fx.currency == "VND"].set_index("date").rate.sort_index()
+    rate = rate[~rate.index.duplicated(keep="last")]
+    new = pd.DataFrame({"date": s.date, "index_code": s.index_code, "index_name": s.index_code.map(names),
+                        "source": "live-first:" + s.src.astype(str), "open": s.open, "high": s.high, "low": s.low,
+                        "close": s.close, "adj_close": s.close, "volume": s.volume, "value": s.value, "currency": "VND"})
+    r = rate.reindex(rate.index.union(new.date.unique())).sort_index().ffill()
+    new["value_usd"] = new.value.values / r.reindex(new.date).values
+    key = pd.MultiIndex.from_frame(new[["index_code", "date"]])
+    keep = ~pd.MultiIndex.from_frame(pipe[["index_code", "date"]]).isin(key)
+    out = pd.concat([pipe[keep], new[pipe.columns]], ignore_index=True)
+    return out.sort_values(["index_code", "date"]).reset_index(drop=True)
+
+
+def _merge_flows(pipe: pd.DataFrame) -> pd.DataFrame:
+    s = src.read("flows_daily")
+    if s.empty:
+        return pipe
+    key = pd.MultiIndex.from_frame(s[["date", "index_code", "flow_type"]])
+    keep = ~pd.MultiIndex.from_frame(pipe[["date", "index_code", "flow_type"]]).isin(key)
+    for c in pipe.columns:
+        if c not in s:
+            s[c] = np.nan
+    out = pd.concat([pipe[keep], s[pipe.columns]], ignore_index=True)
+    return out.sort_values(["index_code", "flow_type", "date"]).reset_index(drop=True)
+
+
+def _merge_valuation(pipe: pd.DataFrame) -> pd.DataFrame:
+    long = src.read("valuation_daily")
+    if long.empty:
+        return pipe
+    idx = load("indices")
+    w = src.valuation_wide_from_long(long, idx[idx.index_code.isin(VN_IDX_SRC)][["date", "index_code", "close"]])
+    if w.empty:
+        return pipe
+    for c in pipe.columns:
+        if c not in w:
+            w[c] = np.nan
+    key = pd.MultiIndex.from_frame(w[["code", "date"]])
+    keep = ~pd.MultiIndex.from_frame(pipe[["code", "date"]]).isin(key)
+    out = pd.concat([pipe[keep], w[pipe.columns]], ignore_index=True)
+    return out.sort_values(["code", "date"]).reset_index(drop=True)
+
+
+def _merge_sectors(pipe: pd.DataFrame) -> pd.DataFrame:
+    long = src.read("sectors_tail")
+    if long.empty:
+        return pipe
+    w = src.sectors_wide_from_long(long)
+    if w.empty:
+        return pipe
+    pipe = pipe.copy()
+    pipe["code"] = pipe.code.astype(str).str.zfill(4)
+    for c in pipe.columns:
+        if c not in w:
+            w[c] = np.nan
+    key = pd.MultiIndex.from_frame(w[["code", "date"]])
+    keep = ~pd.MultiIndex.from_frame(pipe[["code", "date"]]).isin(key)
+    out = pd.concat([pipe[keep], w[pipe.columns]], ignore_index=True)
+    return out.sort_values(["code", "date"]).reset_index(drop=True)
 
 
 @st.cache_data(show_spinner="Đang nạp giá cổ phiếu (lần đầu sẽ dựng cache parquet) ...")
@@ -169,7 +284,115 @@ def load_tv(mt: float) -> pd.DataFrame:
 
 
 def tv() -> pd.DataFrame:
-    return load_tv(_mtime(REGISTRY["tv_history"][2]))
+    """Gia co phieu: tv-history (pipeline, gia dieu chinh TradingView) + nguon live-first stock_daily (Entrade/VNDirect, chua dieu
+    chinh -> nhan he so dieu chinh suy tu tv-history; sau ngay cuoi tv-history phat hien su kien quyen bang gia tham chieu)."""
+    mt = _raw_mt(REGISTRY["tv_history"][2])
+    if live_first("tv_history"):
+        try:
+            return load_tv_merged(mt, _src_mt("tv_history"))
+        except Exception as e:  # noqa: BLE001
+            st.session_state["_src_err"] = f"tv_history: {type(e).__name__}: {str(e)[:120]}"
+    return load_tv(mt)
+
+
+def exchange_map() -> pd.Series:
+    """symbol -> san (HOSE/HNX/UPCOM): meta TradingView -> ICB Vietcap (floor) -> stocks_latest cua bo thu."""
+    m = pd.read_csv(os.path.join(RAW, "vn_screener_meta.csv"), usecols=["name", "exchange"]).drop_duplicates("name").set_index("name").exchange
+    out = m[m.isin(VN_EX)]
+    try:
+        ic = icb()
+        if "floor" in ic:
+            f = ic["floor"]
+            f = f[f.isin(VN_EX)]
+            out = pd.concat([out, f[~f.index.isin(out.index)]])
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        days = sorted(n for n in os.listdir(src.RT_DATA) if os.path.exists(os.path.join(src.RT_DATA, n, "stocks_latest.parquet")))
+        if days:
+            sl = pd.read_parquet(os.path.join(src.RT_DATA, days[-1], "stocks_latest.parquet"), columns=["symbol", "exchange"])
+            sl = sl.drop_duplicates("symbol").set_index("symbol").exchange
+            sl = sl[sl.isin(VN_EX)]
+            out = pd.concat([out, sl[~sl.index.isin(out.index)]])
+    except Exception:  # noqa: BLE001
+        pass
+    return out[~out.index.duplicated()]
+
+
+def adjust_stock_src(s: pd.DataFrame, tv_close: pd.DataFrame, exch: pd.Series) -> pd.DataFrame:
+    """Them cot adj (he so dieu chinh) cho bang stock_daily `s` (symbol,date,close,ref...):
+    - trong giai doan trung voi tv-history: adj = close_tv / close (lam tron 4 chu so, ffill/bfill trong tung ma; khong trung -> 1)
+    - sau ngay cuoi tv-history: su kien quyen = gia tham chieu khac gia dong cua hom truoc > 0,4% (HOSE/HNX; UPCOM tham chieu la
+      gia binh quan nen khong xet) -> nhan nguoc ve qua khu nhu TradingView."""
+    m = s.merge(tv_close.rename(columns={"close": "close_tv"}), on=["symbol", "date"], how="left").sort_values(["symbol", "date"])
+    m = m.reset_index(drop=True)
+    g = m.groupby("symbol", sort=False)
+    f = (m.close_tv / m.close).round(4)
+    f = f.groupby(m.symbol).ffill()
+    f = f.groupby(m.symbol).bfill().fillna(1.0)
+    tv_end = tv_close.groupby("symbol").date.max()
+    after = m.date > m.symbol.map(tv_end).fillna(pd.Timestamp("1900-01-01"))
+    prev = g.close.shift(1)
+    r = m.ref / prev
+    ex = m.symbol.map(exch)
+    ev = pd.Series(np.where(after & ex.isin(["HOSE", "HNX"]) & r.notna() & ((r - 1).abs() > 0.004), r, 1.0), index=m.index)
+    cp = ev.groupby(m.symbol).cumprod()
+    tot = cp.groupby(m.symbol).transform("last")
+    m["adj"] = (f * (tot / cp)).astype("float64")
+    return m.drop(columns=["close_tv"])
+
+
+@st.cache_data(show_spinner="Đang ghép giá cổ phiếu live-first (Entrade/VNDirect + tv-history) ...")
+def load_tv_merged(mt: float, mt_src: float) -> pd.DataFrame:
+    """tv-history (pipeline) + stock_daily (live-first): hang VN cua tung ma tu ngay dau nguon tro di lay tu nguon (gia x adj),
+    phan truoc do + san nuoc ngoai giu tv-history. Cache parquet cache\tv-live.parquet theo (mt, mt_src)."""
+    pq = os.path.join(CACHE, "tv-live.parquet")
+    tag = os.path.join(CACHE, "tv-live.stamp")
+    try:
+        if os.path.exists(pq) and open(tag).read().strip() == f"{mt}|{mt_src}":
+            return pd.read_parquet(pq)
+    except Exception:  # noqa: BLE001
+        pass
+    t = load_tv(mt)
+    s = src.read("stock_daily")
+    if s.empty:
+        return t
+    exch = exchange_map()
+    s = s[s.symbol.isin(exch.index)]
+    vn = t[t.exchange.isin(VN_EX)]
+    tv_close = vn[["symbol", "date", "close"]].copy()
+    tv_close["symbol"] = tv_close.symbol.astype(str)
+    tv_close = tv_close[tv_close.date < tv_close.date.max()]        # ngay cuoi tv-history co the la DO PHIEN -> khong dung tinh he so
+    m = adjust_stock_src(s, tv_close, exch)
+    ex = m.symbol.map(exch).astype(str)
+    new = pd.DataFrame({"date": m.date, "tv_symbol": ex + ":" + m.symbol, "exchange": ex, "symbol": m.symbol,
+                        "close": m.close * m.adj, "volume": m.volume, "value_approx": m.value})
+    first = m.groupby("symbol").date.min()
+    vn_sym = vn.symbol.astype(str)
+    keep = (vn.date < vn_sym.map(first).fillna(pd.Timestamp("2100-01-01")).values)   # pipeline chi giu phan TRUOC nguon
+    out = pd.concat([t[~t.exchange.isin(VN_EX)], vn[keep], new], ignore_index=True)
+    for c in ("tv_symbol", "exchange", "symbol"):
+        out[c] = out[c].astype(str).astype("category")
+    out = out.sort_values(["tv_symbol", "date"]).reset_index(drop=True)
+    try:
+        out.to_parquet(pq, index=False)
+        with open(tag, "w") as f:
+            f.write(f"{mt}|{mt_src}")
+    except Exception:  # noqa: BLE001
+        pass
+    return out
+
+
+@st.cache_data(show_spinner=False)
+def stock_src_ohlc(code: str, mt_src: float) -> pd.DataFrame:
+    """OHLCV 1 ma tu nguon live-first (chua dieu chinh, cot date). Rong neu chua co."""
+    if src is None or not live_first("tv_history"):
+        return pd.DataFrame()
+    try:
+        d = pd.read_parquet(src._path("stock_daily"), filters=[("symbol", "==", code)])
+    except Exception:  # noqa: BLE001
+        return pd.DataFrame()
+    return d.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
 
 
 @st.cache_data(show_spinner=False)
@@ -301,23 +524,27 @@ def turnover(mt_idx: float, mt_tv: float) -> pd.DataFrame:
             val[[c for c in val.columns if exch.get(c) == ex]].sum(axis=1) / 1e9
         for ex in VN_EX})
     full = v.reindex(v.index.union(est.index))
-    src = pd.Series("VCI (chính thức)", index=full.index)
+    nguon = pd.Series("VCI (chính thức)", index=full.index)
+    if "source" in idx:                                  # hang tu nguon live-first (VNDirect accumulatedVal)
+        lf = idx[(idx.index_code == "VNINDEX") & idx.source.astype(str).str.startswith("live-first")].date
+        nguon[nguon.index.isin(lf)] = "VNDirect (live-first)"
     miss = full["HOSE"].isna()
-    src[miss] = "Ước tính close×KL"
+    nguon[miss] = "Ước tính close×KL"
     full = full.fillna(est.reindex(full.index))
     full["Toàn thị trường"] = full[["HOSE", "HNX", "UPCoM"]].sum(axis=1, min_count=1)
     full["MA20 toàn TT"] = full["Toàn thị trường"].rolling(20).mean()
     full["MA50 toàn TT"] = full["Toàn thị trường"].rolling(50).mean()
     vni = idx[idx.index_code == "VNINDEX"].set_index("date").close
     full["VN-Index"] = vni.reindex(full.index).ffill()
-    full["Nguồn"] = src.reindex(full.index)
+    full["Nguồn"] = nguon.reindex(full.index)
     now = pd.Timestamp.now()
     full["Phiên"] = np.where((full.index.normalize() == now.normalize()) & (now.hour < 15),
                              "Đang giao dịch", "Đã đóng cửa")
     # Dong DO PHIEN nam lai tu hom truoc: indices-master duoc keo GIUA gio giao dich cua chinh
     # ngay do (vd 16/09 luc 11:11 -> GTGD 5.341 ty thay vi 14.845 ty) va chua ai keo lai.
     # Nhan biet chinh xac bang gio sua file: file sua ngay D truoc 15:05 => dong ngay D la do phien.
-    sua = pd.Timestamp(datetime.fromtimestamp(mt_idx)) if mt_idx else None
+    mt_raw = _raw_mt(REGISTRY["indices"][2])
+    sua = pd.Timestamp(datetime.fromtimestamp(mt_raw)) if mt_raw else None
     if sua is not None and (sua.hour, sua.minute) < (15, 5):
         do = (full.index.normalize() == sua.normalize()) & (full["Nguồn"] == "VCI (chính thức)")
         full.loc[do & (full["Phiên"] == "Đã đóng cửa"), "Phiên"] = "Dở phiên (kéo lúc %s)" % sua.strftime("%H:%M")
@@ -1042,6 +1269,16 @@ def _foreign_stocks(mt: float) -> pd.DataFrame:
         parts.append(n.drop(columns=["floor"]))
     if not parts:
         return pd.DataFrame(columns=cot)
+    if src is not None and src.is_live_first("foreign_stocks_tail"):     # ngay sau pipeline: VNDirect theo ma (live-first)
+        tail = src.read("foreign_stocks_tail")
+        if len(tail):
+            end = max((p.date.max() for p in parts), default=pd.Timestamp("1900-01-01"))
+            tail = tail[tail.date > end]
+            if len(tail):
+                tail = tail[["code", "date", "floor", "buyVal", "sellVal", "netVal"]].copy()
+                if san_vnd.empty:
+                    san_vnd = tail.sort_values("date").groupby("code").floor.last()
+                parts.append(tail.drop(columns=["floor"]))
     d = pd.concat(parts, ignore_index=True).drop_duplicates(["code", "date"], keep="first")
     m = meta()
     # san: meta TradingView hien hanh -> san VNDirect gan nhat -> san Vietcap (ma huy niem yet: OTC/OTHER)
@@ -1056,7 +1293,7 @@ def _foreign_stocks(mt: float) -> pd.DataFrame:
 
 def foreign_stocks() -> pd.DataFrame:
     fs = glob.glob(FS_GLOB) + ([FS_VCI] if os.path.exists(FS_VCI) else [])
-    return _foreign_stocks(max((_mtime(f) for f in fs), default=0.0))
+    return _foreign_stocks(max((_mtime(f) for f in fs), default=0.0) + (src.mtime("foreign_stocks_tail") if src is not None else 0.0))
 
 
 ICB_CSV = os.path.join(RAW, "vn_icb_vci.csv")
@@ -1403,11 +1640,26 @@ def freshness(stamp: float) -> pd.DataFrame:
         # du lieu thang/quy tre tu nhien -> nguong rong hon
         gioi_han = 400 if key == "nso" else (95 if nhom.startswith("Vĩ mô") else (45 if key in ("vsdc", "bonds") else 8))
         tt = "OK" if tre is not None and tre <= gioi_han else "CŨ"
+        lf = live_first(key)
+        cap = datetime.fromtimestamp(_raw_mt(path))
+        if lf:
+            u = src.status().get(SRC_KEYS[key], {}).get("updated")
+            cap = pd.to_datetime(u) if u else cap
         rows.append({"Dataset": ten, "Nhóm": nhom, "Trạng thái": tt,
+                     "Nguồn": ("live-first: " + src.DATASETS[SRC_KEYS[key]][1]) if lf else "pipeline",
                      "Dữ liệu đến": last, "Trễ (ngày)": tre, "Số dòng": n,
-                     "Cập nhật lúc": datetime.fromtimestamp(_mtime(path)),
-                     "File": path, "Mô tả": mota})
+                     "Cập nhật lúc": cap, "File": path, "Mô tả": mota})
     return pd.DataFrame(rows)
+
+
+def source_status_df() -> pd.DataFrame:
+    """Bang trang thai nguon live-first (data_src.source_status) - rong neu khong co module."""
+    if src is None:
+        return pd.DataFrame()
+    try:
+        return src.source_status()
+    except Exception:  # noqa: BLE001
+        return pd.DataFrame()
 
 
 def freshness_df():

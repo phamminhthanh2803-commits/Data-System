@@ -4,11 +4,12 @@ MARKET DATA APP - giao dien moi theo mau "Genea" (09/10/2026): nen be sang, dieu
 trang, the bieu do trang bo goc, mau cam #ed7d31. Khao sat + quy tac dung: design\genea-ui-spec.md.
 
 Chay:   D:\market-data\app\Chay-app.bat      (hoac: python -m streamlit run app.py --server.port 8765)
-Deep-link: ?trang=<section>/<sub>/<nav>, vd ?trang=live, ?trang=ttck/vn/dong-tien, ?trang=vi-mo/viet-nam/gia-ca
-(cac slug cu ?trang=vimo | vn | trai-phieu | kho | excel | khu-vuc van mo dung trang).
+Deep-link: ?trang=<section>/<sub>/<nav>, vd ?trang=ttck/vn/dong-tien, ?trang=vi-mo/viet-nam/gia-ca
+(cac slug cu ?trang=vimo | vn | trai-phieu | kho | excel | khu-vuc van mo dung trang; ?trang=live cu -> Tong quan).
 
 Cau truc: app.py (khung + dieu huong) · ui_genea.py (theme, the, chart Plotly) · data_ext.py (du lieu bo sung)
-          pages_live.py + data_live.py (trang Live: parquet real-time DNSE tu realtime-lab, st.fragment tu lam moi)
+          data_live.py (overlay hang HOM NAY tu parquet real-time DNSE len cac bieu do lich su + trang thai bo thu; trang Live rieng
+          da BO 09/10/2026 theo PV2 "bo ca phan live di" - chi giu cong tac ● LIVE + overlay tren chart)
           pages_ck.py (TTCK Viet Nam) · pages_vimo.py (Vi mo VN + the gioi) · pages_khac.py (Tong quan, CK the gioi,
           Trai phieu, Tin tuc, Kho du lieu, Xuat Excel) · datalib.py (lop du lieu, giu nguyen) · app_legacy.py (giao dien cu).
 """
@@ -39,7 +40,6 @@ NAV = {
         "kho": ("Kho dữ liệu", {}),
         "excel": ("Xuất Excel", {}),
     }),
-    "live": ("Live", {}),
     "ttck": ("Thị trường chứng khoán", {
         "vn": ("Chứng khoán Việt Nam", {"hieu-suat": "Hiệu suất", "dong-tien": "Dòng tiền",
                                         "dinh-gia": "Định giá", "nha-dau-tu": "Nhà đầu tư"}),
@@ -61,7 +61,8 @@ NAV = {
 # slug cu cua app_legacy -> duong dan moi
 CU = {"vimo": "vi-mo/viet-nam/tang-truong", "vn": "ttck/vn/hieu-suat", "khu-vuc": "ttck/the-gioi/chi-so",
       "trai-phieu": "ttck/trai-phieu/phat-hanh", "kho": "tong-quan/kho", "excel": "tong-quan/excel",
-      "chart": "ttck/vn/hieu-suat", "tong-quan": "tong-quan/tong-quan"}
+      "chart": "ttck/vn/hieu-suat", "tong-quan": "tong-quan/tong-quan",
+      "live": "tong-quan/tong-quan"}           # trang Live da bo han (09/10/2026): deep-link cu ?trang=live -> Tong quan
 
 
 def _doc_query():
@@ -70,7 +71,11 @@ def _doc_query():
         return
     st.session_state["_nav_init"] = True
     q = st.query_params.get("trang") or ""
-    q = CU.get(q, q)
+    parts = [p for p in q.split("/") if p]
+    if q in CU:                                       # slug cu nguyen ven (vimo, vn, live...) -> duong dan moi
+        q = CU[q]
+    elif parts and parts[0] not in NAV and parts[0] in CU:   # slug cu kem duoi (live/..., live&lam-moi=) -> duong dan moi
+        q = CU[parts[0]]
     parts = [p for p in q.split("/") if p]
     if not parts or parts[0] not in NAV:
         return
@@ -159,9 +164,6 @@ with st.container(border=True, key="khung_noi_dung"):
         if SEC == "tong-quan":
             import pages_khac as pk
             {"tong-quan": pk.tong_quan, "kho": pk.kho_du_lieu, "excel": pk.xuat_excel}[SUB](ctx)
-        elif SEC == "live":
-            import pages_live as pl
-            pl.live(ctx)
         elif SEC == "ttck":
             if SUB == "vn":
                 import pages_ck as pc
@@ -186,7 +188,7 @@ with st.container(border=True, key="khung_noi_dung"):
             st.markdown(f'<div class="gn-note" style="text-align:right">● LIVE · render lúc {rt.now_vn():%H:%M:%S} '
                         f'({_t.time() - _t0:.1f} s) · dữ liệu bộ thu {stt["ts"]:%H:%M:%S}</div>', unsafe_allow_html=True)
 
-    # chi cac trang co the live moi chay trong fragment (Tong quan, TTCK VN, CK the gioi); trang Live co fragment rieng;
+    # chi cac trang co the live moi chay trong fragment (Tong quan, TTCK VN, CK the gioi);
     # vi mo / trai phieu / kho / excel / tin tuc khong co diem hom nay -> render thuong (chan the ghi "Lich su toi dd/mm")
     CO_LIVE = (SEC == "tong-quan" and SUB == "tong-quan") or (SEC == "ttck" and SUB in ("vn", "the-gioi"))
     if LIVE_STATE["active"] and CO_LIVE:

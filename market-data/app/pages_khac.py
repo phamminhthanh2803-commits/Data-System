@@ -24,11 +24,6 @@ import ui_genea as ui
 # ================================================================ TONG QUAN
 def tong_quan(ctx):
     LAST = ctx["last"]
-    try:                                   # 1 dong KPI live (neu hom nay co du lieu DNSE) -> link sang trang Live
-        import pages_live
-        pages_live.mini_strip()
-    except Exception:  # noqa: BLE001
-        pass
     to = rt.with_live(dl.turnover_df(), "turnover")
     br = rt.with_live(dl.breadth_df(), "breadth")
     fv = rt.with_live(dl.flows_vn(), "flows_vn")
@@ -157,6 +152,44 @@ def kho_du_lieu(ctx):
                 if fig is not None:
                     st.plotly_chart(fig, width="stretch", config=ui.PLOTLY_CONFIG)
         c.table(d.tail(500).iloc[::-1].set_index(d.columns[0]), ten=f"Data_{key}", height=420)
+    _bo_thu_realtime()
+
+
+def _bo_thu_realtime():
+    """Khoi nho 'Bo thu real-time DNSE' (tinh trang NGUON du lieu, khong phai the live): PID dang chay/khong, 3 dong log cuoi,
+    nut Bat/Tat. Bo thu cap hang hom nay cho overlay ● LIVE tren cac bieu do (data_live.with_live). Trang Live rieng da bo 09/10/2026."""
+    ui.h2("Nguồn real-time")
+    with ui.card("Bộ thu real-time DNSE", "realtime-lab\\dnse_stream.py · task 'Realtime DNSE' 08:45–15:10 T2–T6 · cấp hàng hôm nay cho overlay ● LIVE",
+                 key="kho_bo_thu", controls=False) as c:
+        pids = rt.collector_pids()
+        p, lines = rt.log_tail(3)
+        day = rt.latest_day()
+        a, b = st.columns([1, 3])
+        with a:
+            dot = "#12965a" if pids else "#e23b3b"
+            st.markdown(f'<div class="gn-kpi"><div class="l">Tiến trình</div><div class="v" style="font-size:16px">'
+                        f'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{dot};margin-right:6px"></span>'
+                        f'{"Đang chạy" if pids else "Không chạy"}</div><div class="d">{"PID " + ", ".join(map(str, pids)) if pids else "—"}</div></div>',
+                        unsafe_allow_html=True)
+            c1, c2 = st.columns(2)
+            if c1.button("▶ Bật", key="kho_bo_thu_start", width="stretch", disabled=bool(pids)):
+                st.session_state["_bo_thu_msg"] = rt.start_collector()
+            if c2.button("■ Tắt", key="kho_bo_thu_stop", width="stretch", disabled=not pids):
+                st.session_state["_bo_thu_msg"] = rt.stop_collector()
+            msg = st.session_state.pop("_bo_thu_msg", None)
+            if msg:
+                st.caption(msg)
+        with b:
+            if p:
+                st.markdown(f'<div class="gn-note">Log mới nhất: <code>{p}</code></div>', unsafe_allow_html=True)
+                st.code("\n".join(lines) if lines else "(log trống)", language=None)
+            else:
+                st.markdown('<div class="gn-note">Chưa có file log trong realtime-lab\\logs\\.</div>', unsafe_allow_html=True)
+        with c._foot:  # noqa: SLF001
+            st.markdown('<div class="gn-note">' + (f"Dữ liệu phiên gần nhất: <code>{rt.DATA}\\{day}</code>" if day else
+                        f"Chưa có thư mục dữ liệu phiên nào trong <code>{rt.DATA}</code>") +
+                        " · hàng hôm nay trên các biểu đồ (dấu tròn rỗng, nhãn LIVE) lấy từ bộ thu này khi công tắc ● LIVE bật</div>",
+                        unsafe_allow_html=True)
 
 
 # ================================================================ XUAT EXCEL

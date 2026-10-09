@@ -90,7 +90,7 @@ def walk_hub(src: str, excl: list) -> list:
         keep = []
         for d in dirs:
             rd = (rel + "/" + d if rel else d).lower()
-            if d in DIR_SKIP or rd in excl or d.startswith("."):
+            if d in DIR_SKIP or rd in excl or (d.startswith(".") and d != ".streamlit"):   # .streamlit/config.toml = theme app
                 continue
             keep.append(d)
         dirs[:] = keep

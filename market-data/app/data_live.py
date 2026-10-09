@@ -3,9 +3,11 @@ r"""
 data_live.py - lop du lieu REAL-TIME cho trang Live: doc cac parquet ma bo thu DNSE (realtime-lab\dnse_stream.py)
 xuat moi 5 giay vao D:\market-data\realtime-lab\data\<YYYY-MM-DD>\. App KHONG mo DuckDB (1 process ghi).
 
-File doc:  index_latest · market_summary (lich su 5 s) · index_1m · rt_bars_1m · rt_latest · influence_latest · foreign_latest
+File doc:  index_latest · market_summary (lich su 5 s) · index_1m · rt_bars_1m · rt_latest · influence_latest · foreign_latest · stocks_latest (toan san)
 Chiu duoc file dang ghi do: doc lai 3 lan, van loi -> tra ket qua cu trong session_state. Cache ngan (ttl=4 s) theo mtime.
 Don vi: total_val (chi so) = TY dong; fr_buy_val/fr_sell_val/buy_val/sell_val (khoi ngoai) = DONG -> chia 1e9.
+Khoi luong: rt_latest.total_vol/last_qty/bid*_qty, rt_bars_1m.volume, index_1m.volume, stocks_latest.total_vol deu la SO CO PHIEU
+(dnse_stream.py nhan 10 tick/top_price luc parse tu 09/10/2026 13:12; truoc do rt_latest.total_vol & last_qty = 1/10).
 """
 from __future__ import annotations
 
@@ -351,6 +353,130 @@ def board(d: dict, day: str) -> pd.DataFrame:
     t["_fut"] = [str(s).startswith("VN30F") for s in t.index]
     t = t.sort_values(["_fut", "±%"], ascending=[True, False], na_position="last").drop(columns="_fut")
     return t
+
+
+# --------------------------------------------------------------------- TOAN SAN (stocks_latest, 09/10/2026 chieu)
+EXCH_ORDER = ["HOSE", "HNX", "UPCOM"]
+
+
+def _stocks_day(d: dict) -> pd.DataFrame:
+    """stocks_latest cua ngay dang xem (gia DONG, total_vol CP, total_val/fr_* TY, src dnse|ssi, ts). Rong neu chua co."""
+    s = d.get("stocks_latest")
+    if s is None or s.empty or "symbol" not in s:
+        return pd.DataFrame()
+    s = s.drop_duplicates("symbol", keep="last").set_index("symbol")
+    for c in ("ref", "ceiling", "floor", "price", "change", "change_pct", "total_vol", "total_val", "fr_buy_val", "fr_sell_val", "fr_net_val"):
+        s[c] = pd.to_numeric(s[c], errors="coerce") if c in s else np.nan
+    s["exchange"] = (s["exchange"] if "exchange" in s else pd.Series(index=s.index, dtype=object)).astype(str).str.upper()
+    if "src" not in s:
+        s["src"] = None
+    if "ts" not in s:
+        s["ts"] = pd.NaT
+    return s
+
+
+def board_all(d: dict, basket: str = "VN30", q: str = "", sort: str = "±%") -> pd.DataFrame:
+    """Bang gia TOAN SAN tu stocks_latest (gia NGHIN dong nhu bang cu); bid/ask 1 chi cho ma co trong rt_latest (VN30).
+    basket: VN30 | HOSE | HNX | UPCOM | Tất cả. q: loc ma (chua chuoi). sort: '±%' | 'GTGD' | 'KL'."""
+    s = _stocks_day(d)
+    if s.empty:
+        return pd.DataFrame()
+    if basket == "VN30":
+        s = s[s.index.isin(vn30_symbols())]
+    elif basket in EXCH_ORDER:
+        s = s[s.exchange == basket]
+    q = (q or "").strip().upper()
+    if q:
+        s = s[s.index.astype(str).str.contains(q, regex=False)]
+    if s.empty:
+        return pd.DataFrame()
+    t = pd.DataFrame(index=s.index)
+    t["_ex"] = s.exchange
+    for src, dst in (("price", "Giá"), ("change_pct", "±%"), ("ceiling", "Trần"), ("floor", "Sàn"), ("ref", "TC")):
+        t[dst] = s[src] / 1000.0 if dst != "±%" else s[src]
+    rl = d.get("rt_latest")
+    bid = ask = pd.Series(np.nan, index=t.index, dtype=float)
+    if rl is not None and len(rl) and "symbol" in rl and "bid1" in rl:
+        r = rl.drop_duplicates("symbol", keep="last").set_index("symbol")
+        bid = pd.to_numeric(r["bid1"], errors="coerce").reindex(t.index)
+        ask = pd.to_numeric(r["ask1"], errors="coerce").reindex(t.index)
+    t["Bid1"], t["Ask1"] = bid, ask
+    t["KL"] = s.total_vol
+    t["GTGD (tỷ)"] = s.total_val
+    t["KN ròng (tỷ)"] = s.fr_net_val
+    t["Nguồn"] = np.where(s.src.astype(str) == "dnse", "● 5 s", "○ 1 phút")
+    ts = pd.to_datetime(s.ts, errors="coerce")
+    t["Giờ"] = ts.dt.strftime("%H:%M:%S").where(ts.notna(), None)
+    key = {"±%": "±%", "GTGD": "GTGD (tỷ)", "KL": "KL"}.get(sort, "±%")
+    t = t.sort_values(key, ascending=False, na_position="last")
+    t.index.name = "Mã"
+    return t
+
+
+def foreign_all(d: dict) -> dict | None:
+    """Khoi ngoai trong phien TOAN SAN tu stocks_latest (ty): rong/mua/ban toan TT, theo san, top mua/ban rong, bang theo ma."""
+    s = _stocks_day(d)
+    if s.empty:
+        return None
+    f = s[s.fr_buy_val.notna() | s.fr_sell_val.notna()].copy()
+    if f.empty:
+        return None
+    f["mua"], f["ban"] = f.fr_buy_val.fillna(0), f.fr_sell_val.fillna(0)
+    f["rong"] = f["mua"] - f["ban"]
+    by_ex = f.groupby("exchange")[["mua", "ban", "rong"]].sum().reindex(EXCH_ORDER).dropna(how="all")
+    net = f["rong"]
+    tbl = f[["exchange", "mua", "ban", "rong"]].rename(columns={"exchange": "Sàn GD", "mua": "Mua (tỷ)", "ban": "Bán (tỷ)", "rong": "KN ròng (tỷ)"})
+    tbl = tbl[(tbl["Mua (tỷ)"] != 0) | (tbl["Bán (tỷ)"] != 0)].sort_values("KN ròng (tỷ)", ascending=False)
+    tbl.index.name = "Mã"
+    ts = pd.to_datetime(f.ts, errors="coerce").max()
+    return {"net": float(net.sum()), "mua": float(f["mua"].sum()), "ban": float(f["ban"].sum()), "n": int(len(tbl)),
+            "by_ex": by_ex, "top_mua": net[net > 0].sort_values(ascending=False).head(10),
+            "top_ban": net[net < 0].sort_values().head(10), "table": tbl, "ts": ts,
+            "n_dnse": int((f.src.astype(str) == "dnse").sum())}
+
+
+def market_scan(d: dict) -> dict | None:
+    """'Toan san trong phien': so ma tang/giam/dung/tran/san theo san tu stocks_latest (doi chieu advances/declines cua
+    index_latest), top 10 tang/giam % (GTGD >= 0,5 ty) va top 10 GTGD."""
+    s = _stocks_day(d)
+    if s.empty:
+        return None
+    has = s.price.notna() & s.ref.notna() & (s.ref > 0)
+    x = s[has].copy()
+    x["chg"] = x.price - x.ref
+    x["tran"] = x.ceiling.notna() & (x.price >= x.ceiling - 1e-6)
+    x["san"] = x.floor.notna() & (x.price <= x.floor + 1e-6)
+    idx = {}
+    il = d.get("index_latest")
+    if il is not None and len(il) and "index_name" in il:
+        i2 = il.drop_duplicates("index_name", keep="last").set_index("index_name")
+        for ex, code in (("HOSE", "VNINDEX"), ("HNX", "HNX"), ("UPCOM", "UPCOM")):
+            if code in i2.index:
+                r = i2.loc[code]
+                idx[ex] = (r.get("advances"), r.get("declines"), r.get("ceiling"), r.get("floor"))
+
+    def _pair(a, b):
+        return f"{int(a)}/{int(b)}" if a is not None and b is not None and pd.notna(a) and pd.notna(b) else "—"
+
+    rows = []
+    for ex in EXCH_ORDER:
+        g = x[x.exchange == ex]
+        a, dcl, c, f = idx.get(ex, (None, None, None, None))
+        rows.append({"Sàn GD": EXCH_TEN.get(ex, ex), "Tăng": int((g.chg > 0).sum()), "Giảm": int((g.chg < 0).sum()),
+                     "Đứng": int((g.chg == 0).sum()), "Kịch trần": int(g.tran.sum()), "Kịch sàn": int(g.san.sum()),
+                     "Có giá": int(len(g)), "Niêm yết": int((s.exchange == ex).sum()),
+                     "Chỉ số tăng/giảm": _pair(a, dcl), "Chỉ số trần/sàn": _pair(c, f)})
+    tot = {"Sàn GD": "Toàn TT", **{k: int(sum(r[k] for r in rows)) for k in ("Tăng", "Giảm", "Đứng", "Kịch trần", "Kịch sàn", "Có giá", "Niêm yết")},
+           "Chỉ số tăng/giảm": "—", "Chỉ số trần/sàn": "—"}
+    summ = pd.DataFrame(rows + [tot]).set_index("Sàn GD")
+    cols = ["exchange", "price", "change_pct", "total_val", "total_vol"]
+    liq = x[x.total_val.fillna(0) >= 0.5]                 # loai ma chi khop vai chuc trieu
+    top_up = liq.sort_values("change_pct", ascending=False).head(10)[cols]
+    top_dn = liq.sort_values("change_pct").head(10)[cols]
+    top_val = x.sort_values("total_val", ascending=False).head(10)[cols]
+    return {"summary": summ, "top_up": top_up, "top_dn": top_dn, "top_val": top_val,
+            "ts": pd.to_datetime(s.ts, errors="coerce").max(), "n_dnse": int((s.src.astype(str) == "dnse").sum()),
+            "n_price": int(len(x))}
 
 
 # --------------------------------------------------------------------- BO THU

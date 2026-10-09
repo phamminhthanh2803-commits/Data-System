@@ -35,9 +35,19 @@ Luu: data/realtime.duckdb (1 process ghi). Xuat parquet cho app moi 5 s vao data
   influence_latest.parquet  anh huong tung ma len chi so (gia, GTGD, KL cua MOI ma trong ro VNINDEX/HNX -> toan san)
   foreign_latest.parquet    khoi ngoai luy ke theo ma
   stocks_latest.parquet     TOAN SAN (~1.500 ma, moi 5 s): symbol, exchange (HOSE/HNX/UPCOM), ref, ceiling, floor, price, change,
-                            change_pct, open, high, low, avg, total_vol (CP; DNSE phat /10 -> da x10), total_val (TY dong), fr_buy_val, fr_sell_val,
+                            change_pct, open, high, low, avg, total_vol (CP), total_val (TY dong), fr_buy_val, fr_sell_val,
                             fr_net_val (TY dong), src (dnse|ssi), ts (gio nhan), ts_ssi (gio snapshot SSI).
                             GIA = DONG (nhu tv-history; DNSE phat nghin dong -> x1000). App dung lam "overlay hom nay".
+
+DON VI KHOI LUONG (doi chieu du lieu that 09/10/2026, 5 ma VN30 + 63 ma co tick, ca 3 san):
+  * tick/tick_extra (T=t/te) `matchQtty`, `totalVolumeTraded` va top_price (T=q) `qtty`/`totalBidQtty`/`totalOfferQtty`
+    cua CO PHIEU = so CP / 10 (totalVolumeTraded = 1/10 SSI nmTotalTradedQty va 1/10 GTGD/gia BQ; bid/ask qtty = 1/10 SSI
+    best1BidVol tai cung muc gia; matchQtty TCB 260 vs SSI 2.600 cung tick). -> NHAN 10 NGAY LUC PARSE (_q10) de ticks/quotes/
+    rt_latest/stocks_latest deu la SO CO PHIEU. Chi ap cho co phieu (phai sinh VN30F* khong co tick_extra de kiem -> giu nguyen).
+  * ohlc/ohlc_closed (T=b/bc) `volume` DA LA SO CP (sum nen 1 phut = total_vol x10 chinh xac) -> KHONG nhan.
+  * market_index (T=mi) totalVolumeTraded/contauctAccTrdVol/blkTrdAccTrdVol DA LA SO CP (VNINDEX matched_vol 425,0 tr = sum
+    HOSE stocks_latest 424,5 tr; GTGD/KL = 18,7 nghin dong/CP) -> KHONG nhan. index_1m volume = market_index -> dung.
+  * foreign (T=f) buyVolume/sellVolume DA LA SO CP (val/vol = gia) -> KHONG nhan. expected_price `expectedTradeQuantity` chua kiem.
 
 Chay:
   python dnse_stream.py --check                      # kiem tra key
@@ -148,6 +158,15 @@ def _i(v):
         return None if v is None else int(float(v))
     except (TypeError, ValueError):
         return None
+
+
+def _q10(v, sym):
+    """Khoi luong tick/top_price cua CO PHIEU: DNSE phat so CP / 10 -> nhan 10 (xem 'DON VI KHOI LUONG' dau file).
+    Phai sinh (VN30F*) va chi so giu nguyen."""
+    x = _i(v)
+    if x is None or (sym and str(sym).startswith("VN30F")):
+        return x
+    return x * 10
 
 
 def _ts(v):
@@ -351,8 +370,7 @@ class Store:
                     if l.get(k_src) is not None:
                         r[k_dst] = l[k_src] * 1000.0
                 if l.get("total_vol") is not None:
-                    # DNSE totalVolumeTraded = so CP / 10 (doi chieu SSI + GTGD/gia BQ 13:02 09/10: ti le dung 10,000 ca 3 san)
-                    r["total_vol"] = l["total_vol"] * 10
+                    r["total_vol"] = l["total_vol"]          # da x10 luc parse (_q10) -> so CP, khop SSI + GTGD/gia BQ
                 if l.get("total_val") is not None:
                     v = float(l["total_val"])
                     r["total_val"] = v / 1e9 if v > 1e5 else v          # grossTradeAmount: dong -> ty
@@ -420,8 +438,8 @@ def handle(store: Store, conn: str, m: dict) -> None:
     elif T in ("t", "te"):
         sym = m.get("symbol")
         row = {"ts_recv": ts, "symbol": sym, "board": m.get("boardId"), "price": _f(m.get("matchPrice")),
-               "qty": _i(m.get("matchQtty")), "side": _ts(m.get("side")), "avg_price": _f(m.get("avgPrice")),
-               "total_vol": _i(m.get("totalVolumeTraded")), "total_val": _f(m.get("grossTradeAmount")),
+               "qty": _q10(m.get("matchQtty"), sym), "side": _ts(m.get("side")), "avg_price": _f(m.get("avgPrice")),
+               "total_vol": _q10(m.get("totalVolumeTraded"), sym), "total_val": _f(m.get("grossTradeAmount")),
                "high": _f(m.get("highestPrice")), "low": _f(m.get("lowestPrice")), "open": _f(m.get("openPrice")),
                "session_id": _ts(m.get("tradingSessionId")), "time": _ts(m.get("time"))}
         store.put("ticks", row)
@@ -432,12 +450,13 @@ def handle(store: Store, conn: str, m: dict) -> None:
     elif T == "q":
         sym = m.get("symbol")
         bids, asks = (m.get("bid") or []), (m.get("offer") or [])
+        _qi = lambda v: _q10(v, sym)  # noqa: E731 - qtty top_price cung /10 nhu tick (doi chieu SSI best1BidVol cung gia)
         lv = lambda arr, k, f: f(arr[k].get("price" if f is _f else "qtty")) if len(arr) > k else None  # noqa: E731
         row = {"ts_recv": ts, "symbol": sym, "board": m.get("boardId"),
-               "bid1": lv(bids, 0, _f), "bid1_qty": lv(bids, 0, _i), "bid2": lv(bids, 1, _f), "bid2_qty": lv(bids, 1, _i),
-               "bid3": lv(bids, 2, _f), "bid3_qty": lv(bids, 2, _i), "ask1": lv(asks, 0, _f), "ask1_qty": lv(asks, 0, _i),
-               "ask2": lv(asks, 1, _f), "ask2_qty": lv(asks, 1, _i), "ask3": lv(asks, 2, _f), "ask3_qty": lv(asks, 2, _i),
-               "total_bid": _i(m.get("totalBidQtty")), "total_ask": _i(m.get("totalOfferQtty")), "time": _ts(m.get("time"))}
+               "bid1": lv(bids, 0, _f), "bid1_qty": lv(bids, 0, _qi), "bid2": lv(bids, 1, _f), "bid2_qty": lv(bids, 1, _qi),
+               "bid3": lv(bids, 2, _f), "bid3_qty": lv(bids, 2, _qi), "ask1": lv(asks, 0, _f), "ask1_qty": lv(asks, 0, _qi),
+               "ask2": lv(asks, 1, _f), "ask2_qty": lv(asks, 1, _qi), "ask3": lv(asks, 2, _f), "ask3_qty": lv(asks, 2, _qi),
+               "total_bid": _q10(m.get("totalBidQtty"), sym), "total_ask": _q10(m.get("totalOfferQtty"), sym), "time": _ts(m.get("time"))}
         store.put("quotes", row)
         if sym:
             store.latest.setdefault(sym, {"symbol": sym}).update(bid1=row["bid1"], bid1_qty=row["bid1_qty"], ask1=row["ask1"],

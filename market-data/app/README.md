@@ -32,7 +32,7 @@ có thì mỗi thẻ thêm nút **⧉ Ảnh**.
 | Cấp 1 (viên thuốc) | Cấp 2 (tab gạch chân) | Cấp 3 (segment) → các mục / thẻ |
 |---|---|---|
 | **Tổng quan** | Tổng quan | *(dòng KPI live nhỏ → link trang Live, chỉ khi hôm nay có dữ liệu DNSE; KPI + 4 thẻ có điểm hôm nay LIVE)* · 6 KPI + VN-Index · GTGD · Độ rộng · Khối ngoại · bảng độ tươi 21 bộ dữ liệu · nút xoá cache / chạy pipeline |
-| **Live** | — | real-time DNSE (xem mục **Live** bên dưới): KPI strip · Diễn biến trong phiên · Độ rộng · GTGD luỹ kế vs bình quân · Khối ngoại · Ảnh hưởng lên chỉ số · Bảng giá VN30 + phái sinh · Nến 1 phút từng mã · Trạng thái bộ thu |
+| **Live** | — | real-time DNSE (xem mục **Live** bên dưới): KPI strip · Diễn biến trong phiên · Độ rộng · GTGD luỹ kế vs bình quân · Toàn sàn trong phiên · Khối ngoại toàn sàn · Ảnh hưởng lên chỉ số · Bảng giá toàn sàn (rổ VN30/HOSE/HNX/UPCOM/Tất cả) · Nến 1 phút (VN30 + phái sinh) · Trạng thái bộ thu |
 | | Kho dữ liệu | mở bất kỳ dataset trong REGISTRY, lọc, vẽ cột, tải |
 | | Xuất Excel | tick bảng → 1 file nhiều sheet; Chart Pack |
 | **Thị trường chứng khoán** | Chứng khoán Việt Nam | **Hiệu suất**: nến/đường 6 chỉ số + KL · rebase 100 · độ rộng dưới MA · hiệu suất ngành rebase · thay đổi vốn hoá ngành 1D…5Y · bảng hiệu suất cổ phiếu trong ngành · nến từng mã |
@@ -61,7 +61,8 @@ App **không mở** `realtime.duckdb` (1 tiến trình ghi). Đổi thư mục b
 | `market_summary.parquet` | lịch sử 5 s → đường chỉ số + GTGD luỹ kế, độ rộng theo thời gian, GTGD luỹ kế toàn TT |
 | `index_1m.parquet` | nến 1 phút chỉ số (toggle Đường\|Nến) + VN30F1M/F2M (giá F1M khi chưa có tick) |
 | `rt_bars_1m.parquet` | nến 1 phút từng mã theo dõi (VN30) |
-| `rt_latest.parquet` | bảng giá: giá, bid/ask 1, KL khớp cuối, KL/GTGD luỹ kế, `fr_*` khối ngoại từng mã |
+| `rt_latest.parquet` | bid/ask 1 cho mã theo dõi (VN30) trên bảng giá; KL khớp cuối, KL/GTGD luỹ kế, `fr_*` khối ngoại từng mã (dự phòng) |
+| `stocks_latest.parquet` | **bảng giá toàn sàn** (~1.500 mã, 5 s): giá/±%/trần/sàn/TC, KL (CP), GTGD + khối ngoại ròng (tỷ), `src` dnse\|ssi, `ts`; thẻ *Toàn sàn trong phiên* + *Khối ngoại trong phiên* |
 | `influence_latest.parquet` | top 10 kéo lên / kéo xuống theo chỉ số (chip VNINDEX/VN30/HNX/HNX30/VN100) |
 | `foreign_latest.parquet` | khối ngoại luỹ kế theo mã → ròng Σ(mua − bán), top mua/bán ròng, room còn |
 
@@ -76,12 +77,26 @@ App **không mở** `realtime.duckdb` (1 tiến trình ghi). Đổi thư mục b
   `market_summary.parquet` schema mới (từ 09/10/2026 trở đi) — những ngày đầu chưa có đường BQ.
 - **Khối ngoại trong phiên**: file chỉ có luỹ kế mới nhất, không có lịch sử → đường ròng luỹ kế chỉ tích luỹ từ lúc mở trang
   (`session_state`); con số ròng/mua/bán và bảng theo mã là luỹ kế thật của phiên.
-- **Bảng giá**: `rt_latest` chỉ gom tick nhận được **từ lúc tiến trình bộ thu khởi động** → mã chưa có tick hiện "—"
-  (bộ thu khởi động lại giữa phiên hoặc nghỉ trưa thì chỉ có cột khối ngoại/room).
+- **Bảng giá toàn sàn** (09/10/2026 chiều, thay bảng VN30 cũ): đọc `stocks_latest` → chip rổ **VN30 (mặc định) / HOSE / HNX / UPCOM / Tất cả**,
+  ô tìm mã, sắp theo ±% / GTGD / KL; cột Mã (sàn nhỏ bên dưới), Giá, ±%, Trần/Sàn/TC, Bid1/Ask1 (**chỉ mã trong `rt_latest` = VN30**),
+  KL, GTGD (tỷ), KN ròng (tỷ), Nguồn (● 5 s tick DNSE / ○ 1 phút snapshot SSI), Giờ. Giá kịch trần tím, kịch sàn xanh ngọc.
+  `data_live.board_all` · `pages_live._html_board` (bảng HTML, cuộn 640 px). Mã chưa khớp hôm nay hiện "—" ở Giá/±%.
+- **Toàn sàn trong phiên** (`data_live.market_scan`): số mã tăng/giảm/đứng/kịch trần/kịch sàn theo sàn từ `stocks_latest` (so tham chiếu) cạnh cột
+  "Chỉ số tăng/giảm", "Chỉ số trần/sàn" của `index_latest` để đối chiếu (HOSE lệch 1–6 mã vì rổ chỉ số không gồm ETF/mã mới, UPCoM lệch nhiều hơn
+  vì chỉ số chỉ đếm rổ UPCOM-Index); top 10 tăng/giảm % (chỉ mã GTGD ≥ 0,5 tỷ) và top 10 GTGD.
+- **Khối ngoại trong phiên** (`data_live.foreign_all`): ròng/mua/bán **toàn thị trường + theo sàn** từ `fr_*` của `stocks_latest` (VN30 kênh foreign DNSE
+  5 s, còn lại SSI 60 s), top 10 mua/bán ròng, bảng theo mã; không có `stocks_latest` thì quay về `foreign_table` (VN30).
+- **Đơn vị khối lượng** (đối chiếu dữ liệu thật 09/10/2026, xem docstring "DON VI KHOI LUONG" trong `dnse_stream.py`): tick/tick_extra
+  `matchQtty`/`totalVolumeTraded` và top_price `qtty` của cổ phiếu DNSE phát = **số CP / 10** (bằng 1/10 SSI `nmTotalTradedQty`, 1/10 GTGD/giá BQ,
+  1/10 SSI `best1BidVol` cùng mức giá) → bộ thu **nhân 10 ngay lúc parse** (`_q10`, từ 13:12 09/10) nên `rt_latest.total_vol/last_qty/bid*_qty`,
+  `ticks`, `quotes`, `stocks_latest.total_vol` đều là số CP. **Không nhân**: `rt_bars_1m.volume` (ohlc, Σ = total_vol ×10 chính xác),
+  `index_1m.volume`/`market_index.total_vol|matched_vol` (VNINDEX matched_vol 425 tr = Σ HOSE 424,5 tr), `foreign` buy/sellVolume.
+  Phái sinh VN30F* không có tick_extra để kiểm → giữ nguyên; `expected_price.expectedTradeQuantity` chưa kiểm.
 - **Bộ thu** (cuối trang): tiến trình `dnse_stream.py` có chạy không (psutil), 5 dòng cuối log `realtime-lab\logs\realtime_<yyyymmdd>.log`,
   nút **Bật** (`Start-Process Chay-realtime.bat`, Windows) / **Tắt** (terminate PID).
 - Trục giờ: chuỗi 5 s theo `ts_recv` **không cắt** 11:30–13:00 (DNSE vẫn phát market_index trong giờ nghỉ, đường nằm ngang);
-  nến 1 phút có cắt khoảng nghỉ trưa. Code: `pages_live.py` (trang) + `data_live.py` (dữ liệu). Ảnh: `design\screens\10-live.png`.
+  nến 1 phút có cắt khoảng nghỉ trưa. Code: `pages_live.py` (trang) + `data_live.py` (dữ liệu). Ảnh: `design\screens\10-live.png`,
+  `12-live-toan-san.png` (bảng giá toàn sàn, 09/10/2026 13:18).
 
 ### Live TOÀN APP (09/10/2026 chiều) — "chart nào live được thì live hết, tải về dùng lịch sử"
 

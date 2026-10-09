@@ -57,33 +57,67 @@ def _kpi_html(items):
     return "".join(h)
 
 
-def _html_board(t: pd.DataFrame) -> str:
-    """Bang gia HTML: ±% va KN rong xanh/do, so kieu VN."""
-    cols = list(t.columns)
-    h = ['<div class="gn-tblwrap"><table class="gn-tbl"><thead><tr><th>Mã</th>']
+C_TRAN, C_SAN = "#b23bc9", "#1a9ab8"          # mau gia tran / san (quy uoc bang gia VN)
+
+
+def _html_board(t: pd.DataFrame, max_h: int | None = None) -> str:
+    """Bang gia HTML: ±% va KN rong xanh/do, gia tran tim / san xanh ngoc, so kieu VN; cot chuoi (Nguồn, Giờ, Sàn GD) in nguyen;
+    cot '_ex' (san) hien nho duoi ma."""
+    cols = [c for c in t.columns if c != "_ex"]
+    has_ex = "_ex" in t.columns
+    wrap = f'<div class="gn-tblwrap" style="max-height:{max_h}px">' if max_h else '<div class="gn-tblwrap">'
+    h = [wrap + '<table class="gn-tbl"><thead><tr><th>' + str(t.index.name or "Mã") + "</th>"]
     h += [f"<th>{c}</th>" for c in cols]
     h.append("</tr></thead><tbody>")
     for sym, r in t.iterrows():
         pct = r.get("±%")
         kcls = "up" if pd.notna(pct) and pct > 0 else ("down" if pd.notna(pct) and pct < 0 else "")
-        h.append(f'<tr><td><b class="{kcls}">{sym}</b></td>')
+        gia, tran, san = r.get("Giá"), r.get("Trần"), r.get("Sàn")
+        gstyle = ""
+        if pd.notna(gia) and pd.notna(tran) and gia >= tran - 1e-9:
+            gstyle = f' style="color:{C_TRAN};font-weight:600"'
+        elif pd.notna(gia) and pd.notna(san) and gia <= san + 1e-9:
+            gstyle = f' style="color:{C_SAN};font-weight:600"'
+        ex = f'<small>{r["_ex"]}</small>' if has_ex and pd.notna(r.get("_ex")) else ""
+        h.append(f'<tr><td><b class="{kcls}"{gstyle}>{sym}</b>{ex}</td>')
         for c in cols:
             v = r[c]
-            if v is None or pd.isna(v):
+            if v is None or (not isinstance(v, str) and pd.isna(v)):
                 h.append('<td class="na">—</td>')
                 continue
-            if c == "±%":
-                h.append(f'<td class="{kcls}">{ui.fmt_vn(v, 2, dau=True)}%</td>')
-            elif c == "KN ròng (tỷ)":
+            if isinstance(v, str):
+                h.append(f'<td style="color:var(--ink-2)">{v}</td>')
+            elif c == "±%":
+                h.append(f'<td class="{kcls}"{gstyle}>{ui.fmt_vn(v, 2, dau=True)}%</td>')
+            elif c in ("KN ròng (tỷ)", "KN mua ròng (tỷ)"):
                 h.append(f'<td class="{"up" if v > 0 else ("down" if v < 0 else "")}">{ui.fmt_vn(v, 1, dau=True)}</td>')
-            elif c in ("Giá", "Bid1", "Ask1", "Cao", "Thấp", "Tham chiếu"):
-                h.append(f'<td class="{kcls if c == "Giá" else ""}">{ui.fmt_vn(v, 2)}</td>')
-            elif c in ("KL khớp cuối", "KL tổng"):
+            elif c == "Giá":
+                h.append(f'<td class="{kcls}"{gstyle}>{ui.fmt_vn(v, 2)}</td>')
+            elif c == "Trần":
+                h.append(f'<td style="color:{C_TRAN}">{ui.fmt_vn(v, 2)}</td>')
+            elif c == "Sàn":
+                h.append(f'<td style="color:{C_SAN}">{ui.fmt_vn(v, 2)}</td>')
+            elif c in ("Bid1", "Ask1", "Cao", "Thấp", "Tham chiếu", "TC"):
+                h.append(f"<td>{ui.fmt_vn(v, 2)}</td>")
+            elif c in ("KL khớp cuối", "KL tổng", "KL", "Tăng", "Giảm", "Đứng", "Kịch trần", "Kịch sàn", "Có giá", "Niêm yết"):
                 h.append(f"<td>{ui.fmt_vn(v, 0)}</td>")
             else:
                 h.append(f"<td>{ui.fmt_vn(v, 1)}</td>")
         h.append("</tr>")
     h.append("</tbody></table></div>")
+    return "".join(h)
+
+
+def _html_top(x: pd.DataFrame, title: str, color: str) -> str:
+    """Bang nho top 10: Ma (san) · Gia (nghin) · ±% · GTGD (ty)."""
+    h = [f'<div class="gn-note" style="font-weight:600;color:{color};margin-bottom:4px">{title}</div>',
+         '<table class="gn-tbl"><thead><tr><th>Mã</th><th>Giá</th><th>±%</th><th>GTGD (tỷ)</th></tr></thead><tbody>']
+    for sym, r in x.iterrows():
+        p = r.get("change_pct")
+        k = "up" if pd.notna(p) and p > 0 else ("down" if pd.notna(p) and p < 0 else "")
+        h.append(f'<tr><td><b class="{k}">{sym}</b><small>{r.get("exchange", "")}</small></td><td class="{k}">{ui.fmt_vn(r.get("price") / 1000.0 if pd.notna(r.get("price")) else None, 2)}</td>'
+                 f'<td class="{k}">{ui.fmt_vn(p, 2, dau=True)}%</td><td>{ui.fmt_vn(r.get("total_val"), 1)}</td></tr>')
+    h.append("</tbody></table>")
     return "".join(h)
 
 
@@ -252,28 +286,60 @@ def _render(day: str):
             _show(c, fig, df, ten="GTGD luy ke", note=note)
 
     ui.h2("Dòng tiền & cổ phiếu")
-    # ---- Khoi ngoai trong phien
-    with ui.card("Khối ngoại trong phiên", "tỷ đồng · mã theo dõi (VN30)", key="live_kn", controls=False,
-                 help="Ròng luỹ kế = Σ(mua − bán) khối ngoại của các mã theo dõi (rt_latest + foreign_latest). "
-                      "Đường ròng chỉ tích luỹ từ lúc mở trang (file không lưu lịch sử khối ngoại).") as c:
-        fr = rt.foreign_table(d)
-        if fr.empty:
-            c.empty("Chưa có dữ liệu khối ngoại")
+    # ---- Toan san trong phien (stocks_latest)
+    with ui.card("Toàn sàn trong phiên", "số mã · top 10 tăng/giảm % (GTGD ≥ 0,5 tỷ) · top 10 GTGD", key="live_toan_san", controls=False,
+                 help="stocks_latest (~1.500 mã, 5 s): số mã tăng/giảm/đứng so tham chiếu và số mã kịch trần/sàn theo sàn, "
+                      "đối chiếu với advances/declines/ceiling/floor của market_index (cột 'Chỉ số'). Giá nghìn đồng.") as c:
+        sc = rt.market_scan(d)
+        if not sc:
+            c.empty("Chưa có stocks_latest.parquet")
         else:
-            net = float(fr["Ròng (tỷ)"].sum())
-            mua, ban = float(fr["Mua (tỷ)"].sum()), float(fr["Bán (tỷ)"].sum())
+            c.markdown(_html_board(sc["summary"]))
+            a, b2, c3 = st.columns(3)
+            with a:
+                st.markdown(_html_top(sc["top_up"], "Top tăng %", "#12965a"), unsafe_allow_html=True)
+            with b2:
+                st.markdown(_html_top(sc["top_dn"], "Top giảm %", "#e23b3b"), unsafe_allow_html=True)
+            with c3:
+                st.markdown(_html_top(sc["top_val"], "Top GTGD", ui.TOK["brown"]), unsafe_allow_html=True)
+            c.export(sc["summary"], "Toan san trong phien")
+            with c._foot:  # noqa: SLF001
+                ts = sc["ts"]
+                st.markdown(f'<div class="gn-note">{sc["n_price"]} mã có giá khớp · {sc["n_dnse"]} mã tick DNSE 5 s, còn lại snapshot SSI 60 s'
+                            f'{f" · cập nhật {ts:%H:%M:%S}" if pd.notna(ts) else ""} · "Có giá" đếm mã đã khớp nên có thể lệch "Chỉ số" '
+                            f'(rổ chỉ số không gồm mã mới niêm yết/ETF, còn chỉ số đếm cả mã chưa khớp là đứng giá)</div>', unsafe_allow_html=True)
+
+    # ---- Khoi ngoai trong phien (toan san)
+    with ui.card("Khối ngoại trong phiên", "tỷ đồng · toàn sàn (stocks_latest)", key="live_kn", controls=False,
+                 help="Ròng = Σ(mua − bán) khối ngoại theo mã từ stocks_latest: VN30 theo kênh foreign DNSE (5 s), mã khác theo "
+                      "snapshot SSI iBoard (60 s). Đường ròng chỉ tích luỹ từ lúc mở trang (file không lưu lịch sử khối ngoại).") as c:
+        fa = rt.foreign_all(d)
+        if fa is None:
+            fr = rt.foreign_table(d)
+            if fr.empty:
+                c.empty("Chưa có dữ liệu khối ngoại")
+                fa = None
+            else:                                   # fallback: chi VN30 (rt_latest + foreign_latest)
+                net_s = fr["Ròng (tỷ)"]
+                fa = {"net": float(net_s.sum()), "mua": float(fr["Mua (tỷ)"].sum()), "ban": float(fr["Bán (tỷ)"].sum()), "n": len(fr),
+                      "by_ex": pd.DataFrame(), "top_mua": net_s[net_s > 0].head(10), "top_ban": net_s[net_s < 0].tail(10),
+                      "table": fr.rename(columns={"Ròng (tỷ)": "KN ròng (tỷ)"}), "ts": None, "n_dnse": len(fr)}
+        if fa:
+            net, mua, ban = fa["net"], fa["mua"], fa["ban"]
             hist = st.session_state.setdefault("_live_fr_hist", [])
             ts = rt.ts_max(d) or pd.Timestamp(now)
             if not hist or hist[-1][0] != ts:
                 hist.append((ts, net))
                 del hist[:-2000]
-            c.markdown(f'<div class="gn-title" style="margin-top:-6px"><span class="unit">Ròng luỹ kế</span>'
+            ex_txt = " · ".join(f'{rt.EXCH_TEN.get(ex, ex)} <span class="{"delta-up" if v >= 0 else "delta-down"}">{ui.fmt_vn(v, 0, dau=True)}</span>'
+                                for ex, v in fa["by_ex"]["rong"].items()) if len(fa["by_ex"]) else ""
+            c.markdown(f'<div class="gn-title" style="margin-top:-6px"><span class="unit">Ròng toàn TT</span>'
                        f'<span class="{"delta-up" if net >= 0 else "delta-down"}">{ui.fmt_vn(net, 1, dau=True)} tỷ</span>'
-                       f'<span class="unit">· mua {ui.fmt_vn(mua, 0)} · bán {ui.fmt_vn(ban, 0)} · {len(fr)} mã</span></div>')
+                       f'<span class="unit">· mua {ui.fmt_vn(mua, 0)} · bán {ui.fmt_vn(ban, 0)} · {fa["n"]} mã có GD khối ngoại'
+                       f'{" · " + ex_txt if ex_txt else ""}</span></div>')
             a, b2 = st.columns([1.3, 1])
+            top = pd.concat([fa["top_mua"], fa["top_ban"]]).sort_values(ascending=False)
             with a:
-                top = pd.concat([fr["Ròng (tỷ)"].head(8), fr["Ròng (tỷ)"].tail(8)]).drop_duplicates()
-                top = top[top != 0].sort_values(ascending=False)
                 fig = ui.fig_hbar(top, "tỷ đồng", sign=True, nd=1, height=max(260, 24 * len(top) + 50))
                 if fig is not None:
                     st.plotly_chart(fig, width="stretch", config=ui.PLOTLY_CONFIG, key="fig_live_kn_top")
@@ -287,9 +353,12 @@ def _render(day: str):
                 else:
                     st.markdown('<div class="gn-empty" style="height:260px">Đường ròng luỹ kế sẽ hiện sau vài lần làm mới</div>',
                                 unsafe_allow_html=True)
-            with st.expander("Bảng khối ngoại theo mã"):
-                st.markdown(_html_board(fr.rename(columns={"Ròng (tỷ)": "KN ròng (tỷ)"})), unsafe_allow_html=True)
-            c.export(fr, "Khoi ngoai theo ma")
+            with st.expander(f"Bảng khối ngoại theo mã ({fa['n']} mã)"):
+                st.markdown(_html_board(fa["table"]), unsafe_allow_html=True)
+            c.export(fa["table"], "Khoi ngoai theo ma")
+            with c._foot:  # noqa: SLF001
+                st.markdown(f'<div class="gn-note">{fa["n_dnse"]} mã khối ngoại DNSE 5 s, còn lại SSI 60 s · tự doanh không live</div>',
+                            unsafe_allow_html=True)
 
     # ---- Anh huong len chi so
     inf_idx = rt.influence_indices(d)
@@ -324,26 +393,38 @@ def _render(day: str):
                                 f'{ui.fmt_vn(float(up.sum()), 2, dau=True)} · kéo xuống {ui.fmt_vn(float(dn.sum()), 2, dau=True)}</div>',
                                 unsafe_allow_html=True)
 
-    # ---- Bang gia VN30 + phai sinh
-    with ui.card("Bảng giá VN30 + phái sinh", "giá nghìn đồng · KL cổ phiếu · GTGD tỷ", key="live_bang", controls=False,
-                 help="rt_latest: giá khớp, bid/ask 1, KL khớp cuối, KL & GTGD luỹ kế, khối ngoại ròng, room còn. ±% so tham chiếu: "
-                      "change_pct của feed nếu có, không thì giá đóng cửa phiên trước (tv-history, giá điều chỉnh).") as c:
-        t = rt.board(d, day)
+    # ---- Bang gia toan san (stocks_latest)
+    BASKETS = ["VN30", "HOSE", "HNX", "UPCOM", "Tất cả"]
+    with ui.card("Bảng giá toàn sàn", "giá nghìn đồng · KL cổ phiếu · GTGD / KN ròng tỷ", key="live_bang", controls=False,
+                 help="stocks_latest (~1.500 mã, 5 s): giá khớp, ±% so tham chiếu, trần/sàn/TC, KL & GTGD luỹ kế, khối ngoại mua ròng. "
+                      "Nguồn ● 5 s = tick DNSE, ○ 1 phút = snapshot SSI iBoard. Bid/Ask 1 chỉ có cho mã theo dõi (VN30, rt_latest). "
+                      "Giá tím = kịch trần, xanh ngọc = kịch sàn.",
+                 chips=BASKETS, chip_default="VN30", chip_label="Rổ", toggles={"Sắp theo": ["±%", "GTGD", "KL"]}) as c:
+        k1, k2 = st.columns([1.4, 4])
+        q = k1.text_input("Tìm mã", key="live_bang_q", placeholder="Tìm mã…", label_visibility="collapsed")
+        t = rt.board_all(d, c.chip, q, c.toggle["Sắp theo"])
         if t.empty:
-            c.empty("Chưa có tick nào trong rt_latest (bộ thu mới khởi động hoặc nghỉ trưa)")
+            msg = "Chưa có stocks_latest.parquet (bộ thu chưa chạy bản toàn sàn)" if rt._stocks_day(d).empty else f"Không có mã nào khớp '{q}' trong rổ {c.chip}"
+            c.empty(msg)
         else:
-            n_gia = int(t["Giá"].notna().sum())
-            c.markdown(_html_board(t))
-            c.export(t, "Bang gia VN30")
+            n_gia, n_dnse = int(t["Giá"].notna().sum()), int((t["Nguồn"] == "● 5 s").sum())
+            with k2:
+                st.markdown(f'<div class="gn-note" style="margin-top:8px">{len(t)} mã · {n_gia} mã có giá · {n_dnse} mã tick DNSE 5 s · '
+                            f'sắp theo {c.toggle["Sắp theo"]} giảm dần</div>', unsafe_allow_html=True)
+            c.markdown(_html_board(t, max_h=640))
+            exp = t.drop(columns=["_ex"]).assign(**{"Sàn GD": t["_ex"]})
+            c.export(exp, f"Bang gia {c.chip}")
             with c._foot:  # noqa: SLF001
-                st.markdown(f'<div class="gn-note">{len(t)} mã · {n_gia} mã đã có giá khớp từ lúc bộ thu khởi động '
-                            f'(rt_latest chỉ gom tick nhận được trong tiến trình hiện tại)</div>', unsafe_allow_html=True)
+                st.markdown('<div class="gn-note">KL = số cổ phiếu (DNSE phát /10, bộ thu đã nhân 10 lúc parse từ 09/10/2026) · '
+                            'GTGD tỷ đồng · KN ròng = mua − bán khối ngoại (VN30 DNSE 5 s, mã khác SSI 60 s) · phái sinh xem KPI + nến 1 phút</div>',
+                            unsafe_allow_html=True)
 
     # ---- Nen 1 phut tung ma
     syms = rt.bar_symbols(d, "rt_bars_1m")
     futs = [s for s in rt.bar_symbols(d, "index_1m") if s.startswith("VN30F")]
-    with ui.card("Nến 1 phút từng mã", "giá nghìn đồng · KL", key="live_nen_ma", controls=False,
-                 help="rt_bars_1m (mã theo dõi) + index_1m (VN30F1M/F2M).") as c:
+    with ui.card("Nến 1 phút từng mã", "giá nghìn đồng · KL cổ phiếu · chỉ VN30 + phái sinh", key="live_nen_ma", controls=False,
+                 help="rt_bars_1m (kênh ohlc.1 DNSE, chỉ các mã theo dõi trong dnse_symbols.txt = VN30) + index_1m (VN30F1M/F2M). "
+                      "Mã ngoài VN30 không có nến 1 phút (chỉ tick_extra).") as c:
         allsym = syms + futs
         if not allsym:
             c.empty()
@@ -358,7 +439,7 @@ def _render(day: str):
                 ui.add_last_price(fig, o.close, 2)
             _show(c, fig, o.rename(columns={"open": "Mở", "high": "Cao", "low": "Thấp", "close": "Đóng", "volume": "KL"}),
                   ten=f"{sym} nen 1 phut", height=H + 40, lunch=True,
-                  note=(f"{len(o)} nến · đóng {ui.fmt_vn(float(o.close.iloc[-1]), 2)} · KL {ui.fmt_vn(float(o.volume.sum()), 0)}" if len(o) else None))
+                  note=(f"{len(o)} nến · đóng {ui.fmt_vn(float(o.close.iloc[-1]), 2)} · KL {ui.fmt_vn(float(o.volume.sum()), 0)} · chỉ VN30 + phái sinh" if len(o) else None))
 
     ui.h2("Bộ thu")
     _collector_card()

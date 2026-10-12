@@ -795,7 +795,26 @@ def push_once(rc: str, day_dir: str, remote: str, day: str, files: list[str] | N
     t0 = time.time()
     if not os.path.isdir(day_dir):
         return True, 0.0
-    cmd = [rc, "copy", day_dir, f"{remote}/{day}", "--include", "{" + ",".join(files or PUSH_FILES) + "}.parquet", "--no-traverse"] + RCLONE_OPTS
+    # 12/10/2026: export ghi de parquet moi 5 s; rclone doc file dang doi -> "corrupted on transfer" -> XOA file tren Drive.
+    # => chup ban sao tam (copy nhanh, cung dia) roi day tu ban sao; file dang .tmp/khong doc duoc thi bo qua lan nay.
+    import shutil, tempfile
+    snap = tempfile.mkdtemp(prefix="rt_push_")
+    n_ok = 0
+    for name in (files or PUSH_FILES):
+        src = os.path.join(day_dir, name + ".parquet")
+        if not os.path.exists(src):
+            continue
+        for _try in range(3):
+            try:
+                shutil.copyfile(src, os.path.join(snap, name + ".parquet"))
+                n_ok += 1
+                break
+            except OSError:
+                time.sleep(0.2)
+    if not n_ok:
+        shutil.rmtree(snap, ignore_errors=True)
+        return True, 0.0
+    cmd = [rc, "copy", snap, f"{remote}/{day}", "--include", "*.parquet", "--no-traverse"] + RCLONE_OPTS
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=240)
         if r.returncode != 0:
@@ -805,6 +824,8 @@ def push_once(rc: str, day_dir: str, remote: str, day: str, files: list[str] | N
     except Exception as e:  # noqa: BLE001
         log(f"[push] ! {type(e).__name__}: {str(e)[:160]}")
         return False, time.time() - t0
+    finally:
+        shutil.rmtree(snap, ignore_errors=True)
 
 
 def push_loop(rc: str, day_dir: str, remote: str, day: str, every: int, stop_evt: threading.Event, files=None) -> None:

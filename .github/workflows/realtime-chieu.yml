@@ -1,0 +1,121 @@
+# Realtime CHIEU — bo thu DNSE (10 WebSocket, 5 s) + SSI iBoard 60 s tren GitHub Actions, day parquet len Drive moi 60 s
+# de app laptop doc (market-data/app/data_live.py keo gdrive:pipeline-data/realtime/<ngay>/ ve khi bo thu local khong chay).
+# Gio VN = UTC + 7. 2 job/ngay vi 1 job GitHub toi da 6 gio: SANG (realtime-sang.yml) 08:25 -> 11:40, CHIEU 12:50 -> 15:15.
+# Job chieu khoi dong voi DuckDB moi: dnse_stream seed market_summary/index_1m/rt_bars_1m buoi sang tu Drive + backfill REST.
+# DNSE chi cho 10 ket noi/user: laptop (task "Realtime DNSE") va cloud KHONG duoc chay cung luc -> xem README muc "Realtime".
+# Chay tay: Actions -> Realtime CHIEU -> Run workflow -> only_ssi=true (chi SSI, khong can key, khong tranh ket noi voi laptop),
+# duration=120 (giay) de thu nhanh.
+name: Realtime CHIEU
+
+on:
+  schedule:
+    - cron: "50 5 * * 1-5"           # 12:50 gio VN, T2-T6 (GitHub co the tre 5-30 phut; --until 15:15 co dinh)
+  workflow_dispatch:
+    inputs:
+      only_ssi:
+        description: "Chi thread SSI 60 s + day Drive, KHONG mo WebSocket DNSE (test khi laptop dang giu 10 ket noi)"
+        required: false
+        default: false
+        type: boolean
+      duration:
+        description: "Chay thu N giay roi thoat (de trong = chay toi 15:15 gio VN)"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: realtime                  # sang/chieu khong chay de nhau (cung user DNSE, cung thu muc Drive)
+  cancel-in-progress: false
+
+env:
+  TZ: Asia/Ho_Chi_Minh
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+  CLOUD: "1"
+  RT_DIR: ${{ github.workspace }}/market-data/realtime-lab
+  RCLONE_REMOTE: gdrive:pipeline-data
+  RT_PUSH_REMOTE: gdrive:pipeline-data/realtime
+  RT_PUSH_EVERY: "60"
+  RT_UNTIL: "15:15"
+  DNSE_API_KEY: ${{ secrets.DNSE_API_KEY }}
+  DNSE_API_SECRET: ${{ secrets.DNSE_API_SECRET }}
+  ONLY_SSI: ${{ inputs.only_ssi == true && '1' || '0' }}
+  DURATION: ${{ inputs.duration }}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 160             # 12:50 -> 15:15 = 145 phut + cai dat + tre cron
+    steps:
+      - name: Lay code
+        uses: actions/checkout@v4
+
+      - name: Python 3.12 (cache pip)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: market-data/realtime-lab/requirements.txt
+
+      - name: Cai thu vien Python (chi bo thu)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r market-data/realtime-lab/requirements.txt
+          python -c "import duckdb, websockets, pyarrow, dnse, pandas; print('duckdb', duckdb.__version__, '| websockets', websockets.__version__)"
+
+      - name: Cai rclone
+        run: |
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+          rclone version | head -1
+
+      - name: Cau hinh rclone tu secret RCLONE_CONF (base64)
+        env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+        run: |
+          if [ -z "$RCLONE_CONF" ]; then echo "::error::Thieu secret RCLONE_CONF"; exit 1; fi
+          mkdir -p ~/.config/rclone
+          echo "$RCLONE_CONF" | base64 -d > ~/.config/rclone/rclone.conf
+          chmod 600 ~/.config/rclone/rclone.conf
+          rclone lsd "$RCLONE_REMOTE" > /dev/null
+          rclone mkdir "$RT_PUSH_REMOTE"
+
+      - name: Kiem tra secret DNSE
+        run: |
+          if [ "$ONLY_SSI" != "1" ] && { [ -z "$DNSE_API_KEY" ] || [ -z "$DNSE_API_SECRET" ]; }; then
+            echo "::error::Thieu secret DNSE_API_KEY / DNSE_API_SECRET (Settings -> Secrets -> Actions; lay tu D:\\market-data\\realtime-lab\\dnse.env). Hoac Run workflow voi only_ssi=true."
+            exit 1
+          fi
+
+      - name: Chay bo thu (toi ${{ env.RT_UNTIL }} gio VN)
+        run: |
+          cd "$RT_DIR"
+          mkdir -p logs data
+          EXTRA=""
+          if [ "$ONLY_SSI" = "1" ]; then EXTRA="$EXTRA --no-dnse"; fi
+          if [ -n "$DURATION" ]; then EXTRA="$EXTRA --force --duration $DURATION"; else EXTRA="$EXTRA --until $RT_UNTIL"; fi
+          echo "python dnse_stream.py $EXTRA --push-every $RT_PUSH_EVERY --push-remote $RT_PUSH_REMOTE"
+          python dnse_stream.py $EXTRA --push-every "$RT_PUSH_EVERY" --push-remote "$RT_PUSH_REMOTE" \
+            --out "$RT_DIR/data" --db "$RT_DIR/data/realtime.duckdb" 2>&1 | tee "logs/realtime_cloud_chieu_$(date +%Y%m%d).log"
+
+      - name: Trang thai
+        if: always()
+        run: |
+          echo "## Realtime CHIEU" >> "$GITHUB_STEP_SUMMARY"
+          L=$(ls -t "$RT_DIR"/logs/realtime_cloud_chieu_*.log 2>/dev/null | head -1)
+          if [ -n "$L" ]; then
+            { echo '```'; grep -E "ket noi|push\]|seed\]|MAX_CONN|XAC THUC|DUNG:|Ket thuc|universe\]" "$L" | tail -25; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            if grep -q "MAX_CONNECTIONS_EXCEEDED" "$L"; then
+              echo "::warning::DNSE MAX_CONNECTIONS_EXCEEDED - laptop dang giu 10 ket noi? Chay local\\Tat-realtime-laptop.ps1 (xem README)."
+            fi
+          fi
+          echo "Drive: $RT_PUSH_REMOTE/$(date +%F)" >> "$GITHUB_STEP_SUMMARY"
+          { echo '```'; rclone lsl "$RT_PUSH_REMOTE/$(date +%F)" 2>/dev/null || echo "(chua co)"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Luu log (artifact 14 ngay)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: realtime-chieu-${{ github.run_id }}
+          path: market-data/realtime-lab/logs/*.log
+          if-no-files-found: warn
+          retention-days: 14

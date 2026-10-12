@@ -9,6 +9,7 @@ Chon thu muc theo DUNG cac buoc se chay hom nay (runlib.select_steps: slot, --on
          chu thu muc (owner == job): rclone sync (xoa file da mat, --max-delete 50); ben kia: rclone copy chi file *_up_include
          + copyto status-<slot>.txt len gdrive:pipeline-data/<hub>/
     python sync_data.py app                       # Drive -> local toan bo thu muc app Streamlit doc (APP_FOLDERS)
+                                                  #   + realtime/<ngay gan nhat> -> RT_ROOT/data/<ngay> (bo thu cloud, 12/10/2026)
     python sync_data.py seed [--skip-bond]        # lan dau: D:\\ (HUB_SRC) -> Drive (rclone copy)
     them --dry-run de xem lenh rclone; --remote gdrive:pipeline-data (hoac env RCLONE_REMOTE)
 Thu muc local = env MD_ROOT/SHIP_ROOT/HAH_DIR (cloud: $GITHUB_WORKSPACE/<hub>; laptop: D:\\pipeline-data\\<hub>).
@@ -19,6 +20,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -170,10 +172,30 @@ def do_app(rc, remote, dry) -> int:
     return bad
 
 
+def do_app_realtime(rc, remote, dry, n_days: int = dm.APP_REALTIME_DAYS) -> int:
+    """realtime/<ngay>/ tren Drive (bo thu cloud day moi 60 s) -> RT_ROOT/data/<ngay>/: chi n_days ngay gan nhat, chi *.parquet."""
+    f = dm.FOLDERS["realtime/data"]
+    if dry and not os.path.exists(rc):
+        print(f"-- app: realtime: (dry-run) rclone lsf {f.remote(remote)} --dirs-only -> copy {n_days} ngay gan nhat -> {f.local_root()}")
+        return 0
+    r = subprocess.run([rc, "lsf", f.remote(remote), "--dirs-only"], capture_output=True, text=True)
+    days = sorted(d.strip("/") for d in r.stdout.split() if re.fullmatch(r"\d{4}-\d{2}-\d{2}/", d))
+    if r.returncode != 0 or not days:
+        print(f"-- app: realtime: chua co thu muc ngay nao tren {f.remote(remote)} (bo qua)")
+        return 0
+    bad = 0
+    for d in days[-n_days:]:
+        local = os.path.join(f.local_root(), d)
+        os.makedirs(local, exist_ok=True)
+        print(f"-- app: keo ve realtime/{d} -> {local}")
+        bad += rclone(rc, ["copy", f"{f.remote(remote)}/{d}", local, "--include", "*.parquet"], dry) != 0
+    return bad
+
+
 def do_seed(rc, remote, skip_bond: bool, dry) -> int:
     bad = 0
     for f in dm.FOLDERS.values():
-        if not f.drive or (skip_bond and f.path == "bond-pivot"):
+        if not f.drive or not f.seed or (skip_bond and f.path == "bond-pivot"):
             continue
         src = f.src_root()
         if not os.path.isdir(src):
@@ -206,7 +228,7 @@ def main(argv=None) -> int:
     rc = "rclone" if a.dry_run and not shutil.which("rclone") and not os.path.exists(WINGET_RCLONE) else find_rclone()
 
     if a.action == "app":
-        return 1 if do_app(rc, a.remote, a.dry_run) else 0
+        return 1 if (do_app(rc, a.remote, a.dry_run) + do_app_realtime(rc, a.remote, a.dry_run)) else 0
     if a.action == "seed":
         return 1 if do_seed(rc, a.remote, a.skip_bond, a.dry_run) else 0
     if not a.slot:

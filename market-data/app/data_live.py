@@ -11,13 +11,22 @@ Chiu duoc file dang ghi do: doc lai 3 lan, van loi -> tra ket qua cu trong sessi
 Don vi: total_val (chi so) = TY dong; fr_buy_val/fr_sell_val/buy_val/sell_val (khoi ngoai) = DONG -> chia 1e9.
 Khoi luong: rt_latest.total_vol/last_qty/bid*_qty, rt_bars_1m.volume, index_1m.volume, stocks_latest.total_vol deu la SO CO PHIEU
 (dnse_stream.py nhan 10 tick/top_price luc parse tu 09/10/2026 13:12; truoc do rt_latest.total_vol & last_qty = 1/10).
+
+CHE DO CLOUD (12/10/2026): bo thu chay tren GitHub Actions (cloud-deploy realtime-sang/chieu.yml) va day 8 parquet len
+gdrive:pipeline-data/realtime/<YYYY-MM-DD>/ moi 60 s. Neu bo thu LOCAL khong chay (collector_running() False) thi 1 thread nen
+(ensure_cloud_sync, khoi dong tu live_state) moi RT_CLOUD_EVERY=60 s `rclone copy <remote>/<hom nay>/ <RT_ROOT>\data\<hom nay>\`
+(chi T2-T6 08:30-15:40; ngoai gio kiem tra 5 phut/lan). rclone tim nhu cloud-deploy/sync_data.py: env RCLONE -> PATH -> ban winget.
+Nhan nguon tren thanh ● LIVE + chan the doi thanh "live 1 phut (cloud)". Env: RT_CLOUD=0 tat han; RT_CLOUD=1 ep cloud ke ca khi
+bo thu local dang chay (test); RT_PUSH_REMOTE doi thu muc Drive. Trang thai: CLOUD dict (on, last_sync, err) - Kho du lieu hien.
 """
 from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -46,15 +55,16 @@ def in_session(t: datetime | None = None) -> bool:
 
 
 # --------------------------------------------------------------------- NGAY CO DU LIEU
+def _has_day(d: str) -> bool:
+    """Thu muc ngay co du lieu: index_latest (DNSE) hoac stocks_latest (chi SSI - cloud only_ssi / --no-dnse)."""
+    return any(os.path.exists(os.path.join(DATA, d, f"{n}.parquet")) for n in ("index_latest", "stocks_latest"))
+
+
 def days() -> list[str]:
-    """Cac thu muc data\\YYYY-MM-DD co index_latest.parquet (schema moi), tang dan."""
+    """Cac thu muc data\\YYYY-MM-DD co index_latest.parquet (schema moi) hoac stocks_latest.parquet, tang dan."""
     if not os.path.isdir(DATA):
         return []
-    out = []
-    for n in os.listdir(DATA):
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", n) and os.path.exists(os.path.join(DATA, n, "index_latest.parquet")):
-            out.append(n)
-    return sorted(out)
+    return sorted(n for n in os.listdir(DATA) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", n) and _has_day(n))
 
 
 def latest_day() -> str | None:
@@ -120,7 +130,12 @@ def log_tail(n: int = 5) -> tuple[str | None, list[str]]:
 
 @st.cache_data(ttl=4, show_spinner=False)
 def collector_pids(_tick: int = 0) -> list[int]:
-    """PID cac tien trinh python dang chay dnse_stream.py (psutil; khong co -> PowerShell CIM)."""
+    """PID cac tien trinh python dang chay dnse_stream.py (psutil; khong co -> PowerShell CIM). Cache 4 s."""
+    return _collector_pids_raw()
+
+
+def _collector_pids_raw() -> list[int]:
+    """Nhu collector_pids nhung khong cache (goi tu thread nen cloud, khong co script context Streamlit)."""
     try:
         import psutil
         out = []
@@ -183,6 +198,101 @@ def stop_collector() -> str:
     return f"Đã tắt bộ thu (PID {', '.join(map(str, pids))})."
 
 
+# --------------------------------------------------------------------- CHE DO CLOUD (12/10/2026): keo parquet tu Drive
+LIVE_1M = "live 1 phút"               # ghi canh nhan gio cho the dung nguon 60 s (treemap / KN theo nganh)
+LIVE_1M_CLOUD = "live 1 phút (cloud)"  # bo thu tren GitHub Actions -> Drive -> app keo ve moi 60 s
+CLOUD = {"on": False, "last_sync": None, "err": "", "n": 0, "day": None,
+         "remote": os.environ.get("RT_PUSH_REMOTE", "gdrive:pipeline-data/realtime"),
+         "every": int(os.environ.get("RT_CLOUD_EVERY", "60") or 60), "mode": os.environ.get("RT_CLOUD", "auto").strip().lower()}
+WINGET_RCLONE = os.path.join(os.path.expanduser("~"), "AppData", "Local", "Microsoft", "WinGet", "Packages",
+                             "Rclone.Rclone_Microsoft.Winget.Source_8wekyb3d8bbwe", "rclone-v1.75.1-windows-amd64", "rclone.exe")
+_cloud_th: threading.Thread | None = None
+_cloud_lock = threading.Lock()
+_NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def find_rclone() -> str | None:
+    for c in (os.environ.get("RCLONE"), shutil.which("rclone"), WINGET_RCLONE):
+        if c and os.path.exists(c):
+            return c
+    return None
+
+
+def _cloud_window(t: datetime | None = None) -> bool:
+    """Khung gio dang keo Drive: T2-T6 08:30-15:40 (bo thu cloud 08:25-15:15 + day lan cuoi)."""
+    t = t or now_vn()
+    hm = t.hour * 60 + t.minute
+    return t.weekday() < 5 and 8 * 60 + 30 <= hm <= 15 * 60 + 40
+
+
+def _cloud_pull(rc: str, day: str) -> tuple[bool, str]:
+    """rclone copy <remote>/<day>/ -> DATA/<day>/ (chi *.parquet; rclone ghi .partial roi doi ten nen app khong doc file do)."""
+    dst = os.path.join(DATA, day)
+    os.makedirs(dst, exist_ok=True)
+    cmd = [rc, "copy", f"{CLOUD['remote']}/{day}", dst, "--include", "*.parquet", "--no-traverse",
+           "--contimeout", "15s", "--timeout", "60s", "--retries", "2", "--low-level-retries", "5", "-q"]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=150, creationflags=_NOWIN)
+    except Exception as e:  # noqa: BLE001
+        return False, f"{type(e).__name__}: {str(e)[:120]}"
+    if r.returncode != 0:
+        err = (r.stderr or r.stdout or "").strip().splitlines()
+        return False, (err[-1][:160] if err else f"rclone exit {r.returncode}")
+    return True, ""
+
+
+def _cloud_loop() -> None:
+    rc = find_rclone()
+    if rc is None:
+        CLOUD["err"] = "không có rclone (winget install Rclone.Rclone)"
+        return
+    while True:
+        wait = CLOUD["every"]
+        try:
+            day = now_vn().strftime("%Y-%m-%d")
+            if CLOUD["mode"] == "0":
+                CLOUD["on"] = False
+                return
+            local_on = CLOUD["mode"] != "1" and bool(_collector_pids_raw())
+            if local_on:                                   # bo thu local dang ghi truc tiep -> khong keo Drive
+                CLOUD["on"], CLOUD["err"] = False, ""
+            elif not _cloud_window():
+                CLOUD["on"] = False
+                wait = 300
+            else:
+                ok, err = _cloud_pull(rc, day)
+                CLOUD["n"] += 1
+                if ok:
+                    CLOUD.update(on=_has_day(day), last_sync=now_vn(), err="" if _has_day(day) else "Drive chưa có dữ liệu hôm nay", day=day)
+                else:
+                    CLOUD.update(on=False, err=err)
+                    wait = 120 if "not found" in err.lower() else CLOUD["every"]   # chua co thu muc ngay -> thu lai cham hon
+        except Exception as e:  # noqa: BLE001
+            CLOUD.update(on=False, err=f"{type(e).__name__}: {str(e)[:120]}")
+        time.sleep(wait)
+
+
+def ensure_cloud_sync() -> None:
+    """Khoi dong thread keo Drive 1 lan/process (goi moi lan live_state). RT_CLOUD=0 -> khong khoi dong."""
+    global _cloud_th
+    if CLOUD["mode"] == "0" or (_cloud_th is not None and _cloud_th.is_alive()):
+        return
+    with _cloud_lock:
+        if _cloud_th is not None and _cloud_th.is_alive():
+            return
+        _cloud_th = threading.Thread(target=_cloud_loop, name="rt-cloud-sync", daemon=True)
+        _cloud_th.start()
+
+
+def cloud_active() -> bool:
+    return bool(CLOUD["on"])
+
+
+def live_src_1m() -> str:
+    """Nhan nguon cho the dung du lieu 60 s: 'live 1 phut' (bo thu local) hoac 'live 1 phut (cloud)'."""
+    return LIVE_1M_CLOUD if cloud_active() else LIVE_1M
+
+
 # =====================================================================================================================
 # LIVE TOAN APP (09/10/2026, PV2: "tat ca cac chart va data live duoc thi live het, chi tai ve dung historical")
 # Lop "overlay hom nay": moi dataset co the live co 1 ham tra ve HANG HOM NAY (dict cot -> gia tri) tinh tu cac parquet
@@ -213,20 +323,23 @@ def live_pref() -> tuple[bool, int]:
 
 def _day_today() -> str | None:
     t = now_vn().strftime("%Y-%m-%d")
-    return t if os.path.exists(os.path.join(DATA, t, "index_latest.parquet")) else None
+    return t if _has_day(t) else None
 
 
 def live_state() -> dict:
     """{'active': bool, 'ts': Timestamp|None, 'lag': s, 'day': str|None, 'reason': str} - active = cong tac bat + co du lieu
     HOM NAY + bo thu con phat (tre < 300 s trong gio)."""
     on, _ = live_pref()
+    ensure_cloud_sync()                                    # thread keo Drive khi bo thu local khong chay (1 lan/process)
     day = _day_today()
-    out = {"active": False, "ts": None, "lag": None, "day": day, "reason": ""}
+    cloud = cloud_active()
+    out = {"active": False, "ts": None, "lag": None, "day": day, "reason": "", "cloud": cloud,
+           "src": LIVE_1M_CLOUD if cloud else None, "cloud_err": CLOUD["err"], "cloud_sync": CLOUD["last_sync"]}
     if not on:
         out["reason"] = "tắt"
         return out
     if day is None:
-        out["reason"] = "chưa có dữ liệu hôm nay"
+        out["reason"] = "chưa có dữ liệu hôm nay" + (f" ({CLOUD['err']})" if CLOUD["err"] and not collector_running() else "")
         return out
     ts = None
     for n, col in (("index_latest", "ts_recv"), ("stocks_latest", "ts")):
@@ -240,8 +353,9 @@ def live_state() -> dict:
         return out
     lag = (now_vn() - ts.to_pydatetime()).total_seconds()
     out.update(ts=ts, lag=lag)
-    if in_session() and lag > 300:
-        out["reason"] = f"bộ thu trễ {lag:,.0f} s"
+    # cloud: bo thu day Drive 60 s + app keo 60 s + Drive tre -> cho phep tre toi 450 s (local: 300 s)
+    if in_session() and lag > (450 if cloud else 300):
+        out["reason"] = f"bộ thu trễ {lag:,.0f} s" + (" (cloud)" if cloud else "")
         return out
     if not in_session() and lag > 1800:
         out["reason"] = "ngoài giờ"
@@ -611,7 +725,7 @@ def with_live(df: pd.DataFrame, kind: str, **kw) -> pd.DataFrame:
     out.index.name = df.index.name
     out.attrs = dict(df.attrs)
     out.attrs["live"] = {"ts": stt["ts"], "hist_end": hist.index.max() if len(hist) else None,
-                         "src": "live 1 phút" if kind in SRC_1M else None}
+                         "src": stt.get("src") or (LIVE_1M if kind in SRC_1M else None)}   # cloud: moi the deu "live 1 phut (cloud)"
     return out
 
 
@@ -663,7 +777,7 @@ def stock_returns_live(nhom, pn):
     return (t, ts) if t is not None else (None, None)
 
 
-LIVE_1M = "live 1 phút"       # ghi canh nhan gio cho the dung nguon 60 s (treemap / KN theo nganh)
+# LIVE_1M / LIVE_1M_CLOUD / live_src_1m(): xem muc CHE DO CLOUD o tren (the tinh truc tiep dung rt.live_src_1m())
 
 
 def treemap_add_today(d_hist: pd.DataFrame, pn) -> tuple[pd.DataFrame, object]:

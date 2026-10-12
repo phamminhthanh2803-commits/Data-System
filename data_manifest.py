@@ -11,6 +11,9 @@ Quy uoc Drive:  gdrive:pipeline-data/<hub>/<thu-muc>  lap y cau truc D:\\  (hub 
   - cangvu-hcm: laptop la chu (Cang vu TP.HCM chan IP nuoc ngoai); cloud chi ghi 3 file enriched (vessel_enrich.py).
   - market-valuation: cloud la chu; laptop chi ghi valuation-region-master/wide.csv (IDX + Bursa bi Cloudflare chan IP My).
   - port-tracker (09/10/2026): cloud la chu store/ (parquet theo cang vu/thang); 2 duong dan HCM (laptop_only) chi laptop ghi, cloud khong sync.
+  - realtime (12/10/2026): bo thu DNSE/SSI tren GitHub Actions (realtime-sang/chieu.yml) tu day 8 parquet/ngay len thu muc Drive RIENG
+    gdrive:pipeline-data/realtime/<YYYY-MM-DD>/ (dnse_stream.py --push-every, khong qua sync_data up). Laptop: app/data_live.py tu keo
+    moi 60 s khi bo thu local khong chay; `sync_data.py app` chi keo ngay gan nhat (APP_REALTIME_DAYS) ve RT_ROOT\\data\\<ngay>.
 
     python data_manifest.py            # in bang thu muc + buoc
     python data_manifest.py --size     # uoc dung luong tung thu muc se len Drive (doc tu D:\\), canh bao neu > 4 GB
@@ -22,11 +25,12 @@ import os
 import sys
 from dataclasses import dataclass, field
 
-HUB_ENV = {"market-data": "MD_ROOT", "shipping": "SHIP_ROOT", "bctc": "BCTC_ROOT", "hah": "HAH_DIR"}
+HUB_ENV = {"market-data": "MD_ROOT", "shipping": "SHIP_ROOT", "bctc": "BCTC_ROOT", "hah": "HAH_DIR", "realtime": "RT_ROOT"}
 LAPTOP_DATA = {"market-data": "D:/pipeline-data/market-data", "shipping": "D:/pipeline-data/shipping", "bctc": "D:/bctc",
-               "hah": "D:/pipeline-data/hah"}   # cay du lieu laptop (mo hinh cloud); bctc van la goc (nganh-ck Excel)
+               "hah": "D:/pipeline-data/hah", "realtime": "D:/market-data/realtime-lab"}   # cay du lieu laptop (mo hinh cloud);
+               # bctc van la goc (nganh-ck Excel); realtime = RT_ROOT cua app (data_live.py), app doc RT_ROOT/data/<ngay>
 HUB_SRC = {"market-data": "D:/market-data", "shipping": "D:/shipping", "bctc": "D:/bctc",
-           "hah": "D:/Database/Logistics/HAH"}                      # nguon goc tren laptop (seed lan dau)
+           "hah": "D:/Database/Logistics/HAH", "realtime": "D:/market-data/realtime-lab"}   # nguon goc tren laptop (seed lan dau)
 DRIVE_LIMIT_MB = 4000
 
 # loai tru CHUNG moi thu muc (code + log + tam): rclone filter, ap dung ca 2 chieu
@@ -45,6 +49,8 @@ class Folder:
     cloud_up_include: list = field(default_factory=list)    # owner=laptop: file cloud van duoc ghi (rclone copy)
     laptop_up_include: list = field(default_factory=list)   # owner=cloud: file laptop van duoc ghi (rclone copy)
     laptop_only: list = field(default_factory=list)         # owner=cloud: duong dan CHI laptop ghi; cloud khong sync (khong ghi de/xoa)
+    remote_path: str | None = None         # duong dan Drive rieng (realtime -> gdrive:pipeline-data/realtime, khong theo <hub>/<path>)
+    seed: bool = True                      # False: `sync_data.py seed` bo qua (realtime: cloud tu day)
     note: str = ""
 
     @property
@@ -63,6 +69,8 @@ class Folder:
         return os.path.normpath(os.path.join(HUB_SRC[self.hub], self.path)) if self.path else os.path.normpath(HUB_SRC[self.hub])
 
     def remote(self, base: str) -> str:
+        if self.remote_path is not None:
+            return f"{base}/{self.remote_path}"
         return f"{base}/{self.hub}/{self.path}" if self.path else f"{base}/{self.hub}"
 
 
@@ -93,6 +101,9 @@ FOLDERS: dict[str, Folder] = {f.key: f for f in [
            note="kho chia se store/ (parquet 1 cang vu x 1 thang, ~50 MB) cua app Port Tracker: cloud keo 11 cang vu, laptop keo TP.HCM"),
     Folder("shipping", "Alibra-scraper"),
     Folder("shipping", "BCTI-scraper"),
+    # ---------------- realtime (12/10/2026): thu muc Drive rieng realtime/<YYYY-MM-DD>/, cloud (dnse_stream --push-every) la chu
+    Folder("realtime", "data", remote_path="realtime", seed=False, exclude=["*.duckdb", "*.duckdb.wal", "*.tmp"],
+           note="8 parquet/ngay cua bo thu DNSE/SSI tren GitHub Actions; app keo ngay gan nhat (data_live.py 60 s / sync_data app)"),
 ]}
 
 # file index-fetcher ma cac buoc KHAC (valuation, nganh-ck) can doc - khong keo raw/vci_foreign 1.600 file
@@ -155,6 +166,8 @@ APP_FOLDERS = [("market-data/market-valuation", None), ("market-data/index-fetch
                ("shipping/cangvu-haiphong", None), ("shipping/cangvu-hcm", None), ("shipping/cangvu-toanquoc", None),
                ("shipping/vessel-itinerary", None), ("shipping/Alibra-scraper", None), ("shipping/BCTI-scraper", None),
                ("shipping/port-tracker", None)]
+# realtime: khong nam trong APP_FOLDERS (khong copy ca thu muc) - sync_data.do_app chi keo APP_REALTIME_DAYS ngay gan nhat
+APP_REALTIME_DAYS = 1
 
 
 # ---------------------------------------------------------------------------------------------- tien ich

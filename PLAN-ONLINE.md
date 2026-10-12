@@ -8,7 +8,7 @@
 | 3 | IDX + Bursa (định giá khu vực) | Laptop, task "Pipeline Local Mini" 18:40 (BẬT 12/10) | hằng ngày | Chưa | Cloudflare chặn IP datacenter (403) |
 | 4 | `nganh-ck` ghi Excel OneDrive (IB&Brokerage_Nganh.xlsx) | Laptop (Mini 18:40) | hằng ngày | Chưa | Excel COM (win32com) – cần Windows có Excel |
 | 5 | `bonds` (bond-pivot, OCR PDF 3,5 GB) | Laptop (Mini thứ Hai) | tuần | Một phần | Drive hết chỗ cho PDF thô; processed 42 MB đã lên Drive; OCR Tesseract chạy được trên Linux |
-| 6 | Bộ thu real-time DNSE (`dnse_stream.py`, 10 kết nối WS, 5 s) + SSI 60 s | Laptop, task "Realtime DNSE" 8:40–15:10 | T2–T6 | Chưa | tiến trình chạy liên tục 6,5 giờ/ngày; GitHub job tối đa 6 giờ → phải tách 2 job; nơi lưu parquet 5 s để app đọc |
+| 6 | Bộ thu real-time DNSE (`dnse_stream.py`, 10 kết nối WS, 5 s) + SSI 60 s | **GitHub Actions** 2 job (`realtime-sang` 08:25–11:40, `realtime-chieu` 12:50–15:15) → Drive `realtime/<ngày>/` 60 s; laptop task "Realtime DNSE" còn BẬT tới khi cloud xanh 13/10 | T2–T6 | **Code xong 12/10**, chờ PV2 thêm 2 secret DNSE + chạy tay `only_ssi` | 10 kết nối/user → 2 bên không chạy cùng lúc (`local\Tat-realtime-laptop.ps1`); app đọc Drive "live 1 phút (cloud)" |
 | 7 | Lớp live-first `data_src.py` (Entrade, VNDirect, CafeF nội bộ) | Trong app (thread nền) | khi mở app + 30 phút | Theo app | nguồn phải mở từ IP nước ngoài (đang probe) |
 | 8 | App Market Data (Streamlit, giao diện Genea, ● LIVE) | Laptop (shortcut Desktop, cổng 8765) | khi mở | Chưa | cần host 24/7 đọc được Drive + parquet live; HF Spaces thu phí; Streamlit Cloud ~1 GB RAM |
 | 9 | App Port Tracker (Streamlit 8766) | Laptop | khi mở | Chưa | như 8, dữ liệu store/ parquet đã trên Drive |
@@ -34,7 +34,7 @@
 ## 4. Thứ tự chuyển dần
 1. (xong 12/10) Tắt 4 task Windows cũ, bật Mini → pipeline chạy hoàn toàn trên cloud.
 2. Probe nguồn live từ runner → chốt bộ thu DNSE/SSI chạy được trên GitHub không.
-3. Bộ thu DNSE lên cloud (2 job) + Supabase/Drive cho snapshot.
+3. (xong 12/10 — code + test local/app; chờ secret DNSE + chạy tay) Bộ thu DNSE lên cloud (2 job) + Drive cho snapshot (parquet 60 s thay Supabase; app laptop kéo Drive, nhãn "live 1 phút (cloud)"). Tắt task laptop sau khi cloud xanh 13/10 (`local\Tat-realtime-laptop.ps1`).
 4. App lên Streamlit Community Cloud (hoặc VPS) – đọc Drive + Supabase.
 5. Port Tracker lên cùng host.
 6. cvhcm / IDX-Bursa / nganh-ck: VPS VN hoặc giữ laptop.

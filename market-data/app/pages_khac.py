@@ -186,10 +186,18 @@ def _bo_thu_realtime():
             else:
                 st.markdown('<div class="gn-note">Chưa có file log trong realtime-lab\\logs\\.</div>', unsafe_allow_html=True)
         with c._foot:  # noqa: SLF001
+            cl = rt.CLOUD
+            if cl["on"]:
+                cloud_txt = (f' · <b>Nguồn cloud</b>: bộ thu trên GitHub Actions (realtime-sang/chieu) → Drive <code>{cl["remote"]}/{cl["day"]}</code>'
+                             f' → app kéo về mỗi {cl["every"]} s' + (f' (lần cuối {cl["last_sync"]:%H:%M:%S})' if cl["last_sync"] else ""))
+            elif not pids and cl["err"]:
+                cloud_txt = f' · Nguồn cloud (Drive): <span style="color:#e23b3b">{cl["err"]}</span>'
+            else:
+                cloud_txt = ""
             st.markdown('<div class="gn-note">' + (f"Dữ liệu phiên gần nhất: <code>{rt.DATA}\\{day}</code>" if day else
                         f"Chưa có thư mục dữ liệu phiên nào trong <code>{rt.DATA}</code>") +
-                        " · hàng hôm nay trên các biểu đồ (dấu tròn rỗng, nhãn LIVE) lấy từ bộ thu này khi công tắc ● LIVE bật</div>",
-                        unsafe_allow_html=True)
+                        " · hàng hôm nay trên các biểu đồ (dấu tròn rỗng, nhãn LIVE) lấy từ bộ thu này khi công tắc ● LIVE bật" +
+                        cloud_txt + "</div>", unsafe_allow_html=True)
 
 
 # ================================================================ XUAT EXCEL

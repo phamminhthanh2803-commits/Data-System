@@ -25,6 +25,8 @@ cryptography==48.0.0         # bond-pivot pull_tpcp_curve.py (x509 HNX)
 # vnstock (4.x) da rut khoi PyPI, chi fs-extractor (chay tay o laptop) can -> KHONG cai tren cloud
 # vnai: phu thuoc vnstock, cung bo (laptop: pip install vnai==2.4.8)
 yfinance==1.4.1
+websockets==16.1.1           # realtime-lab/dnse_stream.py (bo thu DNSE; cloud dung realtime-lab/requirements.txt rieng)
+dnse==0.5.0                  # realtime-lab REST backfill (HMAC, keo httpx)
 tvdatafeed @ git+https://github.com/rongardF/tvdatafeed.git@e6f6aaa7de439ac6e454d9b26d2760ded8dc4923   # index-fetcher tv_history.py
 # ---- app Streamlit (market-data/app, shipping/port-tracker)
 streamlit==1.57.0

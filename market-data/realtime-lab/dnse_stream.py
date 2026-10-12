@@ -56,6 +56,20 @@ Chay:
   python dnse_stream.py --force --duration 90 --db data/test.duckdb --out data/test   # thu SONG SONG bo thu that (DB + thu muc rieng)
   python dnse_stream.py --backfill                   # chi keo lai nen 1 phut hom nay qua REST roi thoat
   python dnse_stream.py --no-universe                # chi VN30 + chi so nhu truoc 09/10
+
+CLOUD (12/10/2026) — bo thu chay tren GitHub Actions (cloud-deploy/.github/workflows/realtime-{sang,chieu}.yml, 2 job/ngay vi job
+toi da 6 gio) va day parquet len Google Drive de app laptop doc (app/data_live.py keo ve moi 60 s khi bo thu local khong chay):
+  --until HH:MM            chay toi gio VN do roi thoat (thay --duration; job sang 11:40, chieu 15:15). Qua gio -> thoat ngay, ma 0.
+  --no-dnse / RT_NO_DNSE=1 KHONG mo WebSocket DNSE (khong can key): chi thread SSI iBoard 60 s + xuat stocks_latest + day Drive.
+                           Dung de test cloud khi laptop con giu 10 ket noi DNSE (only_ssi=true khi Run workflow).
+  --push-every N / RT_PUSH_EVERY=N   thread nen moi N s `rclone copy data/<ngay>/ <remote>/<ngay>/` CHI 8 parquet nho (PUSH_FILES,
+                           bo duckdb + .tmp); cuoi phien day lan cuoi. remote = --push-remote / RT_PUSH_REMOTE (gdrive:pipeline-data/realtime).
+                           rclone tim theo env RCLONE -> PATH -> ban winget. Moi file xuat deu ghi .tmp roi os.replace -> rclone khong
+                           bat gap file ghi do.
+  Seed tu Drive: khi co push remote, luc khoi dong keo market_summary / index_1m / rt_bars_1m cua HOM NAY tren Drive vao DuckDB
+                           (INSERT BY NAME) de job chieu co ca lich su 5 s + nen buoi sang (--no-seed de bo).
+  MAX_CONNECTIONS_EXCEEDED: DNSE chi cho 10 ket noi/user -> neu laptop dang chay, cloud xac thuc that bai. Moi ket noi thu lai
+                           AUTH_RETRY=3 lan cach AUTH_RETRY_WAIT=60 s, van that bai -> log ro, thoat MA 0 (workflow khong do).
 """
 from __future__ import annotations
 
@@ -67,6 +81,8 @@ import hmac
 import json
 import os
 import queue
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -98,6 +114,26 @@ CONN_MAX = 10                 # 10 ket noi / user
 UNIVERSE_EXCH = ("hose", "hnx", "upcom")   # thu tu uu tien khi het cho stream
 UNIVERSE_INTERVAL = 60        # s, poll SSI iBoard toan san
 MAX_RAW = 300
+# ---- cloud (12/10/2026): day parquet len Drive + xac thuc that bai vi het ket noi
+PUSH_FILES = ["index_latest", "stocks_latest", "rt_latest", "influence_latest", "foreign_latest", "market_summary",
+              "index_1m", "rt_bars_1m"]                     # chi 8 parquet nho (khong duckdb) len <remote>/<YYYY-MM-DD>/
+PUSH_REMOTE = os.environ.get("RT_PUSH_REMOTE", "gdrive:pipeline-data/realtime")
+SEED_FILES = {"market_summary": "market_index", "index_1m": "bars_1m", "rt_bars_1m": "bars_1m"}   # parquet Drive -> bang DuckDB
+AUTH_RETRY, AUTH_RETRY_WAIT = 3, 60       # xac thuc that bai (MAX_CONNECTIONS_EXCEEDED...) -> thu lai 3 lan cach 60 s roi thoat ma 0
+WINGET_RCLONE = os.path.join(os.path.expanduser("~"), "AppData", "Local", "Microsoft", "WinGet", "Packages",
+                             "Rclone.Rclone_Microsoft.Winget.Source_8wekyb3d8bbwe", "rclone-v1.75.1-windows-amd64", "rclone.exe")
+
+
+def find_rclone() -> str | None:
+    """env RCLONE -> PATH -> ban winget (nhu cloud-deploy/sync_data.py). None neu khong co."""
+    for c in (os.environ.get("RCLONE"), shutil.which("rclone"), WINGET_RCLONE):
+        if c and os.path.exists(c):
+            return c
+    return None
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in ("1", "true", "yes")
 
 SCHEMA = {
     "market_index": "ts_recv TIMESTAMP, index_name VARCHAR, value DOUBLE, prior DOUBLE, high DOUBLE, low DOUBLE, "
@@ -284,6 +320,7 @@ class Store:
         self.secdef: dict[str, dict] = {}           # symbol -> ref/ceiling/floor tu kenh security_definition (nghin dong)
         self.lock = threading.Lock()
         self.raw_left = MAX_RAW
+        self.fatal: str | None = None               # Conn dat khi xac thuc that bai AUTH_RETRY lan -> main thoat ma 0
 
     def put(self, tbl: str, row: dict) -> None:
         self.q.put((tbl, row))
@@ -313,22 +350,54 @@ class Store:
                 n += len(df)
         return n
 
+    @staticmethod
+    def _replace(tmp: str, dst: str) -> None:
+        """Doi ten file tam -> dich (atomic): app doc moi 5 s / rclone day moi 60 s khong bat gap file ghi do.
+        Windows: PermissionError neu app dang doc file dich -> thu lai 5 lan."""
+        for _i in range(5):
+            try:
+                os.replace(tmp, dst)
+                return
+            except PermissionError:
+                time.sleep(0.2)
+
     def _copy(self, sql: str, path: str) -> None:
-        self.con.execute(f"COPY ({sql}) TO '{path.replace(os.sep, '/')}' (FORMAT PARQUET)")
+        tmp = path + ".tmp"
+        self.con.execute(f"COPY ({sql}) TO '{tmp.replace(os.sep, '/')}' (FORMAT PARQUET)")
+        self._replace(tmp, path)
+
+    def _df_to_parquet(self, df: pd.DataFrame, path: str) -> None:
+        df.to_parquet(path + ".tmp", index=False)
+        self._replace(path + ".tmp", path)
+
+    def seed_from_parquet(self, path: str, table: str) -> int:
+        """Nap parquet (cung schema, do chinh dnse_stream xuat) vao bang DuckDB - job chieu tren cloud lay lai buoi sang tu Drive.
+        bars_1m: bo (symbol, t) da co; market_index: bo trung ts_recv+index_name."""
+        p = path.replace(os.sep, "/")
+        with self.lock:
+            if table == "bars_1m":
+                sql = (f"INSERT INTO bars_1m BY NAME SELECT p.* FROM read_parquet('{p}') p "
+                       "WHERE NOT EXISTS (SELECT 1 FROM bars_1m b WHERE b.symbol = p.symbol AND b.t = p.t)")
+            else:
+                sql = (f"INSERT INTO {table} BY NAME SELECT p.* FROM read_parquet('{p}') p "
+                       f"WHERE NOT EXISTS (SELECT 1 FROM {table} b WHERE b.ts_recv = p.ts_recv AND b.index_name = p.index_name)")
+            before = self.con.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+            self.con.execute(sql)
+            return self.con.execute(f"SELECT count(*) FROM {table}").fetchone()[0] - before
 
     def export(self, day_dir: str) -> None:
         os.makedirs(day_dir, exist_ok=True)
         today = now_vn().strftime("%Y-%m-%d")
         with self.lock:
             if self.latest:
-                pd.DataFrame(list(self.latest.values())).to_parquet(os.path.join(day_dir, "rt_latest.parquet"), index=False)
+                self._df_to_parquet(pd.DataFrame(list(self.latest.values())), os.path.join(day_dir, "rt_latest.parquet"))
             if self.index_latest:
                 rows = list(self.index_latest.values())
                 vn30 = self.index_latest.get("VN30", {}).get("value")
                 f1m = self.latest.get("VN30F1M", {}).get("price")
                 for r in rows:
                     r["basis_vn30f1m"] = (f1m - vn30) if (vn30 and f1m) else None
-                pd.DataFrame(rows).to_parquet(os.path.join(day_dir, "index_latest.parquet"), index=False)
+                self._df_to_parquet(pd.DataFrame(rows), os.path.join(day_dir, "index_latest.parquet"))
             self._copy(f"SELECT * FROM bars_1m WHERE sym_type IN ('INDEX','DERIVATIVE') AND CAST(time AS DATE) = DATE '{today}' "
                        "ORDER BY symbol, t", os.path.join(day_dir, "index_1m.parquet"))
             self._copy(f"SELECT * FROM bars_1m WHERE sym_type = 'STOCK' AND CAST(time AS DATE) = DATE '{today}' ORDER BY symbol, t",
@@ -340,15 +409,7 @@ class Store:
                        "(PARTITION BY symbol ORDER BY ts_recv DESC) = 1", os.path.join(day_dir, "foreign_latest.parquet"))
             sl = self.stocks_latest_frame()
         if sl is not None and len(sl):
-            # ghi file tam roi doi ten: app doc moi 5 s, tranh doc trung luc ghi do
-            p = os.path.join(day_dir, "stocks_latest.parquet")
-            sl.to_parquet(p + ".tmp", index=False)
-            for _i in range(5):                   # Windows: PermissionError neu app dang doc file dich -> thu lai
-                try:
-                    os.replace(p + ".tmp", p)
-                    break
-                except PermissionError:
-                    time.sleep(0.2)
+            self._df_to_parquet(sl, os.path.join(day_dir, "stocks_latest.parquet"))
 
     def stocks_latest_frame(self) -> pd.DataFrame | None:
         """Bang gia TOAN SAN = snapshot SSI (nen, 60 s) + tick DNSE (gia/KL/GTGD/cao/thap/avg, 5 s) + khoi ngoai DNSE (VN30).
@@ -518,10 +579,15 @@ def handle(store: Store, conn: str, m: dict) -> None:
 
 
 # ----------------------------------------------------------------------------- WebSocket client (1 ket noi)
+class AuthFailed(RuntimeError):
+    """Server tra loi khac auth_success (vd MAX_CONNECTIONS_EXCEEDED khi laptop + cloud cung chay, key sai...)."""
+
+
 class Conn:
     def __init__(self, name: str, channels: list[dict], key: str, sec: str, store: Store) -> None:
         self.name, self.channels, self.key, self.sec, self.store = name, channels, key, sec, store
         self.n_msg = 0
+        self.auth_fail = 0            # xac thuc that bai LIEN TIEP; >= AUTH_RETRY -> store.fatal -> main thoat ma 0
         self.stop = asyncio.Event()
 
     async def run(self) -> None:
@@ -534,11 +600,12 @@ class Conn:
                     await ws.send(json.dumps(auth_message(self.key, self.sec)))
                     resp = json.loads(await asyncio.wait_for(ws.recv(), 15))
                     if resp.get("action") != "auth_success":
-                        raise RuntimeError(f"auth: {resp}")
+                        raise AuthFailed(json.dumps(resp, ensure_ascii=False)[:300])
                     await ws.send(json.dumps({"action": "subscribe", "channels": self.channels}))
                     log(f"[{self.name}] ket noi {hello.get('session_id')} | {len(self.channels)} kenh, "
                         f"{sum(max(1, len(c['symbols'])) for c in self.channels)} stream")
                     attempt = 0
+                    self.auth_fail = 0
                     t_conn = time.time()
                     while not self.stop.is_set():
                         if time.time() - t_conn > 7.5 * 3600:            # server cat sau 8 h -> chu dong noi lai
@@ -563,6 +630,18 @@ class Conn:
                             handle(self.store, self.name, m)
                         else:
                             self.store.put("events", {"ts_recv": naive_now(), "conn": self.name, "msg": raw[:500]})
+            except AuthFailed as e:
+                if self.stop.is_set():
+                    break
+                self.auth_fail += 1
+                tag = "MAX_CONNECTIONS_EXCEEDED (DNSE chi cho 10 ket noi/user - bo thu khac dang chay?)" \
+                    if "MAX_CONN" in str(e).upper() else "XAC THUC THAT BAI"
+                if self.auth_fail >= AUTH_RETRY:
+                    log(f"[{self.name}] {tag} lan {self.auth_fail}/{AUTH_RETRY}: {e} -> BO CUOC, bo thu se thoat ma 0")
+                    self.store.fatal = f"{self.name}: {tag}: {e}"
+                    return
+                log(f"[{self.name}] {tag} lan {self.auth_fail}/{AUTH_RETRY}: {e} -> thu lai sau {AUTH_RETRY_WAIT}s")
+                await asyncio.sleep(AUTH_RETRY_WAIT)
             except Exception as e:  # noqa: BLE001
                 if self.stop.is_set():
                     break
@@ -706,6 +785,75 @@ async def check_credentials(key: str, sec: str) -> bool:
         return False
 
 
+# ----------------------------------------------------------------------------- Drive (cloud): day parquet + seed buoi sang
+RCLONE_OPTS = ["--contimeout", "15s", "--timeout", "60s", "--retries", "2", "--low-level-retries", "5", "-q"]
+
+
+def push_once(rc: str, day_dir: str, remote: str, day: str, files: list[str] | None = None) -> tuple[bool, float]:
+    """rclone copy data/<ngay>/ -> <remote>/<ngay>/ chi PUSH_FILES (*.parquet; bo .tmp + duckdb). Tra (ok, giay).
+    files: danh sach thay PUSH_FILES (--no-dnse: chi stocks_latest, khong ghi de file DNSE rong len Drive)."""
+    t0 = time.time()
+    if not os.path.isdir(day_dir):
+        return True, 0.0
+    cmd = [rc, "copy", day_dir, f"{remote}/{day}", "--include", "{" + ",".join(files or PUSH_FILES) + "}.parquet", "--no-traverse"] + RCLONE_OPTS
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=240)
+        if r.returncode != 0:
+            log(f"[push] ! rclone exit {r.returncode}: {(r.stderr or r.stdout)[-300:].strip()}")
+            return False, time.time() - t0
+        return True, time.time() - t0
+    except Exception as e:  # noqa: BLE001
+        log(f"[push] ! {type(e).__name__}: {str(e)[:160]}")
+        return False, time.time() - t0
+
+
+def push_loop(rc: str, day_dir: str, remote: str, day: str, every: int, stop_evt: threading.Event, files=None) -> None:
+    """Thread nen: moi `every` s day parquet len Drive. Log lan dau, moi lan loi, va moi 10 lan."""
+    n = fails = 0
+    while not stop_evt.is_set():
+        stop_evt.wait(every)
+        if stop_evt.is_set():
+            break
+        ok, sec = push_once(rc, day_dir, remote, day, files)
+        n += 1
+        fails = 0 if ok else fails + 1
+        if n == 1 or not ok or n % 10 == 0:
+            log(f"[push] lan {n} -> {remote}/{day} {'OK' if ok else 'LOI'} ({sec:.1f}s){' | loi lien tiep ' + str(fails) if fails else ''}")
+
+
+def seed_from_drive(rc: str, store: "Store", remote: str, day: str) -> None:
+    """Job chieu (cloud, DuckDB moi): keo market_summary / index_1m / rt_bars_1m HOM NAY tu Drive (job sang da day) vao DuckDB
+    de market_summary.parquet co ca buoi sang + nen 1 phut khong phu thuoc REST backfill. Khong co file -> bo qua im lang."""
+    import tempfile
+    tmp = tempfile.mkdtemp(prefix="rt_seed_")
+    cmd = [rc, "copy", f"{remote}/{day}", tmp, "--include", "{" + ",".join(SEED_FILES) + "}.parquet"] + RCLONE_OPTS
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        if r.returncode != 0:
+            log(f"[seed] rclone exit {r.returncode} (chua co du lieu hom nay tren Drive?) {(r.stderr or '')[-200:].strip()}")
+    except Exception as e:  # noqa: BLE001
+        log(f"[seed] ! {type(e).__name__}: {str(e)[:160]}")
+    got = []
+    for name, table in SEED_FILES.items():
+        p = os.path.join(tmp, f"{name}.parquet")
+        if not os.path.exists(p) or os.path.getsize(p) == 0:
+            continue
+        try:
+            got.append(f"{name} +{store.seed_from_parquet(p, table)} dong")
+        except Exception as e:  # noqa: BLE001
+            log(f"[seed] ! {name} -> {table}: {type(e).__name__}: {str(e)[:160]}")
+    shutil.rmtree(tmp, ignore_errors=True)
+    log(f"[seed] tu {remote}/{day}: " + (", ".join(got) if got else "khong co file (phien dau trong ngay)"))
+
+
+def seconds_until(hhmm: str) -> int:
+    """Giay tu bay gio (gio VN) toi HH:MM hom nay; <= 0 neu da qua."""
+    h, m = (int(x) for x in hhmm.split(":"))
+    now = now_vn()
+    end = now.replace(hour=h, minute=m, second=0, microsecond=0)
+    return int((end - now).total_seconds())
+
+
 # ----------------------------------------------------------------------------- main
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -715,43 +863,79 @@ def main() -> None:
     ap.add_argument("--symbols", default=SYM_FILE)
     ap.add_argument("--foreign-universe", default="", help="ten ro (vd VN100) de them kenh khoi ngoai cho ca ro")
     ap.add_argument("--duration", type=int, default=0)
+    ap.add_argument("--until", default="", help="chay toi HH:MM gio VN roi thoat (cloud: sang 11:40, chieu 15:15); qua gio -> thoat ngay")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--db", default=os.environ.get("DNSE_DB", DB_PATH), help="duong dan DuckDB (test: data/test.duckdb)")
     ap.add_argument("--out", default=os.environ.get("DNSE_OUT", DATA), help="thu muc goc xuat parquet (test: data/test)")
     ap.add_argument("--no-universe", action="store_true", help="khong dang ky tick toan san + khong poll SSI")
     ap.add_argument("--universe-interval", type=int, default=UNIVERSE_INTERVAL)
+    ap.add_argument("--no-dnse", action="store_true", default=_env_flag("RT_NO_DNSE"),
+                    help="khong mo WebSocket DNSE (khong can key): chi SSI 60 s + xuat + day Drive (env RT_NO_DNSE=1)")
+    ap.add_argument("--push-every", type=int, default=int(os.environ.get("RT_PUSH_EVERY", "0") or 0),
+                    help="moi N s rclone copy parquet len Drive (env RT_PUSH_EVERY); 0 = khong day")
+    ap.add_argument("--push-remote", default=PUSH_REMOTE, help="dich rclone (env RT_PUSH_REMOTE), mac dinh gdrive:pipeline-data/realtime")
+    ap.add_argument("--no-seed", action="store_true", help="khong keo market_summary/nen hom nay tu Drive vao DuckDB luc khoi dong")
     a = ap.parse_args()
 
-    cred = load_credentials()
-    if not cred:
-        log("CHUA CO KEY: dien DNSE_API_KEY / DNSE_API_SECRET vao dnse.env (xem dnse.env.example)")
-        sys.exit(2)
-    key, sec = cred
-    if a.check:
-        sys.exit(0 if asyncio.run(check_credentials(key, sec)) else 1)
+    if a.until:
+        left = seconds_until(a.until)
+        if left <= 0:
+            log(f"--until {a.until}: da qua gio ({now_vn():%H:%M}) -> thoat (ma 0)")
+            return
+        a.duration = left
+        log(f"--until {a.until}: chay {left // 60} phut")
+
+    key = sec = ""
+    if a.no_dnse:
+        log("CHE DO --no-dnse: khong mo WebSocket DNSE, chi SSI iBoard 60 s (stocks_latest) + xuat parquet" +
+            (" + day Drive" if a.push_every else ""))
+    else:
+        cred = load_credentials()
+        if not cred:
+            log("CHUA CO KEY: dien DNSE_API_KEY / DNSE_API_SECRET vao dnse.env (xem dnse.env.example)")
+            sys.exit(2)
+        key, sec = cred
+        if a.check:
+            sys.exit(0 if asyncio.run(check_credentials(key, sec)) else 1)
     if not (a.force or a.duration or a.backfill or in_session(now_vn())):
         log("Ngoai gio giao dich (08:45-15:10, T2-T6) -> thoat. --force de chay thu.")
         return
 
+    rc = None
+    push_files = ["stocks_latest"] if a.no_dnse else PUSH_FILES     # --no-dnse: cac file DNSE rong, khong day de len Drive
+    if a.push_every:
+        rc = find_rclone()
+        if not rc:
+            log("[push] ! khong tim thay rclone (env RCLONE / PATH / winget) -> KHONG day Drive")
+            a.push_every = 0
+        else:
+            log(f"[push] moi {a.push_every}s -> {a.push_remote}/<ngay> ({', '.join(push_files)}) | rclone: {rc}")
+
     symbols = load_symbols(a.symbols)
     store = Store(os.path.abspath(a.db))
     day = now_vn().date()
-    day_dir = os.path.join(os.path.abspath(a.out), day.strftime("%Y-%m-%d"))
-    client = rest_client(key, sec)
+    day_s = day.strftime("%Y-%m-%d")
+    day_dir = os.path.join(os.path.abspath(a.out), day_s)
+    client = rest_client(key, sec) if not a.no_dnse else None
     if a.db != DB_PATH or a.out != DATA:
         log(f"DB {a.db} | xuat {day_dir}")
 
-    if not a.no_backfill:
+    if rc and not a.no_seed:
+        seed_from_drive(rc, store, a.push_remote, day_s)
+
+    if not a.no_backfill and client is not None:
         n = backfill_bars(client, store, INDICES, "INDEX", day) + backfill_bars(client, store, FUTURES, "DERIVATIVE", day)
         n += backfill_bars(client, store, [s for s in symbols if not s.startswith("VN30F")], "STOCK", day)
         log(f"backfill REST: {n} nen 1 phut ({store.flush()} dong ghi)")
         if a.backfill:
             store.export(day_dir)
+            if rc:
+                push_once(rc, day_dir, a.push_remote, day_s, push_files)
             store.con.close()
             return
 
     foreign_extra: list[str] = []
-    if a.foreign_universe:
+    if a.foreign_universe and client is not None:
         try:
             foreign_extra = index_constituents(client, a.foreign_universe)
             log(f"ro {a.foreign_universe}: {len(foreign_extra)} ma -> them kenh khoi ngoai")
@@ -768,7 +952,8 @@ def main() -> None:
                 store.universe, store.universe_ts = universe_rows(udf, uts), uts
             universe = universe_symbols(udf, set(symbols))
             ex_cnt = udf["exchange"].str.upper().value_counts().to_dict()
-            log(f"[universe] SSI iBoard: {len(udf)} ma {ex_cnt} -> dang ky tick DNSE cho {len(universe)} ma ngoai watch")
+            log(f"[universe] SSI iBoard: {len(udf)} ma {ex_cnt}" +
+                ("" if a.no_dnse else f" -> dang ky tick DNSE cho {len(universe)} ma ngoai watch"))
         except Exception as e:  # noqa: BLE001
             log(f"[universe] ! khong lay duoc snapshot SSI ({type(e).__name__}: {str(e)[:120]}) -> dung danh sach symbols.txt")
             try:
@@ -778,11 +963,18 @@ def main() -> None:
         th_uni = threading.Thread(target=universe_loop, args=(store, stop_evt, a.universe_interval), daemon=True)
         th_uni.start()
 
-    conns = build_channels(symbols, foreign_extra, universe)
-    log(f"{len(conns)} ket noi, {sum(n_streams(ch) for ch in conns.values())} stream: " +
-        ", ".join(f"{n} ({n_streams(ch)})" for n, ch in conns.items()))
-    th = threading.Thread(target=lambda: asyncio.run(run_all(conns, key, sec, store, stop_evt)), daemon=True)
-    th.start()
+    th = None
+    if not a.no_dnse:
+        conns = build_channels(symbols, foreign_extra, universe)
+        log(f"{len(conns)} ket noi, {sum(n_streams(ch) for ch in conns.values())} stream: " +
+            ", ".join(f"{n} ({n_streams(ch)})" for n, ch in conns.items()))
+        th = threading.Thread(target=lambda: asyncio.run(run_all(conns, key, sec, store, stop_evt)), daemon=True)
+        th.start()
+
+    th_push = None
+    if rc:
+        th_push = threading.Thread(target=push_loop, args=(rc, day_dir, a.push_remote, day_s, a.push_every, stop_evt, push_files), daemon=True)
+        th_push.start()
 
     t0, last_export, last_log = time.time(), 0.0, 0.0
     try:
@@ -803,6 +995,9 @@ def main() -> None:
                 log(f"{store.counts()} | VNINDEX {vni.get('value')} tang/giam {vni.get('advances')}/{vni.get('declines')} "
                     f"| tick DNSE co gia: {n_px} ma | SSI toan san: {n_uni} ma")
                 last_log = time.time()
+            if store.fatal:
+                log(f"DUNG: {store.fatal} (thoat ma 0 - khong phai loi workflow; tat bo thu kia roi chay lai)")
+                break
             if a.duration and time.time() - t0 >= a.duration:
                 break
             if not (a.force or a.duration) and not in_session(now_vn()):
@@ -812,9 +1007,15 @@ def main() -> None:
         log("Dung theo yeu cau")
     finally:
         stop_evt.set()
-        th.join(timeout=5)
+        if th is not None:
+            th.join(timeout=5)
         store.flush()
         store.export(day_dir)
+        if rc:
+            if th_push is not None:
+                th_push.join(timeout=5)
+            ok, s = push_once(rc, day_dir, a.push_remote, day_s, push_files)
+            log(f"[push] lan cuoi -> {a.push_remote}/{day_s} {'OK' if ok else 'LOI'} ({s:.1f}s)")
         log(f"Ket thuc. {store.counts()} | thong diep/ket noi: {getattr(store, 'conn_stats', {})}")
         store.con.close()
 

@@ -238,7 +238,7 @@ def dong_tien(ctx):
             fig = ui.fig_treemap(d)
             dd = d.set_index("Mã") if len(d) else d
             if live_ts is not None:
-                dd.attrs["live"] = {"ts": live_ts, "hist_end": LAST, "src": rt.LIVE_1M}
+                dd.attrs["live"] = {"ts": live_ts, "hist_end": LAST, "src": rt.live_src_1m()}
             c.chart(fig, dd, last=min(c.d1, LAST) if live_ts is None else c.d1, ten=ten,
                     df_export=d_hist.set_index("Mã") if len(d_hist) else d_hist)
 
@@ -256,7 +256,7 @@ def dong_tien(ctx):
             tong_hist = tong
             tong, live_ts = (rt.sector_flows_add_today(tong, pn) if c.d1 >= rt.today_ts() else (tong, None))
             if live_ts is not None:
-                tong.attrs["live"] = {"ts": live_ts, "hist_end": LAST, "src": rt.LIVE_1M}
+                tong.attrs["live"] = {"ts": live_ts, "hist_end": LAST, "src": rt.live_src_1m()}
             c.chart(ui.fig_hbar(tong["Ròng (tỷ)"], "tỷ đồng", nd=0), tong, last=c.d1 if live_ts is not None else min(c.d1, LAST),
                     ten="Khoi ngoai rong theo nganh", df_export=tong_hist)
         else:

@@ -105,6 +105,20 @@ trước commit "app: bo han trang Live"). Phần **giữ lại** = cách "tích
 - Ảnh: `design\screens\11-live-toan-app-*.png`. Lịch sử `indices-master` có thể thiếu phiên gần nhất (pipeline kéo PM) → KPI ±% VN-Index khi live
   dùng `change_pct` của feed, còn đường chỉ số sẽ nối từ phiên lịch sử cuối sang điểm hôm nay.
 
+## Chế độ cloud của lớp live (12/10/2026) — bộ thu trên GitHub Actions, app kéo Drive 60 s
+
+Bộ thu `realtime-lab\dnse_stream.py` chạy trên GitHub Actions (`D:\cloud-deploy\.github\workflows\realtime-sang.yml` 08:25–11:40,
+`realtime-chieu.yml` 12:50–15:15, xem README cloud-deploy mục *Realtime*) và đẩy 8 parquet lên `gdrive:pipeline-data/realtime/<YYYY-MM-DD>/`
+mỗi 60 s. `data_live.py`: khi **bộ thu local không chạy** (`collector_running()` False), thread nền `ensure_cloud_sync` (khởi động từ
+`live_state()`) mỗi `RT_CLOUD_EVERY=60` s `rclone copy <remote>/<hôm nay>/ <RT_ROOT>\data\<hôm nay>\` (chỉ T2–T6 08:30–15:40; rclone tìm env
+`RCLONE` → PATH → bản winget). `live_state()` trả thêm `cloud`, `src`, `cloud_sync`; thanh ● LIVE ghi **"nguồn: live 1 phút (cloud) — bộ thu
+trên GitHub Actions → Drive, app kéo về mỗi 60 s (lần cuối hh:mm:ss)"**, chân thẻ/nhãn góc chart ghi `live 1 phút (cloud)` cho mọi thẻ
+(`with_live` đặt `attrs["live"]["src"]`; `pages_ck` dùng `rt.live_src_1m()`), cho phép trễ tới 450 s (local 300 s). Khối *Bộ thu real-time
+DNSE* ở Kho dữ liệu thêm dòng *Nguồn cloud* (hoặc lỗi rclone). `_day_today()`/`days()` chấp nhận thư mục chỉ có `stocks_latest`
+(chế độ `only_ssi` trên cloud). Env: `RT_CLOUD=0` tắt hẳn, `RT_CLOUD=1` ép cloud kể cả khi bộ thu local chạy (test), `RT_PUSH_REMOTE` đổi
+thư mục Drive. Kiểm chứng 12/10: server 8775, `RT_ROOT` = thư mục rỗng + `RT_CLOUD=1` → app tự kéo Drive, ảnh `design\screens\16-live-cloud.png`
+(Tổng quan) + `16-live-cloud-kho.png`, script `design\screens\chup_live_cloud.py`.
+
 ## Nguồn live-first (09/10/2026 chiều) — "data nào live được thì kéo live, không đợi pipeline"
 
 PV2: *"mấy data thiếu thì fill live luôn không đợi pull tại pipeline nữa"* và *"các data mà live được không cần historical của

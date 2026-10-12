@@ -85,9 +85,15 @@ def live_bar(state: dict, freq_key="live_freq_all", on_key="live_on", freqs=("5 
         if on and state.get("active"):
             ts = state.get("ts")
             lag = state.get("lag")
+            if state.get("cloud"):          # bo thu tren GitHub Actions -> Drive -> app keo ve moi 60 s (data_live CLOUD)
+                sync = state.get("cloud_sync")
+                nguon = (f' · nguồn: <b>{state.get("src") or "live 1 phút (cloud)"}</b> — bộ thu trên GitHub Actions → Drive, app kéo về mỗi 60 s'
+                         + (f' (lần cuối {sync:%H:%M:%S})' if sync is not None else ""))
+            else:
+                nguon = " · chỉ số + giá HOSE/HNX 5 s (DNSE) · UPCOM + khối ngoại theo mã 1 phút (SSI)"
             txt = (f'<span style="color:{TOK["up"]};font-weight:600">● LIVE</span> dữ liệu {ts:%H:%M:%S}'
                    + (f' · trễ {lag:,.0f} s' if lag is not None else "") + f' · làm mới mỗi {f or "15 s"}'
-                   " · chỉ số + giá HOSE/HNX 5 s (DNSE) · UPCOM + khối ngoại theo mã 1 phút (SSI) · ○ = điểm hôm nay · tải về = lịch sử")
+                   + nguon + " · ○ = điểm hôm nay · tải về = lịch sử")
         elif on:
             txt = f'<span style="color:{TOK["ink3"]};font-weight:600">○ LIVE</span> chờ dữ liệu ({state.get("reason") or "—"})'
         else:

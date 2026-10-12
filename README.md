@@ -31,7 +31,8 @@ laptop chạy `region.py --only JCI,LQ45,FBMKLCI`. Chi tiết ai ghi thư mục 
 | `data_manifest.py` | bản đồ dữ liệu: thư mục nào mỗi bước đọc/ghi, chủ (cloud/laptop), lên Drive hay không. `--size` = ước dung lượng. |
 | `sync_data.py` | `down`/`up` theo bước sẽ chạy hôm nay (cùng luật `--only`, `CLOUD_SKIP` với runner), `app` (kéo data cho app), `seed` (lần đầu). |
 | `seed_drive.ps1` | lần đầu: `D:\` → Drive (~1,9 GB, bỏ bond-pivot) + dựng `D:\pipeline-data` (cangvu-hcm raw + junction bond-pivot). |
-| `.github/workflows/*.yml` | 4 slot cron + `keepalive.yml` (commit rỗng ngày 1 và 16 hằng tháng để GitHub không tắt cron sau 60 ngày không commit). |
+| `.github/workflows/*.yml` | 4 slot cron + `keepalive.yml` (commit rỗng ngày 1 và 16 hằng tháng để GitHub không tắt cron sau 60 ngày không commit) + `realtime-sang.yml` / `realtime-chieu.yml` (bộ thu DNSE/SSI, mục **Realtime**). |
+| `local\Tat-realtime-laptop.ps1` | tắt task laptop "Realtime DNSE" khi chuyển bộ thu sang cloud (`-Enable` bật lại, `-Kill` dừng tiến trình đang chạy). |
 | `local\Run-Local-Mini.ps1` | 18:40: IDX/Bursa → nganh-ck → (thứ Hai) bonds → đẩy 2 file region lên Drive → kéo data cho app. Đợi cloud Market PM xong trước (tối đa 150'). |
 | `local\Run-Local-Cvhcm.ps1` | 8:30: cvhcm (+ cvhcm-berthmap thứ Hai) → đẩy `shipping/cangvu-hcm` lên Drive (trước cloud Shipping AM 9:00). |
 | `local\Chay-app-market.bat`, `local\Chay-app-port-tracker.bat` | bản copy 2 launcher app với `MD_ROOT`/`SHIP_ROOT` = `D:\pipeline-data\...` (file gốc không sửa). |
@@ -45,6 +46,7 @@ Secret cần đặt trên GitHub (Settings → Secrets and variables → Actions
 |---|---|---|
 | `RCLONE_CONF` | có | file `rclone.conf` (remote `gdrive`) mã hoá base64 — mục 2 |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | không | runner gửi cảnh báo FAIL/STALE qua Telegram; không có thì chỉ ghi log + Summary của job |
+| `DNSE_API_KEY`, `DNSE_API_SECRET` | cho 2 job Realtime | key DNSE Open API — **PV2 tự thêm**, lấy 2 dòng trong `D:\market-data\realtime-lab\dnse.env` (không dán vào chat/commit). Chưa có thì job Realtime báo lỗi rõ, trừ khi chạy tay `only_ssi=true` |
 
 Quét secret (`pack_code.py`): **không** thấy token/api_key/password/cookie gắn cứng trong code — các "token" trong bond-pivot/VSDC là token CSRF lấy lúc chạy.
 
@@ -129,6 +131,34 @@ GitHub → ảnh đại diện → Settings → **Billing and plans** → Plans 
 Khi ổn: tắt 4 task cũ `schtasks /Change /TN "<tên task>" /DISABLE` (không xoá); app chuyển sang `local\Chay-app-*.bat`.
 
 ---
+
+## Realtime: bộ thu DNSE/SSI trên GitHub Actions (12/10/2026)
+Bộ thu `market-data/realtime-lab/dnse_stream.py` (10 WebSocket DNSE × 100 stream, 5 s + SSI iBoard toàn sàn 60 s) chạy trên cloud bằng
+**2 job/ngày** (1 job GitHub tối đa 6 giờ): `realtime-sang.yml` cron `25 1 * * 1-5` (08:25 VN) chạy `--until 11:40`, `realtime-chieu.yml`
+cron `50 5 * * 1-5` (12:50 VN) `--until 15:15`; `concurrency: realtime`, timeout 215/160 phút, cài `realtime-lab/requirements.txt` (nhẹ) + rclone.
+- **Đẩy Drive**: thread trong `dnse_stream` (env `RT_PUSH_EVERY=60`) mỗi 60 s `rclone copy data/<ngày>/ gdrive:pipeline-data/realtime/<YYYY-MM-DD>/`
+  chỉ 8 parquet nhỏ (`index_latest, stocks_latest, rt_latest, influence_latest, foreign_latest, market_summary, index_1m, rt_bars_1m`;
+  không duckdb). Mọi file xuất ghi `.tmp` rồi `os.replace` nên rclone không bắt gặp file ghi dở. Cuối job đẩy lần cuối + upload log artifact 14 ngày.
+- **Job chiều** khởi động với DuckDB mới: `seed_from_drive` kéo `market_summary/index_1m/rt_bars_1m` buổi sáng từ Drive vào DuckDB
+  (+ backfill REST nến 1 phút như cũ) → `market_summary.parquet` chiều có cả sáng.
+- **App laptop đọc Drive** (`market-data/app/data_live.py`, mục *Chế độ cloud*): nếu bộ thu local không chạy, thread nền mỗi 60 s
+  `rclone copy gdrive:pipeline-data/realtime/<hôm nay>/ <RT_ROOT>\data\<hôm nay>\` (T2–T6 08:30–15:40); thanh ● LIVE + chân thẻ ghi
+  **"live 1 phút (cloud)"**; Kho dữ liệu hiện dòng *Nguồn cloud*. `sync_data.py app` cũng kéo ngày gần nhất (`realtime/data` trong
+  `data_manifest.py`, thư mục Drive riêng `realtime/`, cloud là chủ, không seed). Env: `RT_CLOUD=0` tắt, `RT_CLOUD=1` ép cloud để test.
+- **10 kết nối/user** → laptop và cloud KHÔNG chạy cùng lúc. Bên vào sau bị `MAX_CONNECTIONS_EXCEEDED`: `dnse_stream` log rõ, mỗi kết nối
+  thử lại 3 lần cách 60 s rồi **thoát mã 0** (job xanh nhưng Summary có warning). Test không tranh kết nối: Run workflow với
+  `only_ssi=true` (flag `--no-dnse`: chỉ SSI 60 s + đẩy `stocks_latest`) và `duration=120` (giây) để thử nhanh.
+- **Chuyển giao** (task laptop "Realtime DNSE" 08:40 T2–T6 **chưa tắt**):
+  1. Thêm 2 secret `DNSE_API_KEY`, `DNSE_API_SECRET` (bảng trên). Push repo (đã làm 12/10).
+  2. 12/10: Run workflow `Realtime CHIEU` tay với `only_ssi=true`, `duration=120` → xanh, `rclone lsl gdrive:pipeline-data/realtime/2026-10-12` có `stocks_latest.parquet` mới.
+  3. 13/10 (thứ Ba): để cả hai chạy — cloud 08:25 vào trước laptop 08:40 nên **laptop** sẽ bị MAX_CONNECTIONS (bat laptop lặp 15 s → log
+     `realtime_20261013.log` đầy dòng xác thực thất bại, vô hại), hoặc chủ động chạy `local\Tat-realtime-laptop.ps1` ngay sáng 13/10 trước 08:40.
+     Kiểm tra: Actions → 2 job xanh, Summary có `[push] lan N ... OK`; app mở bằng `local\Chay-app-market.bat` hiện "live 1 phút (cloud)".
+  4. Khi 2 job xanh trọn ngày 13/10: `powershell -ExecutionPolicy Bypass -File D:\cloud-deploy\local\Tat-realtime-laptop.ps1` (chỉ Disable task; `-Enable` quay lại laptop).
+- Kiểm chứng 12/10: (a) local `dnse_stream.py --no-dnse --force --duration 150` + `RT_PUSH_EVERY=60` → Drive có file, exit 0;
+  (c) app cổng 8775 với `RT_ROOT` rỗng + `RT_CLOUD=1` tự kéo Drive, ảnh `app/design/screens/16-live-cloud.png`.
+- Chưa chắc: REST backfill `openapi.dnse.com.vn` từ IP Mỹ (probe gốc timeout, mỗi mã timeout 30 s, lỗi chỉ log); thời gian job thực tế
+  (repo Public nên phút Actions không giới hạn); độ trễ Drive thực tế (app cho phép trễ tới 450 s ở chế độ cloud).
 
 ## Port Tracker: ghép dữ liệu liên tục (09/10/2026)
 App Port & Vessel Tracker không còn tự gọi trang nguồn khi mở. Bước `port-tracker` (Shipping AM) và `port-tracker-pm` (Shipping PM) chạy

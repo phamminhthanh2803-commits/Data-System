@@ -62,6 +62,15 @@ TARGETS = [
     ("VN-gov",   "cv-aspx (Nha Trang)",    "https://cangvuhanghainhatrang.gov.vn/"),
     ("VN-gov",   "cv-aspx (Can Tho)",      "https://cangvuhanghaicantho.gov.vn/"),
     ("VN-gov",   "cv-pkh (Da Nang)",       "http://tttb.cangvuhanghaidanang.gov.vn/public-kh"),
+    # ---- nguon LIVE / live-first (them 12/10/2026 de kiem tra chay tu runner GitHub)
+    ("Live",     "SSI iBoard snapshot toan san",   "https://iboard-query.ssi.com.vn/stock/exchange/hose"),
+    ("Live",     "SSI iBoard chart 1 phut",        "https://iboard-api.ssi.com.vn/statistics/charts/history?resolution=1&symbol=VNINDEX&from=%d&to=%d"),
+    ("Live",     "Entrade nen ngay (live-first)",  "https://services.entrade.com.vn/chart-api/v2/ohlcs/index?from=%d&to=%d&symbol=VNINDEX&resolution=1D"),
+    ("Live",     "VNDirect dchart 1 phut",         "https://dchart-api.vndirect.com.vn/dchart/history?symbol=VNINDEX&resolution=1&from=%d&to=%d"),
+    ("Live",     "Vietcap symbols getList",        "https://trading.vietcap.com.vn/api/price/symbols/getList"),
+    ("Live",     "CafeF giao dich noi bo",         "https://cafef.vn/du-lieu/Ajax/PageNew/DataHistory/GDCoDong.ashx?Symbol=FPT&StartDate=&EndDate=&PageIndex=1&PageSize=5"),
+    ("Live",     "DNSE Open API REST",             "https://openapi.dnse.com.vn/"),
+    ("Live",     "DNSE WebSocket host",            "https://ws-openapi.dnse.com.vn/v1/stream"),
 ]
 
 BLOCK_MARKERS = ("Incapsula", "_Incapsula_Resource", "cf-browser-verification", "Just a moment",
@@ -93,6 +102,10 @@ def probe(url, mode):
         return classify(0, "", str(e) or type(e).__name__), 0, round(time.time() - t0, 1)
 
 
+NOW = int(time.time())
+FROM = NOW - 2 * 86400
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--json", help="ghi ket qua ra file JSON")
@@ -106,6 +119,8 @@ def main():
     print(f"{'Nhom':8} {'Buoc':36} " + " ".join(f"{m:>16}" for m in modes) + "  URL")
     rows, bad = [], []
     for grp, step, url in TARGETS:
+        if "%d" in url:
+            url = url % (FROM, NOW)
         res = {m: probe(url, m) for m in modes}
         cell = " ".join(f"{v[0]:>8}{v[1]:>4}{v[2]:>4}s" for v in res.values())
         print(f"{grp:8} {step:36} {cell}  {url}")

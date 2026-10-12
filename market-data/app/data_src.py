@@ -4,7 +4,7 @@ data_src.py - LOP NGUON LIVE-FIRST cho Market Data App (09/10/2026, PV2: "data n
 khong doi pull tai pipeline").
 
 Voi du lieu ma nguon REST cong khai cung cap duoc CA LICH SU, app keo thang tu nguon do, cache parquet cuc bo
-(cache\src\), moi lan mo app cap nhat TANG DAN trong THREAD NEN (khong chan render), hom nay (trong phien) van
+(cache\\src\), moi lan mo app cap nhat TANG DAN trong THREAD NEN (khong chan render), hom nay (trong phien) van
 do data_live.with_live overlay. Pipeline chi con cho thu khong live duoc (vi mo, VSDC, trai phieu, tu doanh theo ma, khu vuc...).
 
 Nguon (khong can key, header User-Agent Mozilla, 0,3-1 s/request):
@@ -210,14 +210,14 @@ def mtime_all() -> float:
     return sum(mtime(n) for n in DATASETS)
 
 
-def read(name) -> pd.DataFrame:
-    """Doc parquet cache (rong neu chua co / dang ghi loi)."""
+def read(name, columns=None) -> pd.DataFrame:
+    """Doc parquet cache (rong neu chua co / dang ghi loi). columns: chi doc vai cot (stock_daily 3,5 trieu dong - RAM)."""
     p = _path(name)
     if not os.path.exists(p):
         return pd.DataFrame()
     for i in range(3):
         try:
-            return pd.read_parquet(p)
+            return pd.read_parquet(p, columns=columns)
         except Exception:  # noqa: BLE001
             time.sleep(0.3 * (i + 1))
     return pd.DataFrame()
@@ -229,11 +229,13 @@ def _write(name, df: pd.DataFrame, force=False):
     duoc cap nhat tai cho, 300 dong cuoi khong phan anh)."""
     p = _path(name)
     if os.path.exists(p) and not force:
-        try:
-            old = pd.read_parquet(p)
-            if old.shape == df.shape and list(old.columns) == list(df.columns):
-                a, b = old.tail(300).select_dtypes("number").sum(), df.tail(300).select_dtypes("number").sum()
-                if np.allclose(a.fillna(0).values, b.fillna(0).values, rtol=1e-9):
+        try:                                   # 12/10/2026: so sanh bang metadata + row group cuoi, khong doc lai ca parquet (RAM)
+            import pyarrow.parquet as ppq
+            pf = ppq.ParquetFile(p)
+            if pf.metadata.num_rows == len(df) and pf.schema_arrow.names == list(df.columns):
+                old = pf.read_row_group(pf.num_row_groups - 1).to_pandas().tail(300)
+                a, b = old.select_dtypes("number").sum(), df.tail(300).select_dtypes("number").sum()
+                if len(a) == len(b) and np.allclose(a.fillna(0).values, b.fillna(0).values, rtol=1e-9):
                     return
         except Exception:  # noqa: BLE001
             pass
@@ -498,13 +500,27 @@ def _eod_day(day: pd.Timestamp) -> pd.DataFrame:
 def update_stock_daily(full=False) -> pd.DataFrame:
     """Lan dau: keo nen Entrade toan bo ma (ThreadPool 8). Sau do: moi ngay thieu -> VNDirect theo ngay (3 request), loi -> EOD bo thu."""
     name = "stock_daily"
-    old = pd.DataFrame(columns=STOCK_COLS) if full else read(name)
     syms = symbols_all()
     if not syms:
         raise RuntimeError("Không có danh sách mã (realtime-lab\\symbols.txt)")
-    if len(old) == 0 or len(set(syms) - set(old.symbol.unique())) > 50:   # chua co nen hoac nhieu ma moi
-        old = _pull_stock_base(syms, old)
     cut = cutoff()
+    # 12/10/2026 (RAM cloud 1 GB): doc 3 cot nhe truoc de biet co viec gi khong; khong co phien moi -> KHONG doc/concat/ghi lai
+    # ca bang 3,5 trieu dong (truoc day moi 30 phut dinh RAM ~1 GB vi concat + drop_duplicates + sort + ghi lai)
+    lite = pd.DataFrame(columns=["symbol", "date", "src"]) if full else read(name, columns=["symbol", "date", "src"])
+    need_base = len(lite) == 0 or len(set(syms) - set(lite.symbol.unique())) > 50   # chua co nen hoac nhieu ma moi
+    if not need_base:
+        last0 = lite.date.max()
+        have0 = set(lite[lite.src == "vnd"].date.unique())
+        days0 = list(pd.bdate_range(last0 + pd.Timedelta(days=1), cut))
+        recent0 = [d for d in pd.bdate_range(cut - pd.Timedelta(days=14), min(last0, cut)) if d not in have0 and d <= cut]
+        if not days0 and not recent0:
+            _status_set(name, last=str(last0.date()), rows=int(len(lite)), updated=now_vn().strftime("%Y-%m-%d %H:%M:%S"),
+                        error=None, phase="ok")
+            return lite
+    del lite
+    old = pd.DataFrame(columns=STOCK_COLS) if full else read(name)
+    if need_base:
+        old = _pull_stock_base(syms, old)
     last = old.date.max() if len(old) else None
     if last is None or pd.isna(last):
         raise RuntimeError("Kéo nền Entrade không có dữ liệu")
@@ -882,10 +898,10 @@ def _insider_value(df: pd.DataFrame) -> pd.DataFrame:
     ngay thuc hien khong phai phien (cuoi tuan) -> phien gan nhat truoc do (merge_asof, toi da 10 ngay)."""
     df = df.copy().reset_index(drop=True)
     df["gia_tri_uoc"] = np.nan
-    px = read("stock_daily")
+    px = read("stock_daily", columns=["symbol", "date", "close"])     # 12/10/2026: chi 3 cot (RAM)
     if px.empty or not len(df):
         return df
-    px = px[["symbol", "date", "close"]].dropna().sort_values("date")
+    px = px.dropna().sort_values("date")
     df["kl_rong_tinh"] = _kl_rong_tinh(df)
     m = df[df.ngay_thuc_hien.notna() & (df.kl_rong_tinh != 0)][["symbol", "ngay_thuc_hien", "kl_rong_tinh"]].reset_index()
     if m.empty:
@@ -1037,10 +1053,24 @@ def refresh_all(full=False, only=None) -> dict:
     return res
 
 
+def _push_cache():
+    """Laptop: day cache\\src (stock_daily 52 MB, insider...) len Drive app-cache/ de app tren Streamlit Cloud mo lan dau
+    khong phai keo nen 1.525 ma Entrade (RAM 1 GB) - cloud_boot.push_src_cache (12/10/2026). Tat bang env SRC_CACHE_PUSH=0."""
+    if os.environ.get("SRC_CACHE_PUSH", "1") == "0" or os.environ.get("STREAMLIT_CLOUD") == "1":
+        return
+    try:
+        import cloud_boot
+        if not cloud_boot.is_cloud():
+            cloud_boot.push_src_cache(SRC_DIR)
+    except Exception as e:  # noqa: BLE001
+        _status_set("_run", push_error=f"{type(e).__name__}: {str(e)[:160]}")
+
+
 def _bg_loop(interval=1800):
     while True:
         try:
             refresh_all()
+            _push_cache()
         except Exception as e:  # noqa: BLE001
             _status_set("_run", error=str(e)[:200])
         time.sleep(interval)

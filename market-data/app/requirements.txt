@@ -1,0 +1,13 @@
+# Market Data App - Streamlit Community Cloud (Python 3.12). Phien ban = ban dang chay tren laptop 12/10/2026 (co wheel Linux/py3.12).
+# kaleido (nut "Anh") va duckdb KHONG can: app khong mo realtime.duckdb, kaleido tuy chon.
+streamlit==1.64.0
+plotly==7.1.0
+pandas==2.3.3
+numpy==2.2.6
+pyarrow==25.0.1
+requests==2.34.2
+curl_cffi==0.16.3
+openpyxl==3.1.5
+psutil==7.2.2
+pytz==2026.3.post1
+tzdata==2026.4

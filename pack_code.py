@@ -70,6 +70,8 @@ SECRET_OK = re.compile(r"(?i)environ|getenv|os\.environ|\{token\}|\{tok\}|\$env|
 def is_code(rel_posix: str, name: str, size: int) -> bool:
     low = name.lower()
     ext = os.path.splitext(low)[1]
+    if low == "secrets.toml" or ext == ".conf" or low.endswith(".conf.b64"):      # secret Streamlit / rclone: KHONG BAO GIO chep vao repo
+        return False
     if any(fnmatch.fnmatch(low, p) for p in DATA_NAME):
         return False
     if rel_posix.startswith("shipping/BCTI-scraper/") or rel_posix.startswith("BCTI-scraper/"):

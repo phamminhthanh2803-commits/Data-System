@@ -20,17 +20,23 @@ import pandas as pd
 import streamlit as st
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+st.set_page_config(page_title="Market Data", page_icon="◆", layout="wide", initial_sidebar_state="collapsed")
+
+# STREAMLIT COMMUNITY CLOUD (12/10/2026): co secret RCLONE_CONF / env STREAMLIT_CLOUD=1 -> keo du lieu tu Google Drive ve /tmp
+# (rclone), dat MD_ROOT/RT_ROOT/APP_CACHE truoc khi import datalib; tren laptop boot() tra False va khong lam gi (cloud_boot.py).
+import cloud_boot  # noqa: E402
+CLOUD = cloud_boot.boot()
 import datalib as dl  # noqa: E402
 import data_live as rt  # noqa: E402
 import ui_genea as ui  # noqa: E402
 
 try:                                   # lop nguon LIVE-FIRST (09/10/2026): cap nhat tang dan trong thread nen, khong chan render
     import data_src as src  # noqa: E402
-    src.start_background()
+    if os.environ.get("APP_NO_BG") != "1":          # APP_NO_BG=1: tat thread nen (do RAM / test)
+        src.start_background()
 except Exception:  # noqa: BLE001
     src = None
 
-st.set_page_config(page_title="Market Data", page_icon="◆", layout="wide", initial_sidebar_state="collapsed")
 ui.inject_css()
 
 # ------------------------------------------------------------ CAY DIEU HUONG
@@ -196,6 +202,14 @@ with st.container(border=True, key="khung_noi_dung"):
     else:
         _render()
 
+_cb = ""
+if CLOUD:
+    _ci = cloud_boot.info()
+    _mk = _ci.get("marker") or {}
+    _cb = (f' · <b>Cloud</b>: dữ liệu kéo từ Google Drive lúc {_mk.get("time", "?")} ({_mk.get("mb", 0):.0f} MB, '
+           f'làm mới mỗi {cloud_boot.REFRESH_SEC // 60} phút)' + (f' · lỗi: {_ci["error"]}' if _ci.get("error") else ""))
 st.markdown(f'<div class="gn-note" style="margin-top:10px">Phiên gần nhất: {LAST:%d/%m/%Y} · '
-            f'Dữ liệu đọc từ <code>{dl.BASE}</code> · Giao diện cũ: <code>app_legacy.py</code></div>',
+            f'Dữ liệu đọc từ <code>{dl.BASE}</code> · Giao diện cũ: <code>app_legacy.py</code>{_cb}</div>',
             unsafe_allow_html=True)
+if CLOUD:
+    cloud_boot.trim_memory()                     # tra RAM tam ve he dieu hanh (may cloud 1 GB)

@@ -90,3 +90,12 @@ desktop.ini
 # cay du lieu local (Run-Local-*.ps1) neu lo tao trong repo
 pipeline-data/
 data/
+
+# Streamlit Community Cloud (12/10/2026): secret + cache + du lieu keo ve - KHONG bao gio commit
+.streamlit/secrets.toml
+**/.streamlit/secrets.toml
+secrets.toml
+.data/
+app-cache/
+*.conf
+!*.example.conf

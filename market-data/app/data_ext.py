@@ -22,32 +22,36 @@ HORIZONS = ["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "3Y", "5Y"]
 
 
 # ------------------------------------------------------------------ OHLC
-@st.cache_data(show_spinner="Đang dựng cache OHLC (lần đầu ~30 giây) ...")
-def _ohlc_vn(mt: float) -> pd.DataFrame:
-    """tv-history.csv -> parquet OHLCV cua toan bo ma + chi so Viet Nam (HOSE/HNX/UPCOM)."""
+OHLC_COLS = ["date", "tv_symbol", "exchange", "symbol", "open", "high", "low", "close", "volume", "value_approx"]
+
+
+def _ohlc_pq(mt: float) -> str:
+    """Parquet OHLCV toan bo ma + chi so VN (HOSE/HNX/UPCOM); dung lai tu tv-history.csv THEO KHOI khi CSV moi hon
+    (12/10/2026: khong read_csv ca bang nua - dinh RAM thap cho cloud 1 GB)."""
     pq = os.path.join(dl.CACHE, "tv-ohlc-vn.parquet")
-    if os.path.exists(pq) and os.path.getmtime(pq) >= mt:
-        return pd.read_parquet(pq)
-    d = pd.read_csv(dl.REGISTRY["tv_history"][2],
-                    usecols=["date", "tv_symbol", "exchange", "symbol", "open", "high", "low", "close", "volume", "value_approx"],
-                    dtype={"date": str})
-    d = d[d.exchange.isin(dl.VN_EX)].copy()
-    d["date"] = pd.to_datetime(d.date)
-    for c in ("tv_symbol", "exchange", "symbol"):
-        d[c] = d[c].astype("category")
-    d.to_parquet(pq, index=False)
-    return d
+    if not (os.path.exists(pq) and os.path.getmtime(pq) >= mt):
+        with st.spinner("Đang dựng cache OHLC (lần đầu ~30 giây) ..."):
+            dl.tv_csv_to_parquet(dl.REGISTRY["tv_history"][2], pq, OHLC_COLS, only_vn=True)
+    return pq
 
 
 def ohlc_vn() -> pd.DataFrame:
-    return _ohlc_vn(dl._raw_mt(dl.REGISTRY["tv_history"][2]))      # mtime THAT cua CSV (dl._mtime da gom cache nguon live-first)
+    """Ca bang OHLCV VN (3,3 trieu dong ~200 MB) - KHONG con cache thuong tru (12/10/2026); chi dung khi that su can ca bang."""
+    return pd.read_parquet(_ohlc_pq(dl._raw_mt(dl.REGISTRY["tv_history"][2])))      # mtime THAT cua CSV
+
+
+@st.cache_data(show_spinner=False, max_entries=64)
+def _ohlc_one(mt: float, col: str, value: str) -> pd.DataFrame:
+    """OHLCV 1 ma (col='symbol') hoac 1 chi so (col='tv_symbol') doc thang tu parquet bang bo loc pyarrow:
+    chi vai nghin dong vao RAM thay vi 3,3 trieu."""
+    d = pd.read_parquet(_ohlc_pq(mt), filters=[(col, "==", value)])
+    d = d.set_index("date").sort_index()[["open", "high", "low", "close", "volume", "value_approx"]]
+    return d[~d.index.duplicated(keep="last")]
 
 
 def stock_ohlc(code: str) -> pd.DataFrame:
     """OHLCV 1 ma: tv-history (gia dieu chinh) + duoi live-first (Entrade/VNDirect x he so dieu chinh) sau ngay cuoi tv-history."""
-    d = ohlc_vn()
-    d = d[d.symbol == code].set_index("date").sort_index()[["open", "high", "low", "close", "volume", "value_approx"]]
-    d = d[~d.index.duplicated(keep="last")]
+    d = _ohlc_one(dl._raw_mt(dl.REGISTRY["tv_history"][2]), "symbol", str(code))
     return _stock_ohlc_tail(code, d, dl._src_mt("tv_history"))
 
 
@@ -77,8 +81,7 @@ def index_ohlc(code: str) -> pd.DataFrame:
     """OHLCV + GTGD (ty) cua 1 chi so VN. VNINDEX/VN30/HNXINDEX/UPCOM: indices-master (co value);
     VNMIDCAP/VNSMALLCAP: tv-history."""
     if code in ("VNMIDCAP", "VNSMALLCAP"):
-        d = ohlc_vn()
-        d = d[d.tv_symbol == f"HOSE:{code}"].set_index("date").sort_index()
+        d = _ohlc_one(dl._raw_mt(dl.REGISTRY["tv_history"][2]), "tv_symbol", f"HOSE:{code}")
         d = d[["open", "high", "low", "close", "volume"]].copy()
         d["value"] = np.nan
     else:
@@ -475,8 +478,15 @@ def insider_market() -> pd.DataFrame:
 @st.cache_data(show_spinner=False)
 def _last_close(mt: float) -> pd.Series:
     """Gia dong cua gan nhat moi ma (stock_daily live-first, dong) - de uoc gia tri dang ky dang chay."""
-    try:
-        px = dl.src.read("stock_daily")[["symbol", "date", "close"]]
+    try:                                   # 12/10/2026: chi doc 3 cot + 60 ngay cuoi (pyarrow) thay vi ca bang 3,5 trieu dong
+        import pyarrow.compute as pc
+        import pyarrow.parquet as ppq
+        t = ppq.read_table(dl.src._path("stock_daily"), columns=["symbol", "date", "close"])
+        if t.num_rows == 0:
+            return pd.Series(dtype=float)
+        mx = pc.max(t["date"]).as_py()
+        px = t.filter(pc.greater_equal(t["date"], pd.Timestamp(mx) - pd.Timedelta(days=60))).to_pandas()
+        del t
     except Exception:  # noqa: BLE001
         return pd.Series(dtype=float)
     if px.empty:

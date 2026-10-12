@@ -36,8 +36,9 @@ NSOD = os.path.join(BASE, "nso-fetcher")
 TRAD = os.path.join(BASE, "transmission-fetcher")
 BOND = os.path.join(BASE, "bond-pivot")
 VSDC = os.path.join(BASE, "vsdc-accounts")
-CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache")
-os.makedirs(CACHE, exist_ok=True)
+CACHE = os.path.normpath(os.environ.get("APP_CACHE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache"))
+os.makedirs(CACHE, exist_ok=True)                        # APP_CACHE: cloud_boot dat ra /tmp (repo mount tren cloud co the chi doc)
+SRC_CACHE = os.path.normpath(os.environ.get("SRC_CACHE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "src")))
 
 VN_EX = ("HOSE", "HNX", "UPCOM")
 VN_IDX = ["VNINDEX", "VN30", "HNXINDEX", "UPCOM"]
@@ -131,7 +132,7 @@ REGISTRY = {
                    os.path.join(BOND, "data", "processed", "tpcp_curve.csv"), "ngay", "ky_han",
                    "spot rate 11 kỳ hạn 3T–20N theo ngày, benchmark phi rủi ro"),
     "insider": ("Giao dịch nội bộ & người liên quan (CafeF)", "Cổ phiếu · Dòng tiền",
-                os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "src", "insider.parquet"), "ngay_cong_bo", "symbol",
+                os.path.join(SRC_CACHE, "insider.parquet"), "ngay_cong_bo", "symbol",
                 "đăng ký / kết quả giao dịch của cổ đông nội bộ, người liên quan, cổ đông lớn theo mã (CafeF, chỉ live-first, "
                 "không có pipeline); gia_tri_uoc = KL ròng thực hiện × giá đóng cửa ngày thực hiện (tỷ)"),
 }
@@ -279,20 +280,53 @@ def _merge_sectors(pipe: pd.DataFrame) -> pd.DataFrame:
     return out.sort_values(["code", "date"]).reset_index(drop=True)
 
 
-@st.cache_data(show_spinner="Đang nạp giá cổ phiếu (lần đầu sẽ dựng cache parquet) ...")
+TV_COLS = ["date", "tv_symbol", "exchange", "symbol", "close", "volume", "value_approx"]
+
+
+def tv_csv_to_parquet(csv: str, pq: str, cols=None, only_vn=False) -> None:
+    """tv-history.csv (237 MB, 3,5 trieu dong) -> parquet theo KHOI bang pyarrow (12/10/2026, cho cloud 1 GB RAM):
+    khong bao gio giu ca CSV trong pandas (truoc day read_csv dinh ~700 MB). Cot chuoi ma hoa dictionary -> doc lai bang
+    pd.read_parquet ra dung dtype category nhu cu; only_vn=True chi giu HOSE/HNX/UPCOM (cache OHLC)."""
+    import pyarrow as pa
+    import pyarrow.compute as pc
+    import pyarrow.csv as pcsv
+    import pyarrow.parquet as ppq
+    cols = list(cols or TV_COLS)
+    types = {"date": pa.timestamp("ns"), "tv_symbol": pa.string(), "exchange": pa.string(), "symbol": pa.string()}
+    for c in ("open", "high", "low", "close", "volume", "value_approx"):
+        types[c] = pa.float64()
+    ro = pcsv.ReadOptions(block_size=8 << 20)              # khoi 8 MB: dinh RSS ~400 MB (32 MB: ~510 MB), 2 s cho 237 MB
+    co = pcsv.ConvertOptions(include_columns=cols, column_types={c: types[c] for c in cols if c in types},
+                             strings_can_be_null=False)
+    tmp = pq + ".tmp"
+    writer = None
+    with pcsv.open_csv(csv, read_options=ro, convert_options=co) as reader:
+        for batch in reader:
+            if only_vn:
+                batch = batch.filter(pc.is_in(batch.column("exchange"), value_set=pa.array(list(VN_EX))))
+            if batch.num_rows == 0:
+                continue
+            # dictionary_encode tuong minh (auto_dict_encode chi ap dung <= 50 gia tri/khoi) -> pandas doc ra category
+            arrs = [pc.dictionary_encode(batch.column(c)) if pa.types.is_string(batch.schema.field(c).type) else batch.column(c)
+                    for c in batch.schema.names]
+            batch = pa.RecordBatch.from_arrays(arrs, names=batch.schema.names)
+            if writer is None:
+                writer = ppq.ParquetWriter(tmp, batch.schema, compression="snappy")
+            writer.write_batch(batch)
+    if writer is not None:
+        writer.close()
+    os.replace(tmp, pq)
+
+
 def load_tv(mt: float) -> pd.DataFrame:
-    """tv-history.csv 233 MB -> cache parquet, chi giu cot can dung."""
+    """tv-history.csv 233 MB -> cache parquet, chi giu cot can dung.
+    12/10/2026 (RAM cloud): KHONG st.cache_data nua - moi lan goi doc lai parquet (~1 s, 135 MB tam thoi) thay vi giu
+    3,5 trieu dong thuong tru + copy moi lan truy cap; cac ket qua dan xuat (price_matrix, breadth...) moi duoc cache."""
     pq = os.path.join(CACHE, "tv-history.parquet")
-    if os.path.exists(pq) and os.path.getmtime(pq) >= mt:
-        return pd.read_parquet(pq)
-    df = pd.read_csv(REGISTRY["tv_history"][2],
-                     usecols=["date", "tv_symbol", "exchange", "symbol", "close", "volume", "value_approx"],
-                     dtype={"date": str})
-    df["date"] = pd.to_datetime(df.date)
-    for c in ("tv_symbol", "exchange", "symbol"):
-        df[c] = df[c].astype("category")
-    df.to_parquet(pq, index=False)
-    return df
+    if not (os.path.exists(pq) and os.path.getmtime(pq) >= mt):
+        with st.spinner("Đang nạp giá cổ phiếu (lần đầu sẽ dựng cache parquet) ..."):
+            tv_csv_to_parquet(REGISTRY["tv_history"][2], pq)
+    return pd.read_parquet(pq)
 
 
 def tv() -> pd.DataFrame:
@@ -305,6 +339,29 @@ def tv() -> pd.DataFrame:
         except Exception as e:  # noqa: BLE001
             st.session_state["_src_err"] = f"tv_history: {type(e).__name__}: {str(e)[:120]}"
     return load_tv(mt)
+
+
+def tv_meta() -> tuple:
+    """(ngay cuoi, so dong) cua bang gia tv() ma KHONG nap ca bang: doc metadata + cot date cua parquet dang dung."""
+    import pyarrow.compute as pc
+    import pyarrow.parquet as ppq
+    mt = _raw_mt(REGISTRY["tv_history"][2])
+    pq = os.path.join(CACHE, "tv-history.parquet")
+    if live_first("tv_history"):
+        pq2, tag = os.path.join(CACHE, "tv-live.parquet"), os.path.join(CACHE, "tv-live.stamp")
+        try:
+            if os.path.exists(pq2) and open(tag).read().strip() == f"{mt}|{_src_mt('tv_history')}":
+                pq = pq2
+            else:
+                tv()                                   # dung lai ban gop (ghi parquet) roi doc metadata
+                pq = pq2 if os.path.exists(pq2) else pq
+        except Exception:  # noqa: BLE001
+            pass
+    if not os.path.exists(pq):
+        load_tv(mt)
+    pf = ppq.ParquetFile(pq)
+    last = pd.Timestamp(pc.max(pf.read(columns=["date"])["date"]).as_py())
+    return last, pf.metadata.num_rows
 
 
 def exchange_map() -> pd.Series:
@@ -354,10 +411,10 @@ def adjust_stock_src(s: pd.DataFrame, tv_close: pd.DataFrame, exch: pd.Series) -
     return m.drop(columns=["close_tv"])
 
 
-@st.cache_data(show_spinner="Đang ghép giá cổ phiếu live-first (Entrade/VNDirect + tv-history) ...")
 def load_tv_merged(mt: float, mt_src: float) -> pd.DataFrame:
     """tv-history (pipeline) + stock_daily (live-first): hang VN cua tung ma tu ngay dau nguon tro di lay tu nguon (gia x adj),
-    phan truoc do + san nuoc ngoai giu tv-history. Cache parquet cache\tv-live.parquet theo (mt, mt_src)."""
+    phan truoc do + san nuoc ngoai giu tv-history. Cache parquet cache\tv-live.parquet theo (mt, mt_src).
+    12/10/2026: khong st.cache_data (xem load_tv) - parquet tren dia la cache; chi dung lai khi (mt, mt_src) doi."""
     pq = os.path.join(CACHE, "tv-live.parquet")
     tag = os.path.join(CACHE, "tv-live.stamp")
     try:
@@ -365,35 +422,83 @@ def load_tv_merged(mt: float, mt_src: float) -> pd.DataFrame:
             return pd.read_parquet(pq)
     except Exception:  # noqa: BLE001
         pass
+    with st.spinner("Đang ghép giá cổ phiếu live-first (Entrade/VNDirect + tv-history) ..."):
+        return _build_tv_merged(mt, mt_src, pq, tag)
+
+
+TV_CHUNK = 200                      # so ma moi nhom khi ghep gia live-first (RAM: ~1/8 bang 3,5 trieu dong)
+
+
+def _build_tv_merged(mt: float, mt_src: float, pq: str, tag: str) -> pd.DataFrame:
+    """Dung cache\\tv-live.parquet. 12/10/2026 (RAM cloud 1 GB): ghep theo TUNG NHOM MA (TV_CHUNK) va ghi parquet tung row group
+    bang ParquetWriter - khong bao gio giu 'stock_daily' (3,5 trieu dong x 10 cot) + bang ghep + concat cung luc (truoc day dinh ~2 GB).
+    He so dieu chinh (adjust_stock_src) tinh trong tung ma nen chia nhom theo ma cho ket qua y het."""
+    import pyarrow as pa
+    import pyarrow.parquet as ppq
     t = load_tv(mt)
-    s = src.read("stock_daily")
-    if s.empty:
+    path = src._path("stock_daily")
+    try:
+        sd = pd.read_parquet(path, columns=["symbol", "date"])
+    except Exception:  # noqa: BLE001
         return t
     exch = exchange_map()
-    s = s[s.symbol.isin(exch.index)]
-    vn = t[t.exchange.isin(VN_EX)]
-    tv_close = vn[["symbol", "date", "close"]].copy()
-    tv_close["symbol"] = tv_close.symbol.astype(str)
-    tv_close = tv_close[tv_close.date < tv_close.date.max()]        # ngay cuoi tv-history co the la DO PHIEN -> khong dung tinh he so
-    m = adjust_stock_src(s, tv_close, exch)
-    ex = m.symbol.map(exch).astype(str)
-    new = pd.DataFrame({"date": m.date, "tv_symbol": ex + ":" + m.symbol, "exchange": ex, "symbol": m.symbol,
-                        "close": m.close * m.adj, "volume": m.volume, "value_approx": m.value})
-    first = m.groupby("symbol").date.min()
+    sd = sd[sd.symbol.isin(exch.index)]
+    if sd.empty:
+        return t
+    first = sd.groupby("symbol").date.min()                 # ngay dau cua nguon tung ma: pipeline chi giu phan TRUOC do
+    syms = sorted(first.index)
+    del sd
+    vn_mask = t.exchange.isin(VN_EX)
+    vn = t[vn_mask]
     vn_sym = vn.symbol.astype(str)
-    keep = (vn.date < vn_sym.map(first).fillna(pd.Timestamp("2100-01-01")).values)   # pipeline chi giu phan TRUOC nguon
-    out = pd.concat([t[~t.exchange.isin(VN_EX)], vn[keep], new], ignore_index=True)
-    for c in ("tv_symbol", "exchange", "symbol"):
-        out[c] = out[c].astype(str).astype("category")
-    out = out.sort_values(["tv_symbol", "date"]).reset_index(drop=True)
+    keep = (vn.date < vn_sym.map(first).fillna(pd.Timestamp("2100-01-01")).values)
+    tv_close_all = vn[["symbol", "date", "close"]]
+    tv_close_all = tv_close_all[tv_close_all.date < tv_close_all.date.max()]   # ngay cuoi tv-history co the DO PHIEN
+    dict_t = pa.dictionary(pa.int32(), pa.string())
+    schema = pa.schema([("date", pa.timestamp("ns")), ("tv_symbol", dict_t), ("exchange", dict_t), ("symbol", dict_t),
+                        ("close", pa.float64()), ("volume", pa.float64()), ("value_approx", pa.float64())])
+    tmp = pq + ".tmp"
+    writer = ppq.ParquetWriter(tmp, schema, compression="snappy")
+
+    def _w(df: pd.DataFrame) -> None:
+        if not len(df):
+            return
+        df = df[TV_COLS].reset_index(drop=True)
+        df = df.assign(**{c: df[c].astype(str).astype("category") for c in ("tv_symbol", "exchange", "symbol")})
+        writer.write_table(pa.Table.from_pandas(df, preserve_index=False).select(TV_COLS).cast(schema))
+
     try:
-        out.to_parquet(pq, index=False)
+        _w(t[~vn_mask])                                       # san nuoc ngoai: giu nguyen tv-history
+        _w(vn[keep])                                          # VN: phan truoc ngay dau nguon
+        del t, vn, vn_sym, keep
+        import pyarrow.compute as pc
+        sd_t = ppq.read_table(path, columns=["symbol", "date", "close", "volume", "value", "ref"])   # arrow ~170 MB, doc 1 lan
+        for i in range(0, len(syms), TV_CHUNK):
+            chunk = syms[i:i + TV_CHUNK]
+            s_c = sd_t.filter(pc.is_in(sd_t["symbol"], value_set=pa.array(chunk))).to_pandas()
+            if s_c.empty:
+                continue
+            tc = tv_close_all[tv_close_all.symbol.isin(chunk)].copy()
+            tc["symbol"] = tc.symbol.astype(str)
+            m = adjust_stock_src(s_c, tc, exch)
+            ex = m.symbol.map(exch).astype(str)
+            new = pd.DataFrame({"date": m.date, "tv_symbol": ex + ":" + m.symbol, "exchange": ex, "symbol": m.symbol,
+                                "close": m.close * m.adj, "volume": m.volume, "value_approx": m.value})
+            _w(new.sort_values(["tv_symbol", "date"]))
+            del s_c, tc, m, new
+        del sd_t
+        writer.close()
+        os.replace(tmp, pq)
         with open(tag, "w") as f:
             f.write(f"{mt}|{mt_src}")
-    except Exception:  # noqa: BLE001
-        pass
-    return out
-
+    except Exception:
+        try:
+            writer.close()
+            os.remove(tmp)
+        except Exception:  # noqa: BLE001
+            pass
+        raise
+    return pd.read_parquet(pq)
 
 @st.cache_data(show_spinner=False)
 def stock_src_ohlc(code: str, mt_src: float) -> pd.DataFrame:
@@ -457,17 +562,31 @@ def nhom_nganh(n, s, i):
 
 
 # ------------------------------------------------------- MA TRAN GIA / GTGD
-@st.cache_data(show_spinner="Đang dựng ma trận giá ...")
-def price_matrix(mt: float, since: str = "2016-01-01"):
-    """(px_raw, px_ffill, val) cua toan bo co phieu VN - nen tang cho do rong / MA / nganh."""
+PX_SINCE = "2015-01-01"            # ma tran gia dung 1 lan tu moc nay; since muon hon chi la cat lat
+
+
+@st.cache_resource(show_spinner="Đang dựng ma trận giá ...", max_entries=1)
+def _price_matrix_full(mt: float):
+    """(px_raw, px_ffill, val) toan bo co phieu VN tu PX_SINCE. 12/10/2026: st.cache_RESOURCE (1 ban dung chung, khong copy
+    ~100 MB moi lan goi nhu cache_data) + max_entries=1 (phien ban cu bi tha khi du lieu doi). Nguoi goi KHONG duoc sua tai cho."""
     d = tv()
     m = meta()
-    d = d[(d.exchange.isin(VN_EX)) & (d.date >= since) & (d.symbol.isin(m.index))]
+    d = d[(d.exchange.isin(VN_EX)) & (d.date >= PX_SINCE) & (d.symbol.isin(m.index))]
     px_raw = d.pivot_table(index="date", columns="symbol", values="close", aggfunc="last",
                            observed=True).sort_index()
     val = d.pivot_table(index="date", columns="symbol", values="value_approx", aggfunc="last",
                         observed=True).sort_index()
+    del d
     return px_raw, px_raw.ffill(limit=20), val
+
+
+def price_matrix(mt: float, since: str = "2016-01-01"):
+    """(px_raw, px_ffill, val) cua toan bo co phieu VN - nen tang cho do rong / MA / nganh (cat tu `since`)."""
+    px_raw, px, val = _price_matrix_full(mt)
+    if since and str(since) > PX_SINCE:
+        s = pd.Timestamp(since)
+        return px_raw.loc[s:], px.loc[s:], val.loc[s:]
+    return px_raw, px, val
 
 
 def prices(since="2016-01-01"):
@@ -1255,20 +1374,53 @@ FS_GLOB = os.path.join(RAW, "vn_foreign_stocks_20*.csv")
 FS_VCI = os.path.join(RAW, "vn_foreign_stocks_vci.parquet")
 
 
-@st.cache_data(show_spinner=False)
-def _foreign_stocks(mt: float) -> pd.DataFrame:
-    """Khoi ngoai mua/ban theo tung ma + nhom nganh.
+FS_VALS = ("buyVal", "sellVal", "netVal", "netMatch", "totalValue", "owned_pct")
+FS_COT = ["code", "date", "buyVal", "sellVal", "netVal", "netMatch", "totalValue", "owned_pct"]
 
-    Nguon chinh Vietcap (index-fetcher\\fetch_foreign_vci.py, tu 2000, tach thoa thuan);
+
+def _fs_table(df: pd.DataFrame, schema):
+    """DataFrame phan bu (VNDirect / live-first) -> pyarrow Table cung schema voi phan Vietcap (float32, cot thieu = NaN)."""
+    import pyarrow as pa
+    df = df.copy()
+    for c in FS_COT:
+        if c not in df:
+            df[c] = np.nan
+    df["code"] = df.code.astype(str)
+    df["date"] = pd.to_datetime(df.date)
+    return pa.Table.from_pandas(df[FS_COT], schema=schema, preserve_index=False)
+
+
+@st.cache_resource(show_spinner=False, max_entries=1)
+def _foreign_stocks(mt: float) -> pd.DataFrame:
+    """Khoi ngoai mua/ban theo tung ma + nhom nganh (5 trieu dong).
+
+    12/10/2026 (RAM cloud 1 GB): cache_RESOURCE dung chung (truoc day cache_data copy ~500 MB moi lan goi) + gia tri float32
+    (~200 MB thuong tru, sai so tuong doi 1e-7 - du cho ty dong). Dung bang pyarrow: netMatch, ep kieu, ghep phan bu va chi
+    to_pandas 1 lan (truoc day concat + drop_duplicates toan bang trong pandas dinh ~1,6 GB). Phan Vietcap da kiem tra KHONG trung
+    (code, date); phan bu chi lay ngay SAU Vietcap nen chi can bo trung trong tung phan. Nguoi goi KHONG sua tai cho.
+
+    Nguon chinh Vietcap (index-fetcheretch_foreign_vci.py, tu 2000, tach thoa thuan);
     VNDirect (fetch_foreign_stocks.py, chi co tu 08/2018) chi bu cac phien MOI HON phien cuoi
     cua Vietcap. netMatch = rong khop lenh (bo thoa thuan), NaN o phien lay tu VNDirect."""
-    cot = ["code", "date", "floor", "buyVal", "sellVal", "netVal", "netMatch", "totalValue", "owned_pct"]
-    parts = []
+    import pyarrow as pa
+    import pyarrow.compute as pc
+    import pyarrow.parquet as ppq
+    cot = FS_COT + ["floor"]
+    f32 = pa.float32()
+    schema = pa.schema([("code", pa.string()), ("date", pa.timestamp("ns"))] + [(c, f32) for c in FS_VALS])
+    tables = []
+    end = pd.Timestamp("1900-01-01")
     if os.path.exists(FS_VCI):
-        v = pd.read_parquet(FS_VCI, columns=["code", "date", "buyVal", "sellVal", "netVal",
-                                             "buyVal_deal", "sellVal_deal", "totalValue", "owned_pct"])
-        v["netMatch"] = v.netVal - (v.buyVal_deal.fillna(0) - v.sellVal_deal.fillna(0))
-        parts.append(v.drop(columns=["buyVal_deal", "sellVal_deal"]))
+        pf = ppq.ParquetFile(FS_VCI)                       # tung row group (~1 trieu dong) -> dinh RAM thap
+        for i in range(pf.num_row_groups):
+            t = pf.read_row_group(i, columns=["code", "date", "buyVal", "sellVal", "netVal", "buyVal_deal", "sellVal_deal",
+                                              "totalValue", "owned_pct"])
+            nm = pc.subtract(t["netVal"], pc.subtract(pc.fill_null(t["buyVal_deal"], 0.0), pc.fill_null(t["sellVal_deal"], 0.0)))
+            t = t.append_column("netMatch", nm)
+            t = pa.table([t["code"].cast(pa.string()), t["date"].cast(pa.timestamp("ns"))] + [t[c].cast(f32) for c in FS_VALS],
+                         schema=schema)
+            tables.append(t)
+            end = max(end, pd.Timestamp(pc.max(t["date"]).as_py()))
     san_vnd = pd.Series(dtype=object)
     fs = sorted(glob.glob(FS_GLOB))
     if fs:
@@ -1276,32 +1428,39 @@ def _foreign_stocks(mt: float) -> pd.DataFrame:
                                    dtype={"date": str, "code": str}) for f in fs], ignore_index=True)
         n["date"] = pd.to_datetime(n.date)
         san_vnd = n.sort_values("date").groupby("code").floor.last()
-        if parts:
-            n = n[n.date > parts[0].date.max()]
-        parts.append(n.drop(columns=["floor"]))
-    if not parts:
+        n = n[n.date > end].drop_duplicates(["code", "date"], keep="first")
+        if len(n):
+            tables.append(_fs_table(n.drop(columns=["floor"]), schema))
+            end = max(end, n.date.max())
+    if not tables:
         return pd.DataFrame(columns=cot)
     if src is not None and src.is_live_first("foreign_stocks_tail"):     # ngay sau pipeline: VNDirect theo ma (live-first)
         tail = src.read("foreign_stocks_tail")
         if len(tail):
-            end = max((p.date.max() for p in parts), default=pd.Timestamp("1900-01-01"))
             tail = tail[tail.date > end]
             if len(tail):
-                tail = tail[["code", "date", "floor", "buyVal", "sellVal", "netVal"]].copy()
+                tail = tail[["code", "date", "floor", "buyVal", "sellVal", "netVal"]].drop_duplicates(["code", "date"], keep="first")
                 if san_vnd.empty:
                     san_vnd = tail.sort_values("date").groupby("code").floor.last()
-                parts.append(tail.drop(columns=["floor"]))
-    d = pd.concat(parts, ignore_index=True).drop_duplicates(["code", "date"], keep="first")
+                tables.append(_fs_table(tail.drop(columns=["floor"]), schema))
+    t = pa.concat_tables(tables)
+    del tables
+    d = t.to_pandas(self_destruct=True, split_blocks=True)           # chuoi code dung chung object (deduplicate), 1 ban duy nhat
+    del t
+    try:
+        pa.default_memory_pool().release_unused()                     # tra RAM arrow da dung tam ve he dieu hanh
+    except Exception:  # noqa: BLE001
+        pass
     m = meta()
-    # san: meta TradingView hien hanh -> san VNDirect gan nhat -> san Vietcap (ma huy niem yet: OTC/OTHER)
-    d["floor"] = (d.code.map(m.exchange).fillna(d.code.map(san_vnd))
-                  .fillna(d.code.map(icb().get("floor", pd.Series(dtype=str)))).fillna("KHAC"))
-    d["floor"] = d.floor.astype("category")
-    for c in ("totalValue", "owned_pct"):   # phien bu tu VNDirect khong co 2 cot nay
-        if c not in d:
-            d[c] = np.nan
+    # san theo tung MA (1.700 ma) roi gan nguoc qua ma category -> khong map 5 trieu dong
+    codes = d.code.astype("category")
+    cats = codes.cat.categories.to_series()
+    fl = (cats.map(m.exchange).fillna(cats.map(san_vnd))
+          .fillna(cats.map(icb().get("floor", pd.Series(dtype=str)))).fillna("KHAC"))
+    fl_cat = pd.Categorical(fl.values)
+    d["floor"] = pd.Categorical.from_codes(fl_cat.codes[codes.cat.codes.values], categories=fl_cat.categories)
+    del codes
     return d[cot]
-
 
 def foreign_stocks() -> pd.DataFrame:
     fs = glob.glob(FS_GLOB) + ([FS_VCI] if os.path.exists(FS_VCI) else [])
@@ -1505,7 +1664,7 @@ def dong_tien_nhom(start, end, nhom, san=("HOSE", "HNX", "UPCOM"), ct_kn="netVal
     return b, ts
 
 
-SV_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "stock_val")
+SV_DIR = os.path.join(CACHE, "stock_val")
 SV_RATIOS = {"PRICE_TO_EARNINGS": "pe", "PRICE_TO_BOOK": "pb", "PRICE_TO_SALES": "ps",
              "DIVIDEND_YIELD": "div_yield", "MARKETCAP": "marketcap", "BVPS_CR": "bvps"}
 
@@ -1638,8 +1797,7 @@ def freshness(stamp: float) -> pd.DataFrame:
             continue
         try:
             if key == "tv_history":
-                d = tv()
-                last, n = d.date.max(), len(d)
+                last, n = tv_meta()                    # 12/10/2026: chi doc cot date (RAM), khong nap ca bang
             else:
                 d = load(key)
                 last, n = pd.to_datetime(d[dcol], errors="coerce").max(), len(d)

@@ -285,3 +285,45 @@ Không có dữ liệu: `ui.card_empty("Tên", "đơn vị", "ghi chú nguồn d
   dữ liệu VN, cho nhúng. Nếu khung nhúng trống thì trình duyệt đang chặn iframe: bấm link
   *“Mở trong tab mới”* ngay dưới biểu đồ.
 
+## Chạy trên Streamlit Community Cloud (12/10/2026)
+
+Hướng dẫn bấm-deploy từng bước: `D:\cloud-deploy\HUONG-DAN-STREAMLIT-CLOUD.md` (share.streamlit.io → repo Data-System, main file
+`market-data/app/app.py`, Python 3.12, 1 secret `RCLONE_CONF` = base64 `rclone.conf`). Cơ chế:
+
+- **`cloud_boot.py`** chạy đầu `app.py` (sau `st.set_page_config`, trước `import datalib`). Cloud = có `st.secrets["RCLONE_CONF"]`
+  hoặc env `STREAMLIT_CLOUD=1` **và** `MD_ROOT` chưa có dữ liệu local (laptop: `boot()` trả False, không làm gì; `CLOUD_BOOT=0` tắt hẳn).
+  Khi cloud: tải rclone Linux về `~/.local/bin` (Windows dùng bản winget để test), ghi `~/.config/rclone/rclone.conf` từ secret
+  (0600), kéo `APP_DATA` (chỉ file app đọc: index-fetcher 5 file + raw 5, market-valuation 8, transmission 2, nso 3, macro 2, vsdc 1,
+  bond-pivot `data/processed/**`, + `app-cache/src` cache live-first) về `MD_ROOT` (mặc định `/tmp/pipeline-data/market-data`),
+  đặt env `MD_ROOT / SHIP_ROOT / BCTC_ROOT / RT_ROOT (= repo market-data/realtime-lab) / APP_CACHE / SRC_CACHE`, chép code phụ
+  (`bond-pivot/scripts`, `market-valuation/*.py`) từ repo, dựng sẵn 3 parquet giá, ghi marker `.cloud_boot.json`; `st.status` tiến độ
+  lần đầu; thread nền `rclone copy` lại mỗi 30 phút (`CLOUD_REFRESH_SEC`). `rclone_cmd()` / `remote()` dùng chung cho `data_live`
+  (realtime/<ngày>). Chạy tay không cần Streamlit: `STREAMLIT_CLOUD=1 RCLONE_CONF=<b64> MD_ROOT=<trống> python cloud_boot.py --pull`.
+- **`requirements.txt`** (thư mục app) = thư viện cho Streamlit Cloud; `.streamlit/config.toml` theme có cả ở gốc repo cloud-deploy.
+- **Laptop → Drive**: thread nền `data_src` sau mỗi lần `refresh_all()` gọi `cloud_boot.push_src_cache()` đẩy `cache\src\*.parquet`
+  + `status.json` lên `gdrive:pipeline-data/market-data/app-cache/src` (tắt: `SRC_CACHE_PUSH=0`) → cloud mở lần đầu có ngay
+  `stock_daily` 3,5 triệu dòng, không kéo nền 1.525 mã Entrade trên máy 1 GB.
+- **RAM (vì cloud ~1 GB)** — đo trên laptop bằng psutil RSS tiến trình streamlit (Windows, gồm phần allocator giữ lại), mở lần lượt
+  Tổng quan → Hiệu suất → Dòng tiền → Định giá → Vĩ mô, `APP_NO_BG=1` (tắt thread live-first để đo sạch):
+
+  | | trước 12/10 | sau |
+  |---|---|---|
+  | đỉnh RSS 5 trang | **2.248 MB** (Dòng tiền) | **1.017 MB** |
+  | RSS thường trú sau 5 trang | 1.325 MB | 923 MB |
+  | từng trang (đỉnh / thường trú) | TQ 1.048/703 · HS 1.308/987 · DT 2.248/1.215 · ĐG 1.231/1.207 · VM 1.355/1.325 | TQ 914/504 · HS 811/594 · DT 1.017/819 · ĐG 829/811 · VM 923/923 |
+  | thread nền `update_stock_daily` 30 phút/lần | concat + dedup + ghi lại 3,5 triệu dòng (~+1 GB) | không phiên mới → chỉ đọc 3 cột, không ghi |
+  | giả lập cloud (kéo Drive + dựng cache + trang đầu) | — | đỉnh 1.168 MB, sau 5 trang 1.091 / thường trú 930 |
+
+  Đã sửa (chữ ký hàm / cột trả về giữ nguyên): `load_tv` + `load_tv_merged` bỏ `st.cache_data` (parquet trên đĩa là cache; trước đây
+  giữ 2 bản 3,5 triệu dòng thường trú + copy mỗi lần gọi); CSV→parquet bằng pyarrow theo khối (`tv_csv_to_parquet`, đỉnh ~400 MB thay
+  vì ~700); `price_matrix` → `_price_matrix_full` **`st.cache_resource`** 1 bản từ 2015 (`max_entries=1`), cắt theo `since`;
+  `_foreign_stocks` 5 triệu dòng → `cache_resource` + float32 + dựng bằng pyarrow theo row group (~200 MB thay vì ~330 + copy 500 MB
+  mỗi lần gọi, đỉnh dựng 587 thay vì 2,5 GB); OHLC từng mã đọc parquet bằng bộ lọc pyarrow (`data_ext._ohlc_one`) thay vì giữ 3,3 triệu
+  dòng; `_build_tv_merged` ghép theo nhóm 200 mã + `ParquetWriter` (kết quả y hệt, kiểm tra diff = 0); `data_src.read(columns=)`,
+  `_write` so sánh bằng metadata parquet; `freshness` dùng `tv_meta()`; `insider` `_last_close` chỉ đọc 3 cột 60 ngày.
+  `cloud_boot.trim_memory()` (gc + `malloc_trim` Linux + pool pyarrow) gọi cuối mỗi lần render trên cloud.
+  **Chưa chắc**: số trên là RSS Windows (mimalloc/CRT giữ lại bộ nhớ đã free); Linux glibc + jemalloc (decay 0) thường trả về tốt hơn
+  nhưng chưa đo trên Streamlit Cloud thật; nếu bị OOM xem mục 7 hướng dẫn.
+- Kiểm chứng giả lập (12/10): kéo lần đầu **556 MB / 64 file / 62 s**, trang Tổng quan sẵn sàng sau 81 s, 5 trang chính 6–11 s/trang,
+  không traceback, nhãn nguồn live-first/pipeline đúng; ảnh `design\screens-cloud-boot.png` (+ `17-cloud-boot-dong-tien.png`),
+  script `design\screens\chup_cloud_boot.py`. `APP_NO_BG=1` tắt thread live-first (đo RAM / test).

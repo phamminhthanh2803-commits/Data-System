@@ -150,11 +150,11 @@ def rclone_path() -> str:
             return WINGET_RCLONE
         raise FileNotFoundError("Khong thay rclone.exe (winget install Rclone.Rclone hoac dat env RCLONE)")
     dst = os.path.join(BIN_DIR, "rclone")
-    if os.path.exists(dst):
-        return dst
-    with _LOCK:
-        if not os.path.exists(dst):
-            _install_rclone_linux()
+    if not os.path.exists(dst):
+        with _LOCK:
+            if not os.path.exists(dst):
+                _install_rclone_linux()
+    os.environ["RCLONE"] = dst                 # data_live / sync_data tim rclone qua env RCLONE truoc
     return dst
 
 
@@ -178,6 +178,7 @@ def rclone_config() -> str | None:
         os.chmod(CONF_PATH, 0o600)
     except OSError:
         pass
+    os.environ["RCLONE_CONFIG"] = CONF_PATH    # rclone (ke ca goi tu data_live) dung dung file conf nay
     return CONF_PATH
 
 

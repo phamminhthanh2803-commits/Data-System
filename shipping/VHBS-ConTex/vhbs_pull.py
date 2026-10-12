@@ -68,7 +68,12 @@ def main(argv=None) -> int:
     try:
         log(f"START  tai {a.url}")
         # ---- 1. Tai HTML
-        r = requests.get(a.url, headers=HEADERS, timeout=30)
+        try:
+            r = requests.get(a.url, headers=HEADERS, timeout=30)
+        except requests.exceptions.SSLError as e:        # 12/10/2026: vhbs.de de chung chi het han -> bo verify, van tai duoc
+            log(f"WARN   SSL {str(e)[:80]} -> thu lai khong verify")
+            import urllib3; urllib3.disable_warnings()
+            r = requests.get(a.url, headers=HEADERS, timeout=30, verify=False)
         r.raise_for_status()
         html = r.text
         # ---- 2. Trich cac block JSON

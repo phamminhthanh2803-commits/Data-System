@@ -67,7 +67,7 @@ CODE_DIRS = [("bond-pivot/scripts", "*.py"), ("market-valuation", "*.py")]
 RCLONE_COMMON = ["--fast-list", "--transfers", "16", "--checkers", "32", "--retries", "3", "--low-level-retries", "10",
                  "--stats-one-line", "--stats", "30s", "-q"]
 
-_LOCK = threading.Lock()
+_LOCK = threading.RLock()        # 12/10/2026: RLock - boot() giu khoa roi goi rclone_path() cung xin khoa -> Lock thuong deadlock tren Linux
 _STATE: dict = {"cloud": None, "booted": False, "thread": None, "last_pull": None, "pulls": 0, "error": None, "mb": 0.0}
 
 

@@ -92,7 +92,7 @@ jobs:
           EXTRA=""
           if [ "$ONLY_SSI" = "1" ]; then EXTRA="$EXTRA --no-dnse"; fi
           if [ -n "$DURATION" ]; then EXTRA="$EXTRA --force --duration $DURATION"; else EXTRA="$EXTRA --until $RT_UNTIL"; fi
-          echo "python dnse_stream.py $EXTRA --push-every $RT_PUSH_EVERY --push-remote $RT_PUSH_REMOTE"
+          echo "python dnse_stream.py --no-backfill $EXTRA --push-every $RT_PUSH_EVERY --push-remote $RT_PUSH_REMOTE"
           python dnse_stream.py $EXTRA --push-every "$RT_PUSH_EVERY" --push-remote "$RT_PUSH_REMOTE" \
             --out "$RT_DIR/data" --db "$RT_DIR/data/realtime.duckdb" 2>&1 | tee "logs/realtime_cloud_sang_$(date +%Y%m%d).log"
 

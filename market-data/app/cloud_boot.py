@@ -118,8 +118,20 @@ def _install_rclone_linux() -> str:
     os.makedirs(BIN_DIR, exist_ok=True)
     dst = os.path.join(BIN_DIR, "rclone")
     _log(f"tai rclone {RCLONE_URL}")
-    with urllib.request.urlopen(RCLONE_URL, timeout=120) as r:
-        buf = io.BytesIO(r.read())
+    hdr = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) cloud_boot/1.0"}   # 12/10/2026: khong co UA -> 403
+    buf = None
+    try:
+        with urllib.request.urlopen(urllib.request.Request(RCLONE_URL, headers=hdr), timeout=120) as r:
+            buf = io.BytesIO(r.read())
+    except Exception as e:  # noqa: BLE001 - du phong: GitHub releases (asset linux-amd64.zip cua ban moi nhat)
+        _log(f"downloads.rclone.org loi ({type(e).__name__}: {str(e)[:60]}) -> thu GitHub releases")
+        api = "https://api.github.com/repos/rclone/rclone/releases/latest"
+        with urllib.request.urlopen(urllib.request.Request(api, headers=hdr), timeout=60) as r:
+            rel = json.load(r)
+        url = next(a["browser_download_url"] for a in rel["assets"] if a["name"].endswith("linux-amd64.zip"))
+        _log(f"tai {url}")
+        with urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=180) as r:
+            buf = io.BytesIO(r.read())
     with zipfile.ZipFile(buf) as z:
         name = next(n for n in z.namelist() if n.endswith("/rclone"))
         with z.open(name) as f, open(dst, "wb") as o:

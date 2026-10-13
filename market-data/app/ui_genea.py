@@ -362,6 +362,8 @@ def period_dates(per: str, end=None):
         return date(end.year - 1, 12, 31), end
     if per in ("All", None):
         return DATA_MIN, end
+    if per == "1W":                                          # 13/10/2026: tab Tin tuc (BCTC moi cong bo)
+        return (pd.Timestamp(end) - pd.Timedelta(days=7)).date(), end
     m = PERIOD_MONTHS.get(per, 12)
     return (pd.Timestamp(end) - pd.DateOffset(months=m)).date(), end
 

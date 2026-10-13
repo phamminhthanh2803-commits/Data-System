@@ -61,7 +61,10 @@ APP_DATA = [
     ("macro-fetcher", ["/macro_vn_master.csv", "/macro_region_master.csv"]),
     ("vsdc-accounts", ["/vsdc_tk_ndt.csv"]),
     ("bond-pivot", ["/data/processed/**"]),
+    # hub khac: "<hub>/<thu muc>" -> gdrive:pipeline-data/<hub>/<thu muc> -> <base>/<hub>/<thu muc> (BCTC_ROOT = <base>/bctc)
+    ("bctc/bctc-scan", ["/data/bctc_congbo.csv"]),                         # 13/10/2026: BCTC moi cong bo -> tab Tin tuc
 ]
+OTHER_HUBS = ("bctc", "shipping", "hah")
 APP_CACHE_REMOTE = "app-cache/src"      # gdrive:pipeline-data/market-data/app-cache/src = cache\\src cua app laptop (stock_daily...)
 # code trong repo ma datalib import theo duong dan DU LIEU (MD_ROOT/...): chep sang DATA_ROOT
 CODE_DIRS = [("bond-pivot/scripts", "*.py"), ("market-valuation", "*.py")]
@@ -209,9 +212,15 @@ def run_rclone(args: list[str], timeout: int = 900) -> tuple[int, str]:
 def pull_folder(name: str, includes: list[str], root: str | None = None) -> float:
     """rclone copy 1 thu muc Drive -> DATA_ROOT/<name> chi cac file includes (file khong doi thi rclone tu bo qua). Tra so giay."""
     root = root or data_root()
-    dst = os.path.join(root, name)
+    hub = name.split("/", 1)[0] if "/" in name else ""
+    if hub in OTHER_HUBS:                                 # thu muc cua hub khac (bctc/...): canh MD_ROOT, cung cay <base>/<hub>/...
+        dst = os.path.join(os.path.dirname(root), *name.split("/"))
+        src = f"{REMOTE}/{name}"
+    else:
+        dst = os.path.join(root, name)
+        src = remote(name)
     os.makedirs(dst, exist_ok=True)
-    args = ["copy", remote(name), dst]
+    args = ["copy", src, dst]
     for p in includes:
         args += ["--include", p]
     t0 = time.time()

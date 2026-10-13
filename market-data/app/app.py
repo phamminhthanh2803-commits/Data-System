@@ -62,7 +62,10 @@ NAV = {
         "the-gioi": ("Vĩ mô thế giới", {"ty-gia": "Tỷ giá", "lai-suat": "Lãi suất", "gia-ca": "Chỉ số giá",
                                          "tang-truong": "Tăng trưởng & lao động"}),
     }),
-    "tin-tuc": ("Tin tức", {}),
+    "tin-tuc": ("Tin tức", {                      # 13/10/2026: BCTC moi cong bo (bctc-scan) + lien ket giao dich noi bo
+        "bctc-moi": ("Báo cáo tài chính mới", {}),
+        "noi-bo": ("Giao dịch nội bộ", {}),
+    }),
 }
 # slug cu cua app_legacy -> duong dan moi
 CU = {"vimo": "vi-mo/viet-nam/tang-truong", "vn": "ttck/vn/hieu-suat", "khu-vuc": "ttck/the-gioi/chi-so",
@@ -189,7 +192,7 @@ with st.container(border=True, key="khung_noi_dung"):
                 pv.the_gioi(ctx, NAVK)
         else:
             import pages_khac as pk
-            pk.tin_tuc(ctx)
+            pk.tin_tuc(ctx, SUB)
         if stt["active"] and CO_LIVE:
             st.markdown(f'<div class="gn-note" style="text-align:right">● LIVE · render lúc {rt.now_vn():%H:%M:%S} '
                         f'({_t.time() - _t0:.1f} s) · dữ liệu bộ thu {stt["ts"]:%H:%M:%S}</div>', unsafe_allow_html=True)

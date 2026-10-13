@@ -21,6 +21,7 @@ from runlib import BCTC_ROOT, Runner, Step, parse_args  # noqa: E402
 today = dt.date.today()
 is_mon, is_sat, is_early = today.weekday() == 0, today.weekday() == 5, today.day <= 7
 NGANH_CK = os.path.join(BCTC_ROOT, "nganh-chung-khoan")
+BCTC_SCAN = os.path.join(BCTC_ROOT, "bctc-scan")          # 13/10/2026: quet BCTC moi cong bo (CafeF, du phong Vietstock) -> app tab Tin tuc
 
 STEPS = [
     # ---- AM 10:30
@@ -37,6 +38,9 @@ STEPS = [
     Step("AM", "indices", "index-fetcher/fetch_indices.py", "index-fetcher", when=is_sat, retry=3, critical=True,
          stale={"file": "index-fetcher/indices-master.csv", "days": 6,
                 "groups": ["VN=source:vnstock", "Global=source:yahoo", "KhuVuc=source:!vnstock,yahoo"]}),
+    # 13/10/2026: BCTC moi cong bo toan thi truong (CafeF FileBCTC.ashx theo tung ma, ~1-2 phut; cloud chay duoc - probe 12/10 cafef OK)
+    Step("AM", "bctc-scan", os.path.join(BCTC_SCAN, "bctc_scan.py"), BCTC_SCAN, when=True, retry=2, retry_wait=120,
+         match="Che do|Tong|Da luu|LOI|-> |! ", note="BCTC quy/soat xet/kiem toan moi dang (CafeF) -> bctc-scan/data/bctc_congbo.csv -> app Tin tuc"),
     # ---- PM 18:30 (sau khi TQ/HK/Han/Dai/Thai/Indo/Malaysia/Nhat dong cua; SBV da dang so trong ngay)
     Step("PM", "transmission", "transmission-fetcher/fetch_all.py", "transmission-fetcher", when=True, retry=3, retry_wait=90,
          critical=True, match="Che do|Master:|Bao cao|Tong|X |! ",
@@ -62,6 +66,8 @@ STEPS = [
          windows_only=True,
          note="file nganh CK IB&Brokerage_Nganh.xlsx: dinh gia + LNST TTM tu gia TradingView, so TK VSDC (sau tvhistory)"),
     Step("PM", "msci", "market-valuation/msci_region.py", "market-valuation", when=is_early),
+    Step("PM", "bctc-scan", os.path.join(BCTC_SCAN, "bctc_scan.py"), BCTC_SCAN, when=True, retry=2, retry_wait=120,
+         match="Che do|Tong|Da luu|LOI|-> |! ", note="lan 2 trong ngay: BCTC dang buoi chieu (mua cong bo 20-30 hang thang)"),
     Step("PM", "macro-region", "macro-fetcher/fetch_macro_region.py", "macro-fetcher", when=is_mon, match="."),
 ]
 

@@ -629,10 +629,193 @@ def _duong_cong(ctx):
         c.chart(ui.fig_line(ky, "%/năm", hover_nd=2), ky, ten="TPCP spot chuoi", height=300)
 
 
-# ================================================================== TIN TUC
-def tin_tuc(ctx):
-    ui.h2("Tin tức")
-    ui.card_empty("Tin tức thị trường", "", "Chuyên mục đang được xây dựng — chưa có nguồn tin tức trong hệ thống.", key="tin_tuc")
+# ================================================================== TIN TUC (13/10/2026: BCTC moi cong bo - bctc-scan)
+LOAI_TEN = {"quy": "Quý", "soat_xet": "Soát xét", "kiem_toan": "Kiểm toán", "khac": "Khác"}
+PV_TEN = {"hop_nhat": "Hợp nhất", "rieng": "Riêng", "cong_ty_me": "Công ty mẹ", "khong_ro": "—"}
+SAN = ["HOSE", "HNX", "UPCOM"]
+
+
+def _ky_hien_hanh(today: pd.Timestamp) -> str:
+    """Quý gần nhất đã kết thúc: 13/10/2026 -> 2026Q3; tháng 1-3 -> Q4 năm trước."""
+    q = (today.month - 1) // 3
+    return f"{today.year - 1}Q4" if q == 0 else f"{today.year}Q{q}"
+
+
+@st.cache_data(show_spinner=False)
+def _bctc_df(mt: float) -> pd.DataFrame:
+    """bctc_congbo đã chuẩn hoá: ngày Timestamp, tên loại/phạm vi, bỏ trùng chéo nguồn (CafeF + Vietstock cùng mã/kỳ/loại/phạm vi -> giữ bản sớm nhất)."""
+    d = dl.load("bctc_congbo")
+    if d is None or d.empty:
+        return pd.DataFrame()
+    d = d.copy()
+    for c in ("symbol", "exchange", "ten_dn", "ky", "loai", "pham_vi", "tieu_de", "url_pdf", "url_nguon", "nguon", "gio_dang"):
+        d[c] = d[c].fillna("").astype(str) if c in d else ""
+    d["ngay_cong_bo"] = pd.to_datetime(d["ngay_cong_bo"], errors="coerce")
+    d = d.dropna(subset=["ngay_cong_bo"])
+    d = d.sort_values(["ngay_cong_bo", "gio_dang"]).drop_duplicates(["symbol", "ky", "loai", "pham_vi"], keep="first")
+    d["Loại"] = d["loai"].map(LOAI_TEN).fillna(d["loai"])
+    d["Phạm vi"] = d["pham_vi"].map(PV_TEN).fillna(d["pham_vi"])
+    return d.sort_values(["ngay_cong_bo", "gio_dang"], ascending=False).reset_index(drop=True)
+
+
+def _bctc_html(t: pd.DataFrame, limit: int = 400) -> str:
+    h = ['<div class="gn-tblwrap" style="max-height:560px;overflow:auto"><table class="gn-tbl"><thead><tr>'
+         '<th>Ngày</th><th>Mã · tên</th><th style="text-align:left">Sàn</th><th style="text-align:left">Kỳ</th>'
+         '<th style="text-align:left">Loại</th><th style="text-align:left">Phạm vi</th><th style="text-align:left">Tiêu đề</th><th>File</th></tr></thead><tbody>']
+    tt = t.head(limit).rename(columns={"Loại": "loai_t", "Phạm vi": "pv_t"})
+    for r in tt.itertuples(index=False):
+        link = (f'<a href="{r.url_pdf}" target="_blank" rel="noopener">PDF</a>' if str(r.url_pdf).startswith("http") else "—")
+        src = f'<a href="{r.url_nguon}" target="_blank" rel="noopener" style="color:var(--ink-3)">{r.nguon}</a>' if str(r.url_nguon).startswith("http") else r.nguon
+        ten = str(r.ten_dn)[:38]
+        h.append(f'<tr><td>{r.ngay_cong_bo:%d/%m/%Y} <small style="color:var(--ink-3)">{r.gio_dang}</small></td>'
+                 f'<td><b>{r.symbol}</b> <small>{ten}</small></td><td style="text-align:left">{r.exchange}</td>'
+                 f'<td style="text-align:left"><b>{r.ky}</b></td><td style="text-align:left">{r.loai_t}</td>'
+                 f'<td style="text-align:left">{r.pv_t}</td>'
+                 f'<td style="text-align:left;white-space:normal;min-width:260px">{str(r.tieu_de)[:90]}</td><td>{link} <small>{src}</small></td></tr>')
+    h.append("</tbody></table></div>")
+    if len(t) > limit:
+        h.append(f'<div class="gn-note">Hiện {limit}/{len(t)} dòng — tải CSV/Excel để lấy đủ.</div>')
+    return "".join(h)
+
+
+def _bctc_export(t: pd.DataFrame) -> pd.DataFrame:
+    out = t[["ngay_cong_bo", "gio_dang", "symbol", "exchange", "ten_dn", "ky", "Loại", "Phạm vi", "tieu_de", "url_pdf", "url_nguon", "nguon"]].copy()
+    out.columns = ["Ngày", "Giờ", "Mã", "Sàn", "Tên DN", "Kỳ", "Loại", "Phạm vi", "Tiêu đề", "PDF", "Nguồn (trang)", "Nguồn"]
+    return out.set_index("Ngày")
+
+
+def _bctc_moi(ctx):
+    ui.h2("Báo cáo tài chính mới công bố")
+    path = dl.reg_path("bctc_congbo")
+    if not os.path.exists(path):
+        ui.card_empty("BCTC mới công bố", "", f"Chưa có <code>{path}</code> — chạy <code>python D:\\bctc\\bctc-scan\\bctc_scan.py --full</code> "
+                      "(bước <b>bctc-scan</b> AM/PM) hoặc kéo dữ liệu cloud về.", key="bctc_trong")
+        return
+    d = _bctc_df(dl._raw_mt(path))
+    if d.empty:
+        ui.card_empty("BCTC mới công bố", "", "File rỗng — chạy lại bctc_scan.py --full.", key="bctc_trong")
+        return
+    today = pd.Timestamp.now().normalize()
+    ky_hh = _ky_hien_hanh(today)
+    try:
+        meta = dl.meta()
+        tong = meta["exchange"].value_counts()
+    except Exception:  # noqa: BLE001
+        tong = pd.Series(dtype=int)
+    tong = {s: int(tong.get(s, 0)) for s in SAN}
+    tong_all = sum(tong.values()) or 1
+    pub = d[(d["loai"] == "quy") & (d["ky"] == ky_hh)]
+    n_hh = pub["symbol"].nunique()
+    n_san = pub.groupby("exchange")["symbol"].nunique()
+    hom_nay = d[d["ngay_cong_bo"] == today]
+    tuan = d[d["ngay_cong_bo"] >= today - pd.Timedelta(days=today.weekday())]
+    kpi = [(f"Đã công bố {ky_hh}", f"{n_hh}/{tong_all}", f"{n_hh / tong_all * 100:.1f}% DN niêm yết", 0)]
+    for s in SAN:
+        n = int(n_san.get(s, 0))
+        kpi.append((f"{s} · {ky_hh}", f"{n}/{tong[s]}", f"{(n / tong[s] * 100) if tong[s] else 0:.1f}%", 0))
+    kpi.append(("Công bố hôm nay", f"{len(hom_nay)}", f"{hom_nay['symbol'].nunique()} DN · {today:%d/%m}", 1 if len(hom_nay) else 0))
+    kpi.append(("Tuần này", f"{len(tuan)}", f"{tuan['symbol'].nunique()} DN · từ T2 {today - pd.Timedelta(days=today.weekday()):%d/%m}", 0))
+    ui.kpi_strip(kpi)
+
+    # ---- (b) cong bo moi nhat: bang + bo loc
+    with ui.card("Công bố mới nhất", "1 dòng = 1 file BCTC",
+                 help="Nguồn CafeF (FileBCTC.ashx theo từng mã, bước bctc-scan AM 10:30 + PM 18:30; dự phòng Vietstock). Ngày = thời điểm CafeF đăng "
+                      "file (suy từ ObjectId), có thể trễ 0–2 ngày so với ngày DN gửi UBCK. Kỳ: 2026Q3 quý · 2026H1 soát xét bán niên · 2025FY kiểm toán năm. "
+                      "Phạm vi '—' = công ty không có công ty con (BCTC duy nhất).",
+                 key="bctc_moi_nhat", periods=["1W", "1M", "3M", "All"], default="1M") as c:
+        with c.body():
+            f1, f2, f3, f4, f5 = st.columns([1.1, 1.3, 1.2, 1.2, 1])
+            san = f1.multiselect("Sàn", SAN, default=[], key="bctc_san", placeholder="Tất cả")
+            kys = sorted(d["ky"].unique(), reverse=True)
+            ky = f2.multiselect("Kỳ", kys, default=[], key="bctc_ky", placeholder="Tất cả")
+            loai = f3.multiselect("Loại", list(LOAI_TEN.values()), default=[], key="bctc_loai", placeholder="Tất cả")
+            pv = f4.multiselect("Phạm vi", list(PV_TEN.values()), default=[], key="bctc_pv", placeholder="Tất cả")
+            ma = f5.text_input("Tìm mã", "", key="bctc_ma", placeholder="FPT, VNM…").strip().upper()
+        t = d[(d["ngay_cong_bo"] >= c.d0) & (d["ngay_cong_bo"] <= c.d1)]
+        if san:
+            t = t[t["exchange"].isin(san)]
+        if ky:
+            t = t[t["ky"].isin(ky)]
+        if loai:
+            t = t[t["Loại"].isin(loai)]
+        if pv:
+            t = t[t["Phạm vi"].isin(pv)]
+        if ma:
+            mas = [x.strip() for x in ma.replace(";", ",").split(",") if x.strip()]
+            t = t[t["symbol"].isin(mas)] if len(mas) > 1 else t[t["symbol"].str.startswith(mas[0])]
+        if t.empty:
+            c.empty("Không có công bố trong khung / bộ lọc đã chọn")
+        else:
+            c.markdown(_bctc_html(t))
+            c.export(_bctc_export(t), ten="BCTC moi cong bo")
+            with c._foot:
+                st.markdown(f'<div class="gn-note">{len(t)} file · {t["symbol"].nunique()} DN · {c.d0:%d/%m/%Y} – {c.d1:%d/%m/%Y} · '
+                            f'cập nhật lần cuối {d["ngay_cong_bo"].max():%d/%m/%Y}</div>', unsafe_allow_html=True)
+
+    # ---- (c) tien do theo ngay
+    with ui.card("Tiến độ công bố theo ngày", f"cột: số file/ngày · đường: luỹ kế % DN đã công bố BCTC quý {ky_hh}",
+                 help="Cột = số file BCTC (mọi kỳ, mọi loại) CafeF đăng mỗi ngày. Đường phải = luỹ kế số DN đã có BCTC quý của kỳ gần nhất "
+                      "chia tổng DN niêm yết 3 sàn (theo vn_screener_meta).",
+                 key="bctc_tien_do", periods=["1M", "3M", "6M", "All"], default="3M") as c:
+        t = d[(d["ngay_cong_bo"] >= c.d0) & (d["ngay_cong_bo"] <= c.d1)]
+        if t.empty:
+            c.empty()
+        else:
+            daily = t.groupby("ngay_cong_bo").size().rename("Số công bố")
+            idx = pd.date_range(min(daily.index.min(), pub["ngay_cong_bo"].min()) if len(pub) else daily.index.min(), c.d1, freq="D")
+            daily = daily.reindex(idx, fill_value=0)
+            daily = daily[daily.index >= pd.Timestamp(c.d0)]
+            if len(pub):
+                first = pub.groupby("symbol")["ngay_cong_bo"].min()
+                cum = first.value_counts().sort_index().cumsum().reindex(daily.index, method="ffill").fillna(0)
+                daily = daily.to_frame()
+                daily[f"Luỹ kế % DN {ky_hh}"] = cum / tong_all * 100
+            else:
+                daily = daily.to_frame()
+            daily.index.name = "Ngày"
+            fig = ui.fig_bars(daily, "Số công bố", "file", sign=False, cum=(f"Luỹ kế % DN {ky_hh}" if len(pub) else None), hover_nd=0)
+            if fig is not None and len(pub):
+                fig.update_layout(yaxis2=dict(title=dict(text="% DN"), range=[0, 100]))
+            c.chart(fig, daily, ten="Tien do cong bo BCTC", last=d["ngay_cong_bo"].max(),
+                    note_text=f"{ky_hh}: {n_hh} DN đã công bố ({n_hh / tong_all * 100:.1f}%) · mới nhất {d['ngay_cong_bo'].max():%d/%m/%Y}")
+
+    # ---- (d) theo ma
+    with ui.card("Theo mã", "lịch sử công bố BCTC của 1 doanh nghiệp", key="bctc_theo_ma", controls=False) as c:
+        with c.body():
+            ds = sorted(d["symbol"].unique())
+            k = "bctc_ma_chon"
+            if k not in st.session_state:
+                st.session_state[k] = "FPT" if "FPT" in ds else ds[0]
+            c1, c2 = st.columns([1.2, 4])
+            m1 = c1.selectbox("Mã", ds, key=k)
+            h = d[d["symbol"] == m1]
+            ten = h["ten_dn"].iloc[0] if len(h) else ""
+            c2.markdown(f'<div class="gn-title" style="margin-top:28px"><h3>{m1}</h3><span class="unit">{ten} · {h["exchange"].iloc[0] if len(h) else ""} · '
+                        f'{len(h)} file · {h["ky"].nunique()} kỳ · mới nhất {h["ngay_cong_bo"].max():%d/%m/%Y}</span></div>', unsafe_allow_html=True)
+        if h.empty:
+            c.empty()
+        else:
+            c.markdown(_bctc_html(h, limit=200))
+            c.export(_bctc_export(h), ten=f"BCTC {m1}")
+
+
+def tin_tuc(ctx, sub="bctc-moi"):
+    if sub == "noi-bo":
+        ui.h2("Giao dịch nội bộ")
+        ui.callout('Thẻ <b>Giao dịch nội bộ</b> (CafeF GDCoDong, live-first) đặt tại <a href="?trang=ttck/vn/dong-tien&noibo=ma" target="_self">'
+                   'Thị trường chứng khoán › Chứng khoán Việt Nam › Dòng tiền</a> — toàn thị trường, top mua/bán ròng, đăng ký đang chạy, theo mã.')
+        try:
+            ins = dx.insider_all()
+        except Exception:  # noqa: BLE001
+            ins = pd.DataFrame()
+        with ui.card("Công bố giao dịch nội bộ gần nhất", "20 bản ghi mới nhất theo ngày công bố", key="tin_noi_bo", controls=False) as c:
+            if ins is None or ins.empty:
+                c.empty(note_text="Chưa có cache CafeF (data_src insider).")
+            else:
+                t = ins.sort_values("ngay_cong_bo", ascending=False).head(20)
+                c.table(t.reset_index(drop=True), ten="Giao dich noi bo moi nhat")
+        return
+    _bctc_moi(ctx)
     fr = ctx["fresh"]
     with ui.card("Dữ liệu vừa cập nhật", "bộ dữ liệu có số liệu mới trong 7 ngày", key="tin_data", controls=False) as c:
         if fr is None or fr.empty:

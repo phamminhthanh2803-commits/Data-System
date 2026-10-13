@@ -201,6 +201,15 @@ App Port & Vessel Tracker không còn tự gọi trang nguồn khi mở. Bước
 - App (`local\Chay-app-port-tracker.bat`) kéo `store/` về qua `sync_data.py app` rồi `livedata.import_store()` chỉ nạp file đổi vào sqlite riêng.
 - Seed lần đầu 09/10/2026: `pt_update.py --export-all --no-pull` ở `D:\shipping\port-tracker` → `rclone copy store/ gdrive:pipeline-data/shipping/port-tracker/store`.
 
+## BCTC mới công bố: bước `bctc-scan` (13/10/2026)
+Bước `bctc-scan` (Market AM + PM) chạy `bctc/bctc-scan/bctc_scan.py` (WorkDir `BCTC_ROOT/bctc-scan`): quét CafeF `FileBCTC.ashx` theo từng mã
+(1.559 mã, 6 luồng, ~1 phút; dự phòng Vietstock) → `bctc-scan/data/bctc_congbo.csv` + parquet (1 dòng = 1 file BCTC: mã, sàn, kỳ, loại, phạm vi,
+ngày đăng, link PDF). `data_manifest.py`: `Folder("bctc","bctc-scan", exclude pdf/**)` **cloud là chủ** (hub `bctc` → Drive `gdrive:pipeline-data/bctc/bctc-scan`,
+laptop nhận về `D:\bctc\bctc-scan` qua `sync_data.py app`); `STEP_FOLDERS["bctc-scan"]` đọc thêm `index-fetcher` (IDX_SMALL: danh sách mã + tên DN).
+App: tab **Tin tức › Báo cáo tài chính mới**; Streamlit Cloud kéo thêm `bctc/bctc-scan/data/bctc_congbo.csv` (`cloud_boot.APP_DATA`).
+Nếu CafeF chặn IP Mỹ (probe 12/10: OK): thêm `bctc-scan` vào `CLOUD_SKIP` 2 workflow market-*.yml, đổi `owner="laptop"`, gọi bước trong `Run-Local-Mini.ps1`.
+Khảo sát nguồn (CafeF / Vietstock / HOSE api.hsx.vn / HNX / VNDirect / Vietcap): `bctc/bctc-scan/NGUON.md`.
+
 ## Vận hành hằng ngày
 - Lịch (UTC = VN − 7): Shipping AM `0 2 * * *` (9:00), Market AM `30 3 * * *` (10:30), Market PM `30 11 * * *` (18:30), Shipping PM `0 15 * * *` (22:00).
   GitHub có thể trễ 5–30 phút; `concurrency: pipeline` → job sau đợi job trước, không chạy đè.

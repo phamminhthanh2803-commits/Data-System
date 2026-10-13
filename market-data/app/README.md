@@ -42,7 +42,8 @@ có thì mỗi thẻ thêm nút **⧉ Ảnh**.
 | | Trái phiếu | Phát hành (app vs VBMA, theo quý, đáo hạn, top hệ sinh thái/CTCK, chi tiết) · Cơ cấu & lãi suất · Giá & đường cong lợi suất (bond-pivot `yield_curve.py`) |
 | **Vĩ mô** | Vĩ mô Việt Nam | 9 navtab: Tăng trưởng & sản xuất · Giá cả · Lãi suất & tiền tệ · Hệ thống tài chính · Tài khoá · Tỷ giá · Dự trữ ngoại hối · Thương mại & CCTT · Đầu tư nước ngoài |
 | | Vĩ mô thế giới | Tỷ giá (DXY + 12 nước) · Lãi suất (Mỹ) · Chỉ số giá · Tăng trưởng & lao động |
-| **Tin tức** | — | placeholder + bảng dữ liệu vừa cập nhật |
+| **Tin tức** | Báo cáo tài chính mới | (13/10/2026) 6 KPI tiến độ công bố kỳ gần nhất theo sàn + hôm nay/tuần này · **Công bố mới nhất** (bảng HTML, lọc sàn/kỳ/loại/phạm vi, tìm mã, 1W/1M/3M/All, link PDF, CSV/Excel) · **Tiến độ công bố theo ngày** (cột số file/ngày + luỹ kế % DN) · **Theo mã** · bảng dữ liệu vừa cập nhật |
+| | Giao dịch nội bộ | liên kết tới thẻ Giao dịch nội bộ (TTCK VN › Dòng tiền) + 20 bản ghi mới nhất |
 
 Thẻ nào spec yêu cầu mà hệ thống chưa có nguồn (PMI, giá dầu/vàng, margin, ETF, đóng góp CPI,
 GDP phía chi tiêu, dự toán NSNN, lãi suất điều hành châu Á, thất nghiệp quốc tế) vẫn hiện khung **"Chưa có dữ liệu"**
@@ -252,6 +253,18 @@ gồm cả chuyển nhượng / thừa kế / ESOP / góp vốn — không chỉ
 - **Chưa chắc**: 106 mã không có bản ghi (mã mới/UPCOM ít công bố); giá trị toàn thị trường bị chi phối bởi vài thương vụ chuyển nhượng lớn
   (VIC 12/2025 +53 nghìn tỷ, SSH 10/2025 +31,5 nghìn tỷ, HVN→SCIC 9/2025 +29,7 nghìn tỷ) — nên xem *Top 15* hơn là tổng; cùng 1 đợt ESOP CafeF
   đăng mỗi người 1 bản ghi (không trùng); bản ghi "liên quan" không có KL/ngày (2.159 dòng `ngay_dk_bd` rỗng) vẫn giữ trong bảng nhưng không vào chart.
+
+### BCTC mới công bố — tab Tin tức › Báo cáo tài chính mới (13/10/2026) — PV2: "scan Vietstock hoặc CafeF cho BCTC mới"
+
+Dataset `bctc_congbo` (REGISTRY, file pipeline `BCTC_ROOT\bctc-scan\data\bctc_congbo.csv`, bước **bctc-scan** AM 10:30 + PM 18:30 trên cloud;
+công cụ + khảo sát nguồn: `D:\bctc\bctc-scan\README.md`, `NGUON.md`). Nguồn chính **CafeF** `FileBCTC.ashx?Symbol=&Type=1&Year=` (theo từng mã,
+1.559 mã × 1–2 năm ≈ 1–2 phút, ngày đăng suy từ ObjectId), dự phòng Vietstock `data/GetDocument type=1`. HOSE (`api.hsx.vn mediafiles/5/{secOrgId}`)
+và HNX (`NextPageTinCPNY_CBTCPH`) đã có endpoint, chưa dùng.
+- `pages_khac._bctc_moi`: `_bctc_df` (cache theo mtime) bỏ trùng chéo nguồn theo (mã, kỳ, loại, phạm vi) giữ bản sớm nhất. Kỳ gần nhất
+  `_ky_hien_hanh` = quý vừa kết thúc (13/10 → 2026Q3); mẫu số = số mã mỗi sàn trong `vn_screener_meta` (1.233). Bảng HTML tự dựng
+  (`_bctc_html`, class `gn-tbl`, link PDF mở tab mới, tối đa 400 dòng — tải CSV/Excel để lấy đủ). `period_dates` thêm **1W**.
+- Streamlit Cloud: `cloud_boot.APP_DATA` nhận mục dạng `"<hub>/<thư mục>"` (`bctc/bctc-scan`) → kéo về `<base>/bctc/...` (= `BCTC_ROOT`).
+- Ảnh: `design\screens\20-bctc-moi.png` (server 8779). Số liệu 13/10/2026: 10.381 file / 1.463 DN trong 400 ngày; 2026Q3 mới 4 DN.
 
 ## Giải phẫu 1 thẻ (`ui_genea.card`)
 

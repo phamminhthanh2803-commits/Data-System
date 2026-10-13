@@ -40,7 +40,7 @@ HUBS = [
                         "fiinprox-unpivot/output", "fiinprox-unpivot/input", "nganh-chung-khoan/excel_feed",
                         "nganh-bat-dong-san/output", "nganh-bat-dong-san/cbre-reports", "md2bctc/output", "md2bctc/input",
                         "tcbs-pbi/output", "pdf-detector/markitdown-tool/tessdata", "fs-extractor/output_cap",
-                        "fs-extractor/output_cap_adjust", "fs-extractor/output_liq", "tcbs-pbi"]),
+                        "fs-extractor/output_cap_adjust", "fs-extractor/output_liq", "tcbs-pbi", "bctc-scan/pdf"]),
     (os.path.join(MD_SRC, "cloud-probe"), "cloud-probe", []),
 ]
 HAH_FILES = ["haian_pull.py", "HUONG-DAN-SU-DUNG.md"]          # ps1/js goc giu o laptop, khong can tren cloud

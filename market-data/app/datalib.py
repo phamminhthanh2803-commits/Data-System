@@ -36,7 +36,8 @@ NSOD = os.path.join(BASE, "nso-fetcher")
 TRAD = os.path.join(BASE, "transmission-fetcher")
 BOND = os.path.join(BASE, "bond-pivot")
 VSDC = os.path.join(BASE, "vsdc-accounts")
-CACHE = os.path.normpath(os.environ.get("APP_CACHE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache"))
+BCTC = os.path.normpath(os.environ.get("BCTC_ROOT", "D:/bctc"))          # hub bctc (13/10/2026: bctc-scan)
+CACHE =os.path.normpath(os.environ.get("APP_CACHE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache"))
 os.makedirs(CACHE, exist_ok=True)                        # APP_CACHE: cloud_boot dat ra /tmp (repo mount tren cloud co the chi doc)
 SRC_CACHE = os.path.normpath(os.environ.get("SRC_CACHE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "src")))
 
@@ -135,6 +136,10 @@ REGISTRY = {
                 os.path.join(SRC_CACHE, "insider.parquet"), "ngay_cong_bo", "symbol",
                 "đăng ký / kết quả giao dịch của cổ đông nội bộ, người liên quan, cổ đông lớn theo mã (CafeF, chỉ live-first, "
                 "không có pipeline); gia_tri_uoc = KL ròng thực hiện × giá đóng cửa ngày thực hiện (tỷ)"),
+    "bctc_congbo": ("BCTC mới công bố (CafeF / Vietstock)", "Cổ phiếu · Tin doanh nghiệp",
+                    os.path.join(BCTC, "bctc-scan", "data", "bctc_congbo.csv"), "ngay_cong_bo", "symbol",
+                    "1 dòng = 1 file BCTC đăng trên CafeF (dự phòng Vietstock): mã, sàn, kỳ (2026Q3/2026H1/2025FY), loại quý/soát xét/"
+                    "kiểm toán, phạm vi hợp nhất/riêng/công ty mẹ, ngày đăng (từ ObjectId CafeF), link PDF; bước bctc-scan AM+PM"),
 }
 
 
@@ -181,7 +186,7 @@ def read_csv(path: str, mt: float, **kw) -> pd.DataFrame:
         return df
     df = pd.read_csv(path, **kw)
     for c in df.columns:
-        if c in ("date", "ngay_phat_hanh", "ngay_dao_han", "ngay_bao_cao", "ngay", "ngay_moc"):
+        if c in ("date", "ngay_phat_hanh", "ngay_dao_han", "ngay_bao_cao", "ngay", "ngay_moc", "ngay_cong_bo"):
             df[c] = pd.to_datetime(df[c], errors="coerce")
     return df
 
@@ -1824,7 +1829,7 @@ def freshness(stamp: float) -> pd.DataFrame:
             continue
         tre = (today - last.normalize()).days if pd.notna(last) else None
         # du lieu thang/quy tre tu nhien -> nguong rong hon
-        gioi_han = 400 if key == "nso" else (95 if nhom.startswith("Vĩ mô") else (45 if key in ("vsdc", "bonds") else 8))
+        gioi_han = 400 if key == "nso" else (95 if nhom.startswith("Vĩ mô") else (45 if key in ("vsdc", "bonds", "bctc_congbo") else 8))
         tt = "OK" if tre is not None and tre <= gioi_han else "CŨ"
         lf = live_first(key)
         cap = datetime.fromtimestamp(_raw_mt(path))

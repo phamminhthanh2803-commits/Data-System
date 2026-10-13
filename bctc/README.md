@@ -14,6 +14,8 @@ D:\bctc\
   md2bctc\               Markdown OCR mẫu CTCK B0x -> bctc_master.csv + bctc_notes.csv (regex thuần)
   pdf-detector\          quét web phân trang, tải PDF theo từ khoá; markitdown-tool\pdf2md.py OCR tiếng Việt; downloads\ 2,7 GB
   tcbs-pbi\              dump Power BI TCBS (10 CSV, dump_pbi.py)
+  bctc-scan\             (13/10/2026) quét BCTC MỚI CÔNG BỐ toàn thị trường (CafeF FileBCTC.ashx, dự phòng Vietstock) -> data\bctc_congbo.csv
+                         bước bctc-scan AM+PM trong D:\market-data\run_slot.py (chạy cloud) -> app Market Data tab Tin tức; NGUON.md = khảo sát nguồn
 ```
 
 ## Đơn vị và kỳ trong schema chung

@@ -86,6 +86,9 @@ FOLDERS: dict[str, Folder] = {f.key: f for f in [
     Folder("market-data", "vsdc-accounts"),
     Folder("market-data", "bond-pivot", owner="laptop", exclude=["data/raw/**", "logs/**", "tessdata/**", "output/**"],
            note="laptop chay buoc bonds thu Hai; len Drive CHI data/processed + config (~45 MB), bo data/raw 3,5 GB PDF"),
+    # ---------------- bctc (13/10/2026): quet BCTC moi cong bo - cloud la chu; laptop (D:\bctc\bctc-scan) chi nhan ban qua `sync_data.py app`
+    Folder("bctc", "bctc-scan", exclude=["pdf/**"],
+           note="BCTC moi cong bo (CafeF, du phong Vietstock): data/bctc_congbo.csv + parquet; pdf/ (tai tay --download) o lai may"),
     # ---------------- shipping
     Folder("shipping", "VHBS-ConTex"),
     Folder("hah", "", include=["haian-schedule-master.csv", "haian-portcalls.csv", "haian-voyages.csv", "haian-schedule.csv"],
@@ -136,6 +139,8 @@ STEP_FOLDERS: dict[str, list] = {
                          ("market-data/market-valuation", "r", None), ("market-data/transmission-fetcher", "r", None)],
     "msci":             [("market-data/market-valuation", "rw", None)],
     "macro-region":     [("market-data/macro-fetcher", "rw", None)],
+    # market-data AM + PM (13/10/2026): quet BCTC moi cong bo; doc danh sach ma + ten DN tu index-fetcher raw
+    "bctc-scan":        [("bctc/bctc-scan", "rw", None), ("market-data/index-fetcher", "r", IDX_SMALL)],
     # shipping AM
     "vhbs":             [("shipping/VHBS-ConTex", "rw", None)],
     "haian":            [("hah", "rw", None)],
@@ -165,7 +170,7 @@ APP_FOLDERS = [("market-data/market-valuation", None), ("market-data/index-fetch
                ("market-data/vsdc-accounts", None), ("shipping/VHBS-ConTex", None), ("hah", None),
                ("shipping/cangvu-haiphong", None), ("shipping/cangvu-hcm", None), ("shipping/cangvu-toanquoc", None),
                ("shipping/vessel-itinerary", None), ("shipping/Alibra-scraper", None), ("shipping/BCTI-scraper", None),
-               ("shipping/port-tracker", None)]
+               ("shipping/port-tracker", None), ("bctc/bctc-scan", None)]
 # realtime: khong nam trong APP_FOLDERS (khong copy ca thu muc) - sync_data.do_app chi keo APP_REALTIME_DAYS ngay gan nhat
 APP_REALTIME_DAYS = 1
 

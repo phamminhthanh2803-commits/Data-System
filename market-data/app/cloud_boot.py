@@ -313,7 +313,7 @@ def push_src_cache(src_dir: str) -> float:
     flt = []
     for f in cur.values():
         flt += ["--filter", "- /" + f]
-    flt += ["--filter", "+ /*.parquet", "--filter", "- *"]
+    flt += ["--filter", "+ /*.parquet", "--filter", "- *", "--min-age", "2h"]   # 13/10: chi xoa ban cu >2h - laptop va job EOD khong xoa file cua nhau
     rc, out = run_rclone(["delete", remote(APP_CACHE_REMOTE)] + flt, timeout=300)   # ban cu tren Drive (khong loi neu khong co)
     if rc not in (0, 3):
         _log(f"xoa ban cu app-cache tren Drive loi (exit {rc}) - bo qua")

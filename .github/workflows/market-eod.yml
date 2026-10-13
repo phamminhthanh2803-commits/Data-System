@@ -1,0 +1,95 @@
+# Market EOD — tong hop du lieu NGAY MOI ngay khi het phien (13/10/2026 PV2), khong cho Market PM 18:30.
+# Chay cache live-first cua app (market-data/app/data_src.py): chi so, khoi ngoai, dinh gia, nganh, khoi ngoai theo ma,
+# giao dich noi bo VA gia 1.500 ma (stock_daily) -> day len Drive app-cache/src -> app Streamlit Cloud keo ve (15:45 / moi 30 phut).
+# Gio VN = UTC + 7. Chay tay: Actions -> Market EOD -> Run workflow.
+name: Market EOD
+
+on:
+  schedule:
+    - cron: "20 8 * * 1-5"           # 15:20 gio VN, thu Hai - thu Sau (phien dong 15:15)
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Chi cap nhat cac dataset nay, cach nhau boi dau phay (de trong = tat ca). Vi du: index_daily,flows_daily"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: market-eod
+  cancel-in-progress: false
+
+env:
+  TZ: Asia/Ho_Chi_Minh
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+  CLOUD_BOOT: "0"                                     # khong phai app Streamlit Cloud: data_src chay nhu laptop (day cache len Drive)
+  SRC_CACHE: ${{ github.workspace }}/app-cache/src     # cache live-first (keo ban hien hanh tu Drive truoc, cap nhat tang dan)
+  RT_ROOT: ${{ github.workspace }}/market-data/realtime-lab   # symbols.txt = vu tru ma cho stock_daily
+  MD_ROOT: ${{ github.workspace }}/market-data
+  RCLONE: /usr/bin/rclone
+  RCLONE_REMOTE: gdrive:pipeline-data
+  ONLY: ${{ inputs.only }}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Lay code
+        uses: actions/checkout@v4
+
+      - name: Python 3.12 (cache pip)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: market-data/app/requirements.txt
+
+      - name: Cai thu vien Python (app)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r market-data/app/requirements.txt
+
+      - name: Cai rclone
+        run: |
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+          rclone version
+
+      - name: Cau hinh rclone tu secret RCLONE_CONF (base64)
+        env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+        run: |
+          if [ -z "$RCLONE_CONF" ]; then echo "::error::Thieu secret RCLONE_CONF"; exit 1; fi
+          mkdir -p ~/.config/rclone
+          echo "$RCLONE_CONF" | base64 -d > ~/.config/rclone/rclone.conf
+          chmod 600 ~/.config/rclone/rclone.conf
+          rclone lsd "$RCLONE_REMOTE" > /dev/null
+
+      - name: Keo cache live-first hien hanh tu Drive (app-cache/src)
+        id: down
+        run: |
+          mkdir -p "$SRC_CACHE"
+          rclone copy "$RCLONE_REMOTE/market-data/app-cache/src" "$SRC_CACHE" --include "/status.json" --include "/*.parquet" --transfers 8
+          ls -la "$SRC_CACHE" | head -30
+
+      - name: Cap nhat ngay moi + day len Drive
+        run: |
+          cd market-data/app
+          if [ -n "$ONLY" ]; then
+            python data_src.py --only "$ONLY" --push
+          else
+            python data_src.py --push
+          fi
+
+      - name: Trang thai
+        if: always()
+        run: |
+          echo "## Market EOD" >> "$GITHUB_STEP_SUMMARY"
+          python - <<'EOF' >> "$GITHUB_STEP_SUMMARY" || echo "(khong doc duoc status.json)" >> "$GITHUB_STEP_SUMMARY"
+          import json, os
+          st = json.load(open(os.path.join(os.environ["SRC_CACHE"], "status.json"), encoding="utf-8"))
+          for k, v in st.items():
+              if isinstance(v, dict):
+                  print(f"- {k}: ngay cuoi {v.get('last')} · {v.get('rows')} dong · cap nhat {v.get('updated')} · loi {v.get('error')}")
+          EOF

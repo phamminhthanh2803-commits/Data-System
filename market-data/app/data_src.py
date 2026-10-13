@@ -1230,6 +1230,27 @@ def _pull_seed_heavy():
         _status_set("_run", seed_error=f"{type(e).__name__}: {str(e)[:160]}")
 
 
+EOD_MARKS = ((15, 17), (15, 45))     # 13/10/2026 PV2: tong hop ngay moi NGAY khi het phien (15:15) + lan 2 khi khoi ngoai/dinh gia chot
+
+
+def _next_wait(interval: int, t: datetime | None = None) -> float:
+    """So giay ngu toi lan cap nhat ke tiep: min(interval, toi moc EOD gan nhat cua ngay giao dich)."""
+    t = t or now_vn()
+    best = float(interval)
+    for d in range(0, 4):
+        day = t + timedelta(days=d)
+        if day.weekday() >= 5:
+            continue
+        for hh, mm in EOD_MARKS:
+            mark = day.replace(hour=hh, minute=mm, second=0, microsecond=0)
+            dt = (mark - t).total_seconds()
+            if dt > 5:
+                best = min(best, dt)
+        if best < interval:
+            break
+    return max(5.0, best)
+
+
 def _bg_loop(interval=1800):
     while True:
         try:
@@ -1243,7 +1264,12 @@ def _bg_loop(interval=1800):
                 _push_cache()
         except Exception as e:  # noqa: BLE001
             _status_set("_run", error=str(e)[:200])
-        time.sleep(interval)
+        w = _next_wait(interval)
+        try:
+            _status_set("_run", next_wake=(now_vn() + timedelta(seconds=w)).strftime("%Y-%m-%d %H:%M:%S"))
+        except Exception:  # noqa: BLE001
+            pass
+        time.sleep(w)
 
 
 def start_background(interval=1800) -> bool:
@@ -1270,6 +1296,7 @@ if __name__ == "__main__":
     ap.add_argument("--full", action="store_true")
     ap.add_argument("--only", help="vd index_daily,flows_daily,insider")
     ap.add_argument("--symbols", help="chi insider: keo thu vai ma, vd FPT,HPG,VNM (ghi vao cache nhu binh thuong)")
+    ap.add_argument("--push", action="store_true", help="sau khi cap nhat: day cache len Drive app-cache/src (job Market EOD)")
     a = ap.parse_args()
     t0 = time.time()
     if a.symbols:
@@ -1279,3 +1306,6 @@ if __name__ == "__main__":
     r = refresh_all(a.full, a.only.split(",") if a.only else None)
     print(json.dumps(r, ensure_ascii=False, indent=1), f"{time.time() - t0:.0f}s")
     print(source_status().to_string())
+    if a.push:
+        import cloud_boot
+        print(f"day cache len Drive: {cloud_boot.push_src_cache(SRC_DIR):.0f}s")

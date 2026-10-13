@@ -182,9 +182,14 @@ Bước workflow *Cai cloudflared* (deb từ GitHub releases, `continue-on-error
   `winget install Cloudflare.cloudflared`) rồi `python dnse_stream.py --no-dnse --force --duration 600 --out <tmp> --db <tmp>.duckdb
   --serve-port 8787 --push-every 60 --push-remote gdrive:pipeline-data/realtime-test`; app: `RT_CLOUD=1 RT_REMOTE=gdrive:pipeline-data/realtime-test
   RT_ROOT=<thư mục trống>`; xong `rclone purge gdrive:pipeline-data/realtime-test`.
+- **Streamlit Community Cloud ra được trycloudflare** (kiểm chứng 13/10 09:50): chép tạm `tunnel.json` test lên `realtime/tunnel.json`, app cloud
+  (code mới sau push, container mới) hiện *"live 5 s (cloud) — … → Cloudflare tunnel, app kéo mỗi 5 s"*, Kho dữ liệu: *trễ 0,4 s, 0,68 s/vòng*
+  (Streamlit Cloud Mỹ → Cloudflare → laptop VN); xoá `tunnel.json` ngay sau đó (job SANG đang chạy là code cũ, không ghi tunnel.json).
 - **Chưa chắc**: quick tunnel không có SLA (Cloudflare có thể giới hạn/đứt; URL đổi mỗi job và mỗi lần cloudflared khởi động lại → app theo
-  `tunnel.json` 60 s + thử lại 2 phút, lúc đó rơi về Drive 60 s); Streamlit Community Cloud ra ngoài tới `*.trycloudflare.com` — xem mục
-  kiểm chứng bên dưới / app README; tải ước ~0,25 MB/5 s (8 parquet ~230 KB) ≈ 3 MB/phút mỗi app đang mở.
+  `tunnel.json` 60 s + thử lại 2 phút, lúc đó rơi về Drive 60 s); job thật đầu tiên có tunnel = job kế tiếp sau push (CHIEU 13/10 12:50 nếu
+  không chạy tay) — xem Summary job: dòng `[serve] tunnel https://…` và `tunnel.json` cuối job phải `url: null`; tải ước ~0,25 MB/5 s
+  (8 parquet ~230 KB) ≈ 3 MB/phút mỗi app đang mở. Bộ thu bị kill cứng (không qua `finally`) để lại tiến trình cloudflared mồ côi (runner
+  GitHub dọn khi job kết thúc; laptop test thì `Stop-Process cloudflared`).
 
 ## Port Tracker: ghép dữ liệu liên tục (09/10/2026)
 App Port & Vessel Tracker không còn tự gọi trang nguồn khi mở. Bước `port-tracker` (Shipping AM) và `port-tracker-pm` (Shipping PM) chạy

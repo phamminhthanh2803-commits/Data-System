@@ -242,12 +242,12 @@ def _tunnel_loop(port: int, out_root: str, remote: str | None, rc: str | None, d
                     continue
                 started = dt.datetime.now(VN_TZ).isoformat(timespec="seconds")
                 STATE["url"] = url
+                _write_tunnel_json(path, url, started, run_id, day, bool(token))      # day URL len Drive TRUOC, probe sau
+                pushed = _push_tunnel_json(rc, path, remote)
                 sec = _probe(url, token)
                 log(f"tunnel {url} (run {run_id}) -> GET /index.json qua internet: "
-                    + (f"OK {sec:.2f}s" if sec is not None else "CHUA phan hoi (app se tu thu lai)"))
-                _write_tunnel_json(path, url, started, run_id, day, bool(token))
-                if _push_tunnel_json(rc, path, remote):
-                    log(f"tunnel.json -> {remote}/tunnel.json")
+                    + (f"OK {sec:.2f}s" if sec is not None else "CHUA phan hoi (app se tu thu lai)")
+                    + (f" | tunnel.json -> {remote}/tunnel.json" if pushed else ""))
             # lam moi moi TUNNEL_REFRESH s (kiem tra tien trinh song moi 5 s)
             for _ in range(TUNNEL_REFRESH // 5):
                 if stop_evt.wait(5) or proc.poll() is not None:

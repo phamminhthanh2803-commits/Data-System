@@ -139,8 +139,9 @@ Settings → Secrets) hoặc env `RT_TOKEN` (laptop) — không có thì tunnel 
   1 vòng (index.json + 6 parquet) **0,27–0,30 s** (lần đầu 1,4 s), trễ giờ nhận − mtime **0,5–0,9 s**; khi bộ thu test bị tắt → app báo
   `HTTP 502` 3 lần (15 s) → Drive → bắt URL tunnel mới sau 2 phút (log 09:42:15 TAT → 09:44:27 BAT). Ảnh `design\screens\18-live-5s.png` +
   `18-live-5s-kho.png`, script `design\screens\chup_live_5s.py`.
-- Chưa chắc: quick tunnel không SLA, URL đổi mỗi job (app tự theo); xem mục *Streamlit Cloud* trong README cloud-deploy về việc app cloud ra
-  ngoài tới trycloudflare.
+- **Streamlit Community Cloud** (13/10 09:50): app cloud https://data-system-b4wigzo4ndt7i4iju9ikil.streamlit.app với `tunnel.json` test chép tạm
+  lên `realtime/` → thanh LIVE "live 5 s (cloud) — … Cloudflare tunnel, app kéo mỗi 5 s", Kho dữ liệu *trễ 0,4 s, 0,68 s/vòng* → Streamlit Cloud ra
+  ngoài tới `*.trycloudflare.com` được. Chưa chắc: quick tunnel không SLA, URL đổi mỗi job (app tự theo trong ≤ 2 phút, lúc đó "live 1 phút (cloud)").
 
 ### Không làm mờ UI khi live rerun (13/10/2026) — PV2: "giao diện khi cập nhật mỗi lần của live không nên làm mờ"
 

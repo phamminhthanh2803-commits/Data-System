@@ -643,12 +643,14 @@ def _ky_hien_hanh(today: pd.Timestamp) -> str:
 
 @st.cache_data(show_spinner=False)
 def _bctc_df(mt: float) -> pd.DataFrame:
-    """bctc_congbo đã chuẩn hoá: ngày Timestamp, tên loại/phạm vi, bỏ trùng chéo nguồn (CafeF + Vietstock cùng mã/kỳ/loại/phạm vi -> giữ bản sớm nhất)."""
+    """bctc_congbo đã chuẩn hoá: ngày Timestamp, tên loại/phạm vi, bỏ trùng chéo nguồn (CafeF + Vietstock + HOSE cùng mã/kỳ/loại/phạm vi
+    -> giữ bản sớm nhất; file đã gộp sẵn từ bctc_scan, cột nguon_khac/url_pdf_khac = các nguồn khác cũng có file)."""
     d = dl.load("bctc_congbo")
     if d is None or d.empty:
         return pd.DataFrame()
     d = d.copy()
-    for c in ("symbol", "exchange", "ten_dn", "ky", "loai", "pham_vi", "tieu_de", "url_pdf", "url_nguon", "nguon", "gio_dang"):
+    for c in ("symbol", "exchange", "ten_dn", "ky", "loai", "pham_vi", "tieu_de", "url_pdf", "url_nguon", "nguon", "gio_dang",
+              "nguon_khac", "url_pdf_khac"):
         d[c] = d[c].fillna("").astype(str) if c in d else ""
     d["ngay_cong_bo"] = pd.to_datetime(d["ngay_cong_bo"], errors="coerce")
     d = d.dropna(subset=["ngay_cong_bo"])
@@ -658,6 +660,28 @@ def _bctc_df(mt: float) -> pd.DataFrame:
     return d.sort_values(["ngay_cong_bo", "gio_dang"], ascending=False).reset_index(drop=True)
 
 
+_NGUON_BADGE = {"cafef": ("CafeF", "#e8f1fb", "#1f5fa8"), "vietstock": ("Vietstock", "#e6f4ea", "#1e7a3b"), "hose": ("HOSE", "#fdf3ec", "#b3551c")}
+
+
+def _bctc_badge(nguon: str, url_nguon: str, nguon_khac: str = "", url_pdf_khac: str = "") -> str:
+    """Badge nguồn chính (CafeF / Vietstock / HOSE, link trang nguồn) + tooltip liệt kê nguồn khác cũng có file (PDF link nhỏ)."""
+    ten, bg, fg = _NGUON_BADGE.get(str(nguon), (str(nguon) or "—", "var(--surface-2)", "var(--ink-3)"))
+    khac = [x.strip() for x in str(nguon_khac or "").split(",") if x.strip()]
+    urls = [u.strip() for u in str(url_pdf_khac or "").split("|")]
+    tip = ("Sớm nhất: " + ten + (" · cũng có ở " + ", ".join(_NGUON_BADGE.get(k, (k,))[0] for k in khac) if khac else "")).replace('"', "'")
+    style = f"display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600;background:{bg};color:{fg};line-height:16px"
+    b = f'<span style="{style}" title="{tip}">{ten}</span>'
+    if str(url_nguon).startswith("http"):
+        b = f'<a href="{url_nguon}" target="_blank" rel="noopener" style="text-decoration:none">{b}</a>'
+    extra = ""
+    for i, k in enumerate(khac):
+        u = urls[i] if i < len(urls) else ""
+        kt = _NGUON_BADGE.get(k, (k,))[0]
+        extra += (f' <a href="{u}" target="_blank" rel="noopener" style="color:var(--ink-3);font-size:11px" title="PDF {kt}">+{kt[:2]}</a>'
+                  if u.startswith("http") else f' <span style="color:var(--ink-3);font-size:11px" title="{kt}">+{kt[:2]}</span>')
+    return b + extra
+
+
 def _bctc_html(t: pd.DataFrame, limit: int = 400) -> str:
     h = ['<div class="gn-tblwrap" style="max-height:560px;overflow:auto"><table class="gn-tbl"><thead><tr>'
          '<th>Ngày</th><th>Mã · tên</th><th style="text-align:left">Sàn</th><th style="text-align:left">Kỳ</th>'
@@ -665,7 +689,7 @@ def _bctc_html(t: pd.DataFrame, limit: int = 400) -> str:
     tt = t.head(limit).rename(columns={"Loại": "loai_t", "Phạm vi": "pv_t"})
     for r in tt.itertuples(index=False):
         link = (f'<a href="{r.url_pdf}" target="_blank" rel="noopener">PDF</a>' if str(r.url_pdf).startswith("http") else "—")
-        src = f'<a href="{r.url_nguon}" target="_blank" rel="noopener" style="color:var(--ink-3)">{r.nguon}</a>' if str(r.url_nguon).startswith("http") else r.nguon
+        src = _bctc_badge(r.nguon, r.url_nguon, getattr(r, "nguon_khac", ""), getattr(r, "url_pdf_khac", ""))
         ten = str(r.ten_dn)[:38]
         h.append(f'<tr><td>{r.ngay_cong_bo:%d/%m/%Y} <small style="color:var(--ink-3)">{r.gio_dang}</small></td>'
                  f'<td><b>{r.symbol}</b> <small>{ten}</small></td><td style="text-align:left">{r.exchange}</td>'
@@ -679,8 +703,9 @@ def _bctc_html(t: pd.DataFrame, limit: int = 400) -> str:
 
 
 def _bctc_export(t: pd.DataFrame) -> pd.DataFrame:
-    out = t[["ngay_cong_bo", "gio_dang", "symbol", "exchange", "ten_dn", "ky", "Loại", "Phạm vi", "tieu_de", "url_pdf", "url_nguon", "nguon"]].copy()
-    out.columns = ["Ngày", "Giờ", "Mã", "Sàn", "Tên DN", "Kỳ", "Loại", "Phạm vi", "Tiêu đề", "PDF", "Nguồn (trang)", "Nguồn"]
+    out = t[["ngay_cong_bo", "gio_dang", "symbol", "exchange", "ten_dn", "ky", "Loại", "Phạm vi", "tieu_de", "url_pdf", "url_nguon", "nguon",
+             "nguon_khac", "url_pdf_khac"]].copy()
+    out.columns = ["Ngày", "Giờ", "Mã", "Sàn", "Tên DN", "Kỳ", "Loại", "Phạm vi", "Tiêu đề", "PDF", "Nguồn (trang)", "Nguồn", "Nguồn khác", "PDF nguồn khác"]
     return out.set_index("Ngày")
 
 
@@ -719,9 +744,10 @@ def _bctc_moi(ctx):
 
     # ---- (b) cong bo moi nhat: bang + bo loc
     with ui.card("Công bố mới nhất", "1 dòng = 1 file BCTC",
-                 help="Nguồn CafeF (FileBCTC.ashx theo từng mã, bước bctc-scan AM 10:30 + PM 18:30; dự phòng Vietstock). Ngày = thời điểm CafeF đăng "
-                      "file (suy từ ObjectId), có thể trễ 0–2 ngày so với ngày DN gửi UBCK. Kỳ: 2026Q3 quý · 2026H1 soát xét bán niên · 2025FY kiểm toán năm. "
-                      "Phạm vi '—' = công ty không có công ty con (BCTC duy nhất).",
+                 help="3 nguồn gộp (bước bctc-scan AM 10:30 + PM 18:30): CafeF FileBCTC.ashx + Vietstock GetDocument + HOSE api.hsx.vn (chỉ mã HOSE). "
+                      "Mỗi BCTC (mã/kỳ/loại/phạm vi) giữ 1 dòng với ngày+giờ công bố SỚM NHẤT; badge = nguồn sớm nhất (bấm mở trang nguồn), "
+                      "PDF = file của nguồn đó, '+Ca/+Vi/+HO' = nguồn khác cũng có file (bấm mở PDF đó). Kỳ: 2026Q3 quý · 2026H1 soát xét bán niên · "
+                      "2025FY kiểm toán năm. Phạm vi '—' = công ty không có công ty con (BCTC duy nhất).",
                  key="bctc_moi_nhat", periods=["1W", "1M", "3M", "All"], default="1M") as c:
         with c.body():
             f1, f2, f3, f4, f5 = st.columns([1.1, 1.3, 1.2, 1.2, 1])
@@ -754,7 +780,7 @@ def _bctc_moi(ctx):
 
     # ---- (c) tien do theo ngay
     with ui.card("Tiến độ công bố theo ngày", f"cột: số file/ngày · đường: luỹ kế % DN đã công bố BCTC quý {ky_hh}",
-                 help="Cột = số file BCTC (mọi kỳ, mọi loại) CafeF đăng mỗi ngày. Đường phải = luỹ kế số DN đã có BCTC quý của kỳ gần nhất "
+                 help="Cột = số BCTC (mọi kỳ, mọi loại) công bố mỗi ngày (ngày sớm nhất trong 3 nguồn). Đường phải = luỹ kế số DN đã có BCTC quý của kỳ gần nhất "
                       "chia tổng DN niêm yết 3 sàn (theo vn_screener_meta).",
                  key="bctc_tien_do", periods=["1M", "3M", "6M", "All"], default="3M") as c:
         t = d[(d["ngay_cong_bo"] >= c.d0) & (d["ngay_cong_bo"] <= c.d1)]

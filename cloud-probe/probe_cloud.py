@@ -40,6 +40,8 @@ TARGETS = [
     ("VN-web",   "transmission",           "https://dulieukinhte.com/"),
     ("VN-web",   "masvn",                  "https://masvn.com/"),
     ("VN-web",   "cafef",                  "https://cafef.vn/"),
+    ("VN-api",   "bctc-scan (Vietstock)",  "https://finance.vietstock.vn/FPT/tai-lieu.htm"),
+    ("VN-api",   "bctc-scan (HOSE api)",   "https://api.hsx.vn/n/api/v1/1/news/cate?pageIndex=1&pageSize=1&aliasCate=tin-tuc/tin-to-chuc-niem-yet"),
     ("Global",   "tradingview / tvhistory","https://scanner.tradingview.com/vietnam/scan"),
     ("Global",   "indices (yahoo)",        "https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?range=1d&interval=1d"),
     ("Global",   "macro (IMF SDMX)",       "https://api.imf.org/external/sdmx/2.1/dataflow"),

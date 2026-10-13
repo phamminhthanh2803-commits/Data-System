@@ -5,18 +5,26 @@ của toàn bộ mã HOSE + HNX + UPCOM, có link PDF gốc và ngày công bố
 Cách thử: `curl_cffi` impersonate Chrome từ laptop (IP VN) + trình duyệt tích hợp bắt API thật qua network log.
 Chưa thử trực tiếp từ IP Mỹ trong phiên này; probe 12/10 cho biết cafef.vn / hnx.vn / vietcap OK từ runner GitHub.
 
-## Kết luận: CafeF là nguồn chính, Vietstock dự phòng, HOSE/HNX ghi nhận để bổ sung sau
+## Kết luận (cập nhật 13/10/2026 chiều): dùng song song 3 nguồn CafeF + Vietstock + HOSE, gộp lấy ngày công bố sớm nhất; HNX ghi nhận để bổ sung sau
 
 | Nguồn | Phủ sàn | Toàn TT 1 call? | PDF gốc | Ngày công bố | Kỳ / loại / phạm vi | IP Mỹ | Tốc độ | Kết luận |
 |---|---|---|---|---|---|---|---|---|
-| **CafeF FileBCTC.ashx** | HOSE+HNX+UPCOM | Không (bắt buộc `Symbol`) | Có (cafefnew.mediacdn.vn) | Suy từ Mongo ObjectId `id` (thời điểm CafeF đăng, khớp hậu tố ddmmyyyyHHMMSS trong tên file) | `Quarter`/`Year` + tên chuẩn hoá "BCTC hợp nhất quý 2 năm 2026 (đã soát xét)" | OK (probe 12/10) | 0,2–0,3 s/mã, 24 mã/6 luồng = 1,0 s → toàn TT ~1 phút | **CHÍNH** |
-| **Vietstock data/GetDocument** | HOSE+HNX+UPCOM | Không (theo `code`) | Có (static2.vietstock.vn, đôi khi .zip) | `LastUpdate` (ms) | Tiêu đề "BCTC Hợp nhất Soát xét 6 tháng đầu năm 2026" (parse regex) | Chưa thử; nginx, không thấy Cloudflare | ~0,5 s/mã; cần token + cookie từ 1 lần GET trang | **DỰ PHÒNG** (`--source vietstock`) |
-| HOSE api.hsx.vn | HOSE | Có (news/cate) nhưng BCTC trộn với mọi CBTT; file BCTC theo mã qua `mediafiles/5/{secOrgId}` | Có (staticfile.hsx.vn/Uploads/…) | `createdDate` chính xác tới giây (`publishDate` không tin được) | `type` Quý/Bán niên/Năm + `time` "02.2026"; phạm vi từ tên file | Chưa thử | 0,2 s | Ghi nhận, chưa dùng (cần map mã → secOrgId) |
+| **CafeF FileBCTC.ashx** | HOSE+HNX+UPCOM | Không (bắt buộc `Symbol`) | Có (cafefnew.mediacdn.vn) | Suy từ Mongo ObjectId `id` (thời điểm CafeF đăng, khớp hậu tố ddmmyyyyHHMMSS trong tên file) – **thường muộn, hay đăng gộp** (TCH kiểm toán 2025: CafeF 14/07 vs HOSE/Vietstock 26/06) | `Quarter`/`Year` + tên chuẩn hoá "BCTC hợp nhất quý 2 năm 2026 (đã soát xét)" | OK (probe 12/10) | 0,2–0,3 s/mã, 24 mã/6 luồng = 1,0 s → toàn TT ~1 phút | **DÙNG** (phủ rộng nhất; thiếu file lẻ tẻ: TCH thiếu công ty mẹ Q1/2026) |
+| **Vietstock data/GetDocument** | HOSE+HNX+UPCOM | Không (theo `code`) | Có (static2.vietstock.vn, đôi khi .zip) | `LastUpdate` (ms) – đúng ngày DN công bố | Tiêu đề "BCTC Hợp nhất Soát xét 6 tháng đầu năm 2026" (parse regex) | Chưa thử (probe_cloud có target `bctc-scan (Vietstock)`); nginx, không thấy Cloudflare | ~0,5 s/mã; token + cookie 1 lần/phiên dùng chung mọi luồng | **DÙNG** song song (mặc định `--source all`) |
+| **HOSE api.hsx.vn** | HOSE | File BCTC theo mã qua `mediafiles/5/{secOrgId}` (news/cate chỉ dùng để map mã → secOrgId) | Có (staticfile.hsx.vn/Uploads/…) | `createdDate` chính xác tới giây – **sớm nhất** trong 3 nguồn (`publishDate` không tin được) | `type` Quý/Bán niên/Năm + `time` "02.2026"; phạm vi từ tên file (Hop Nhat / HN / Rieng / cty me) | Chưa thử (probe_cloud có target `bctc-scan (HOSE api)`) | 0,2 s/mã; map secOrgId lần đầu ~1–3 phút | **DÙNG** (chỉ mã HOSE, map lưu `data/hose_secorg.csv`) |
 | HNX ModuleArticles | HNX + UPCOM (+ TPDN) | Có (POST tìm theo tiêu đề + khoảng ngày, 50 dòng/trang) | File qua `funcShowFileAttach(id,1)` (cần thêm 1 bước) | "dd/MM/yyyy HH:mm" chính xác | Chỉ có tiêu đề tự do | OK (probe 12/10) | 1,8 s/50 dòng | Ghi nhận, chưa dùng (HTML, lẫn mã trái phiếu) |
 | VNDirect finfo v4 | — | `events` lỗi ES 500, `news` rỗng, không có endpoint tài liệu | Không | — | — | api-finfo OK, finfo-api timeout | — | Loại |
 | Vietcap IQ | — | Không đoán được endpoint tài liệu (404) | — | — | — | — | — | Loại (chưa bắt được API) |
 
-### 1. CafeF (nguồn chính)
+### 0. Cách gộp 3 nguồn (bctc_scan.py, 13/10/2026)
+
+- Mỗi nguồn trả cùng schema (1 mục = 1 file). Gộp theo khoá **(symbol, ky, loai, pham_vi)**; `rieng` ≡ `cong_ty_me` (HOSE đặt tên file
+  "Rieng", CafeF/Vietstock ghi "Công ty mẹ" cho cùng 1 báo cáo; nhãn ra = `cong_ty_me` nếu có nguồn ghi vậy).
+- Dòng giữ lại = mục có `ngay_cong_bo` + `gio_dang` **sớm nhất** (`nguon`, `id` = `<nguon>:<id gốc>`, `url_pdf`, `tieu_de` của nguồn đó);
+  nguồn còn lại → `nguon_khac` (dấu phẩy) + `url_pdf_khac` (dấu `|`). Dữ liệu cũ trong CSV gộp theo cùng quy tắc.
+- Nguồn lỗi ≥12 mã liên tiếp mà chưa mã nào OK (chặn IP / timeout) → tắt nguồn đó cho phần còn lại; chỉ exit 2 khi KHÔNG nguồn nào chạy được.
+
+### 1. CafeF (phủ rộng nhất)
 
 Trang mã: `https://cafef.vn/du-lieu/hose/fpt-cong-ty-co-phan-fpt.chn` → tab **Tài liệu** `…/hose/fpt-tai-lieu.chn` gọi:
 
@@ -36,7 +44,7 @@ GET https://cafef.vn/du-lieu/Ajax/PageNew/FileBCTC.ashx?Symbol=fpt&Type=1&Year=0
 - Các endpoint khác trên trang mã (để tham khảo): `News.ashx?Symbol=fpt&NewsType=1..5` (tin CBTT dạng bài viết, có DeployDate,
   không link PDF), `LichSuKien.ashx`, `FinanceReport.ashx` (số liệu BCTC đã nhập), `GDCoDong.ashx` (giao dịch nội bộ – đã dùng ở data_src).
 
-### 2. Vietstock (dự phòng)
+### 2. Vietstock (song song)
 
 ```
 GET  https://finance.vietstock.vn/FPT/tai-lieu.htm   → cookie ASP.NET_SessionId + __RequestVerificationToken
@@ -49,9 +57,10 @@ POST https://finance.vietstock.vn/data/GetDocument    code=FPT&type=1&page=1&pag
 ```
 - Token dùng chung cho mọi mã trong cùng phiên (đã thử FPT → AAH). Không cần đăng nhập cho type=1.
 - Đường dẫn Url có sàn (HOSE/HNX/UPCOM) tại thời điểm nộp; UPCOM đôi khi .zip.
-- Chưa thử từ IP Mỹ; nếu bị chặn → chạy `--source vietstock` ở laptop (Run-Local-Mini).
+- Token lấy 1 lần/phiên (`_vs_token`, làm mới sau 20 phút hoặc khi server trả HTML), cookie dùng chung cho session từng luồng.
+- Chưa thử từ IP Mỹ; nếu bị chặn → bctc_scan tự tắt nguồn, có thể chạy `--source vietstock` ở laptop (Run-Local-Mini) để bù.
 
-### 3. HOSE (api.hsx.vn – site React mới, bundle main.d430e296.js)
+### 3. HOSE (api.hsx.vn – site React mới, bundle main.d430e296.js) – ĐÃ DÙNG
 
 ```
 GET https://api.hsx.vn/n/api/v1/1/news/cate?pageIndex=1&pageSize=100&startDate=2026-10-01&endDate=2026-10-13&aliasCate=tin-tuc/tin-to-chuc-niem-yet
@@ -62,7 +71,15 @@ GET https://api.hsx.vn/m/api/v1/1/mediafiles/5/{secOrgId}?pageIndex=1&pageSize=5
       time "02.2026", createdDate (đúng), publishDate (SAI – = ngày kết thúc kỳ)
 Header: Origin/Referer https://www.hsx.vn ; "1" sau v1 = langId (vi). Tìm toàn văn: https://api.hsx.vn/q/api/v1/search (basic auth internet_user/internet_user, chưa thử)
 ```
-Thiếu map mã → secOrgId (`/l/api/v1/1/securities/` trả rỗng, `/s/api/v1/1/secorgs/FPT` 400) → lấy qua news detail. Để sau.
+Map mã → secOrgId: không có endpoint tra cứu (`/l/api/v1/1/securities?code=` rỗng, `/s/api/v1/1/secorgs` chỉ 78 CTCK, `/secorgs/{id}` null)
+→ `hose_build_map()`: quét `news/cate` (100 tin/trang, 6 luồng, cửa sổ lùi dần 0–30 / 30–90 / 90–200 / 200–400 ngày, ~100 tin/ngày),
+lấy mã từ tiền tố tiêu đề `^([A-Z0-9]{3})\s*:`, mỗi mã gọi `news/{id}` 1 lần lấy `code` + `relatedId` (= secOrgId) → lưu
+`data/hose_secorg.csv` (symbol, sec_org_id, ten) dùng lại; mã HOSE chưa có trong map mới quét tin. Mã không có CBTT nào trong 400 ngày
+(mới niêm yết, ETF, chứng quyền) không map được → chỉ có CafeF/Vietstock.
+`mediafiles/5/{secOrgId}` sắp theo `createdDate` giảm dần → dừng khi gặp file cũ hơn cửa sổ. Không có `id` → id = `hose:<số thư mục UploadDocuments>:<fileName>`.
+Phạm vi từ tên file: "Hop Nhat"/"HN" → hop_nhat; "cty me"/"CTM"/"cong ty me" → cong_ty_me; "Rieng" → rieng (≡ công ty mẹ khi gộp);
+kỳ: Quý `02.2026` → 2026Q2 · Bán niên `2025` → 2025H1 soát xét · Năm `2024` → 2024FY kiểm toán. Mã niên độ lệch (TCH 01/04–31/03) ghi theo kỳ HOSE đặt.
+Tên file "giai trinh"/"cong van"/"thong bao" (không có "BCTC") → loai `khac`, không gộp với BCTC thật.
 
 ### 4. HNX (www.hnx.vn, ASP.NET MVC)
 
@@ -83,7 +100,12 @@ Lẫn mã trái phiếu (BID126009, SBT426026…) → lọc mã 3 ký tự. File
 
 ## Điểm chưa chắc / cần theo dõi
 
-1. Ngày công bố CafeF = giờ CafeF đăng file, không phải giờ DN gửi UBCK/HOSE; lệch có thể 0–2 ngày (cuối tuần).
-2. CafeF có thể đăng cùng 1 báo cáo 2 lần (FPT Q3/2025 có 3 dòng: 1 "Báo cáo tài chính quý 3" + "công ty mẹ" + "hợp nhất") → app đếm DN theo (mã, kỳ) distinct.
-3. Chưa xác nhận Vietstock/HSX từ IP Mỹ. CafeF OK theo probe 12/10.
+1. Ngày công bố CafeF = giờ CafeF đăng file, thường muộn / đăng gộp nhiều kỳ (TCH: 5 file đăng 14/07/2026 cho BCTC từ Q3/2025) → đã gộp lấy
+   ngày sớm nhất từ HOSE (createdDate) / Vietstock (LastUpdate); mã HNX/UPCOM chỉ có CafeF + Vietstock.
+2. CafeF có thể đăng cùng 1 báo cáo 2 lần (FPT Q3/2025 có 3 dòng: 1 "Báo cáo tài chính quý 3" + "công ty mẹ" + "hợp nhất") → gộp theo khoá giữ bản sớm nhất.
+3. Chưa xác nhận Vietstock/HSX từ IP Mỹ (đã thêm 2 target vào cloud-probe/probe_cloud.py). CafeF OK theo probe 12/10.
+   Nguồn bị chặn → bctc_scan tự tắt nguồn đó, kết quả lần chạy thiếu nguồn (log cảnh báo "! nguon …").
+5. Gán kỳ chéo nguồn có thể lệch: CafeF đôi khi gắn nhầm kỳ, HOSE ghi theo kỳ DN nộp; khi lệch sẽ thành 2 dòng khác kỳ thay vì gộp.
+6. HOSE "Rieng" vs CafeF/Vietstock "Công ty mẹ" coi là một; DN không có công ty con: HOSE có thể đặt tên "Rieng" trong khi CafeF ghi không phạm vi
+   (`khong_ro`) → 2 dòng (hiếm).
 4. Danh sách mã lấy từ `index-fetcher/raw/vn_screener_meta.csv` (1.233 mã có sàn); mã mới niêm yết chưa có trong file sẽ bị bỏ sót tới khi screener cập nhật.

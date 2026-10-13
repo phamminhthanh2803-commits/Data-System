@@ -136,7 +136,7 @@ REGISTRY = {
                 os.path.join(SRC_CACHE, "insider.parquet"), "ngay_cong_bo", "symbol",
                 "đăng ký / kết quả giao dịch của cổ đông nội bộ, người liên quan, cổ đông lớn theo mã (CafeF, chỉ live-first, "
                 "không có pipeline); gia_tri_uoc = KL ròng thực hiện × giá đóng cửa ngày thực hiện (tỷ)"),
-    "bctc_congbo": ("BCTC mới công bố (CafeF / Vietstock)", "Cổ phiếu · Tin doanh nghiệp",
+    "bctc_congbo": ("BCTC mới công bố (CafeF + Vietstock + HOSE, ngày sớm nhất)", "Cổ phiếu · Tin doanh nghiệp",
                     os.path.join(BCTC, "bctc-scan", "data", "bctc_congbo.csv"), "ngay_cong_bo", "symbol",
                     "1 dòng = 1 file BCTC đăng trên CafeF (dự phòng Vietstock): mã, sàn, kỳ (2026Q3/2026H1/2025FY), loại quý/soát xét/"
                     "kiểm toán, phạm vi hợp nhất/riêng/công ty mẹ, ngày đăng (từ ObjectId CafeF), link PDF; bước bctc-scan AM+PM"),

@@ -141,7 +141,7 @@ def _live_user_changed():
 LIVE_STATE = rt.live_state()
 _c = st.container(key="live_bar")
 with _c:
-    LIVE_ON, LIVE_F = ui.live_bar(LIVE_STATE)
+    LIVE_ON, LIVE_F = ui.live_bar(LIVE_STATE, state_fn=rt.live_state, freq_sec=rt.LIVE_FREQ)   # trang thai tu lam moi
 if st.session_state.get("_live_prev") is not None and st.session_state["_live_prev"] != LIVE_ON:
     st.session_state["_live_user"] = True
 st.session_state["_live_prev"] = LIVE_ON
@@ -168,6 +168,8 @@ with st.container(border=True, key="khung_noi_dung"):
         import time as _t
         _t0 = _t.time()
         stt = rt.live_state()                                  # moi lan fragment chay lai: trang thai + gio du lieu moi
+        if LIVE_ON and CO_LIVE and bool(stt["active"]) != bool(LIVE_STATE["active"]):
+            st.rerun(scope="app")                              # 13/10: bo thu vua co/mat du lieu -> dat lai tan suat + live_bar
         ui.set_live(stt["active"], stt["ts"], LAST)
         ctx = {"last": LAST, "fresh": FRESH, "live": stt}
         if SEC == "tong-quan":
@@ -202,6 +204,8 @@ with st.container(border=True, key="khung_noi_dung"):
     CO_LIVE = (SEC == "tong-quan" and SUB == "tong-quan") or (SEC == "ttck" and SUB in ("vn", "the-gioi"))
     if LIVE_STATE["active"] and CO_LIVE:
         st.fragment(run_every=LIVE_FREQ)(_render)()
+    elif LIVE_ON and CO_LIVE:                                  # 13/10: bat LIVE nhung bo thu chua co du lieu -> kiem tra lai 30 s
+        st.fragment(run_every=30)(_render)()
     else:
         _render()
 

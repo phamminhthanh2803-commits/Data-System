@@ -73,8 +73,11 @@ def _today():
     return pd.Timestamp(date.today())
 
 
-def live_bar(state: dict, freq_key="live_freq_all", on_key="live_on", freqs=("5 s", "15 s", "60 s")):
-    """Hang dieu khien LIVE duoi header: cong tac ● LIVE + tan suat + trang thai. Tra (on, freq_label)."""
+def live_bar(state: dict, freq_key="live_freq_all", on_key="live_on", freqs=("5 s", "15 s", "60 s"),
+             state_fn=None, freq_sec: dict | None = None):
+    """Hang dieu khien LIVE duoi header: cong tac ● LIVE + tan suat + trang thai. Tra (on, freq_label).
+    13/10/2026: state_fn (vd data_live.live_state) -> dong trang thai render trong st.fragment lam moi theo tan suat
+    (freq_sec: nhan -> giay), neu khong se dong bang "tre N s" toi khi tai lai trang."""
     c1, c2, c3 = st.columns([1.1, 1.6, 5])
     with c1:
         on = st.toggle("● LIVE", key=on_key, help="Bật: mọi biểu đồ có điểm hôm nay cập nhật liên tục trong phiên "
@@ -82,28 +85,41 @@ def live_bar(state: dict, freq_key="live_freq_all", on_key="live_on", freqs=("5 
     with c2:
         f = st.segmented_control("Tần suất", list(freqs), key=freq_key, label_visibility="collapsed", disabled=not on)
     with c3:
-        if on and state.get("active"):
-            ts = state.get("ts")
-            lag = state.get("lag")
-            if state.get("cloud"):          # bo thu tren GitHub Actions -> tunnel 5 s (data_live TUNNEL) hoac Drive 60 s (CLOUD)
-                sync = state.get("cloud_sync")
-                if state.get("tunnel"):
-                    duong = f'Cloudflare tunnel, app kéo mỗi {state.get("cloud_every") or 5} s'
-                else:
-                    duong = f'Drive, app kéo về mỗi {state.get("cloud_every") or 60} s'
-                nguon = (f' · nguồn: <b>{state.get("src") or "live 1 phút (cloud)"}</b> — bộ thu trên GitHub Actions → {duong}'
-                         + (f' (lần cuối {sync:%H:%M:%S})' if sync is not None else ""))
-            else:
-                nguon = " · chỉ số + giá HOSE/HNX 5 s (DNSE) · UPCOM + khối ngoại theo mã 1 phút (SSI)"
-            txt = (f'<span style="color:{TOK["up"]};font-weight:600">● LIVE</span> dữ liệu {ts:%H:%M:%S}'
-                   + (f' · trễ {lag:,.0f} s' if lag is not None else "") + f' · làm mới mỗi {f or "15 s"}'
-                   + nguon + " · ○ = điểm hôm nay · tải về = lịch sử")
-        elif on:
-            txt = f'<span style="color:{TOK["ink3"]};font-weight:600">○ LIVE</span> chờ dữ liệu ({state.get("reason") or "—"})'
+        if on and state_fn is not None:
+            every = (freq_sec or {}).get(f or "", 15)
+
+            def _status():
+                _live_status_text(state_fn(), on, f)
+
+            st.fragment(run_every=max(5, every))(_status)()
         else:
-            txt = f'<span style="color:{TOK["ink3"]}">○ Live tắt</span> · dữ liệu lịch sử tới phiên gần nhất'
-        st.markdown(f'<div class="gn-note" style="margin-top:9px">{txt}</div>', unsafe_allow_html=True)
+            _live_status_text(state, on, f)
     return on, f
+
+
+def _live_status_text(state: dict, on: bool, f: str | None) -> None:
+    """Dong chu trang thai LIVE (tach rieng de render trong fragment)."""
+    if on and state.get("active"):
+        ts = state.get("ts")
+        lag = state.get("lag")
+        if state.get("cloud"):          # bo thu tren GitHub Actions -> tunnel 5 s (data_live TUNNEL) hoac Drive 60 s (CLOUD)
+            sync = state.get("cloud_sync")
+            if state.get("tunnel"):
+                duong = f'Cloudflare tunnel, app kéo mỗi {state.get("cloud_every") or 5} s'
+            else:
+                duong = f'Drive, app kéo về mỗi {state.get("cloud_every") or 60} s'
+            nguon = (f' · nguồn: <b>{state.get("src") or "live 1 phút (cloud)"}</b> — bộ thu trên GitHub Actions → {duong}'
+                     + (f' (lần cuối {sync:%H:%M:%S})' if sync is not None else ""))
+        else:
+            nguon = " · chỉ số + giá HOSE/HNX 5 s (DNSE) · UPCOM + khối ngoại theo mã 1 phút (SSI)"
+        txt = (f'<span style="color:{TOK["up"]};font-weight:600">● LIVE</span> dữ liệu {ts:%H:%M:%S}'
+               + (f' · trễ {lag:,.0f} s' if lag is not None else "") + f' · làm mới mỗi {f or "15 s"}'
+               + nguon + " · ○ = điểm hôm nay · tải về = lịch sử")
+    elif on:
+        txt = f'<span style="color:{TOK["ink3"]};font-weight:600">○ LIVE</span> chờ dữ liệu ({state.get("reason") or "—"})'
+    else:
+        txt = f'<span style="color:{TOK["ink3"]}">○ Live tắt</span> · dữ liệu lịch sử tới phiên gần nhất'
+    st.markdown(f'<div class="gn-note" style="margin-top:9px">{txt}</div>', unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------- CSS

@@ -33,7 +33,7 @@ STEPS = [
     Step("AM", "nso", "nso-fetcher/fetch_nso.py", "nso-fetcher", when=is_mon, match="Da luu|Tong|LOI|XONG|X ",
          note="NSO PX-Web 11 CSDL kinh te -> nso_master.csv + nso_catalog.csv + nso_timeseries.xlsx"),
     Step("AM", "nso-monthly", "nso-fetcher/fetch_monthly_reports.py", "nso-fetcher", when=is_mon, match="Da luu|Tong|LOI|X "),
-    Step("AM", "bonds", "bond-pivot/scripts/run_pipeline.py", "bond-pivot", when=is_mon, match=r"\] "),
+    Step("AM", "bonds", "bond-pivot/scripts/run_pipeline.py", "bond-pivot", when=True, match=r"\] "),   # 13/10/2026: hang ngay, tren cloud (~7 phut)
     Step("AM", "vsdc-accounts", "vsdc-accounts/pull_vsdc_accounts.py", "vsdc-accounts", when=is_mon, match="Da luu|LOI|! |X "),
     Step("AM", "indices", "index-fetcher/fetch_indices.py", "index-fetcher", when=is_sat, retry=3, critical=True,
          stale={"file": "index-fetcher/indices-master.csv", "days": 6,

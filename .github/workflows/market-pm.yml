@@ -23,7 +23,7 @@ env:
   PYTHONIOENCODING: utf-8
   VNSTOCK_DISABLE_AGENT_SETUP: "1"
   CLOUD: "1"
-  CLOUD_SKIP: cvhcm,cvhcm-berthmap,nganh-ck,bonds     # 4 buoc nay chay o laptop (IP VN / Excel COM / bond 3,5 GB)
+  CLOUD_SKIP: cvhcm,cvhcm-berthmap,nganh-ck           # 3 buoc nay chay o laptop (IP VN / Excel COM); bonds len cloud 13/10/2026
   REGION_SKIP: idx,bursa                              # valuation-region: IDX + Bursa Cloudflare chan IP My -> laptop
   MD_ROOT: ${{ github.workspace }}/market-data
   SHIP_ROOT: ${{ github.workspace }}/shipping

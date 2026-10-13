@@ -84,8 +84,9 @@ FOLDERS: dict[str, Folder] = {f.key: f for f in [
     Folder("market-data", "nso-fetcher", note="NSO PX-Web + Bieu so lieu thang (monthly-reports 134 MB, parse lai moi tuan)"),
     Folder("market-data", "macro-fetcher"),
     Folder("market-data", "vsdc-accounts"),
-    Folder("market-data", "bond-pivot", owner="laptop", exclude=["data/raw/**", "logs/**", "tessdata/**", "output/**"],
-           note="laptop chay buoc bonds thu Hai; len Drive CHI data/processed + config (~45 MB), bo data/raw 3,5 GB PDF"),
+    Folder("market-data", "bond-pivot", exclude=["data/raw/pdfs/**", "logs/**", "tessdata/**", "output/**"],
+           note="13/10/2026: cloud chay buoc bonds HANG NGAY (Market AM); Drive = data/processed + data/raw/pdf_text (cache OCR 25 MB)"
+                " + ca_bundle + config (~90 MB); PDF tai ve xoa sau OCR nen khong len Drive"),
     # ---------------- bctc (13/10/2026): quet BCTC moi cong bo - cloud la chu; laptop (D:\bctc\bctc-scan) chi nhan ban qua `sync_data.py app`
     Folder("bctc", "bctc-scan", exclude=["pdf/**"],
            note="BCTC moi cong bo (CafeF, du phong Vietstock): data/bctc_congbo.csv + parquet; pdf/ (tai tay --download) o lai may"),

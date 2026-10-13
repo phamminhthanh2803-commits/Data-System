@@ -7,7 +7,7 @@
 # Truoc khi chay: doi cloud Market PM hom nay xong (status-PM.txt tren Drive co ngay hom nay, toi da 150 phut)
 # de khong ghi de valuation-region-master.csv va de nganh-ck doc tv-history moi.
 # Dang ky: xem local\schtasks-mau.txt. Chay tay: powershell -ExecutionPolicy Bypass -File D:\cloud-deploy\local\Run-Local-Mini.ps1 [-NoWait] [-NoApp]
-param([switch]$NoWait, [switch]$NoApp, [switch]$NoBond)
+param([switch]$NoWait, [switch]$NoApp, [switch]$NoBond, [switch]$Bond)   # 13/10/2026: bonds da len cloud hang ngay; -Bond de ep chay tay o laptop
 $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot 'common.ps1')
 Start-LocalLog 'local-mini'
@@ -35,7 +35,7 @@ try {
     $rc = Invoke-Py $md @("$md\run_slot.py", '--slot', 'PM', '--only', 'nganh-ck')
 
     # --- 3. thu Hai: bonds (chay tren D:\market-data\bond-pivot qua junction, khong len Drive)
-    if ($isMon -and -not $NoBond) {
+    if ($Bond -and -not $NoBond) {
         Write-Log '----- bonds (thu Hai, local) -----'
         $rc = Invoke-Py $md @("$md\run_slot.py", '--slot', 'AM', '--only', 'bonds')
         Write-Log '----- day len Drive (bond-pivot data/processed, laptop chu, bo data/raw) -----'

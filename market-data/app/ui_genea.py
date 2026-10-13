@@ -85,9 +85,13 @@ def live_bar(state: dict, freq_key="live_freq_all", on_key="live_on", freqs=("5 
         if on and state.get("active"):
             ts = state.get("ts")
             lag = state.get("lag")
-            if state.get("cloud"):          # bo thu tren GitHub Actions -> Drive -> app keo ve moi 60 s (data_live CLOUD)
+            if state.get("cloud"):          # bo thu tren GitHub Actions -> tunnel 5 s (data_live TUNNEL) hoac Drive 60 s (CLOUD)
                 sync = state.get("cloud_sync")
-                nguon = (f' · nguồn: <b>{state.get("src") or "live 1 phút (cloud)"}</b> — bộ thu trên GitHub Actions → Drive, app kéo về mỗi 60 s'
+                if state.get("tunnel"):
+                    duong = f'Cloudflare tunnel, app kéo mỗi {state.get("cloud_every") or 5} s'
+                else:
+                    duong = f'Drive, app kéo về mỗi {state.get("cloud_every") or 60} s'
+                nguon = (f' · nguồn: <b>{state.get("src") or "live 1 phút (cloud)"}</b> — bộ thu trên GitHub Actions → {duong}'
                          + (f' (lần cuối {sync:%H:%M:%S})' if sync is not None else ""))
             else:
                 nguon = " · chỉ số + giá HOSE/HNX 5 s (DNSE) · UPCOM + khối ngoại theo mã 1 phút (SSI)"
@@ -226,6 +230,14 @@ hr { border-color: var(--rule-soft) !important; }
 [data-testid="stPopover"] button [data-testid="stIconMaterial"], [data-testid="stExpander"] summary [data-testid="stIconMaterial"] { display: none !important; }
 [data-testid="stExpander"] summary { font-size: 13px !important; color: var(--ink-2) !important; }
 [data-testid="stExpander"] summary::before { content: "▸ "; color: var(--ink-3); }
+
+/* ---------- 13/10/2026 KHONG LAM MO UI khi live rerun (PV2). Streamlit 1.64: luc fragment/script chay lai, moi
+   [data-testid="stElementContainer"] cu duoc gan data-stale="true" + class emotion `opacity:.33; transition: opacity 1s ease-in .5s`
+   -> the/chart mo di ~0,5 s sau khi bat dau rerun (do: chup_khong_mo.py, minOpacity 0,33 truoc / 1 sau). Chi ghi de CONTAINER
+   (khong `*` de khong dong vao opacity cua Plotly). Status widget "Running..." (trong stHeader da an) cung an han. */
+[data-stale="true"] { opacity: 1 !important; transition: none !important; }
+[data-testid="stElementContainer"], [data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"] { transition: none !important; }
+[data-testid="stStatusWidget"], [data-testid="stStatusWidget"] * { display: none !important; }
 </style>
 """
 

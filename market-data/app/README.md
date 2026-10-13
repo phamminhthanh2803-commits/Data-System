@@ -119,6 +119,38 @@ DNSE* ở Kho dữ liệu thêm dòng *Nguồn cloud* (hoặc lỗi rclone). `_d
 thư mục Drive. Kiểm chứng 12/10: server 8775, `RT_ROOT` = thư mục rỗng + `RT_CLOUD=1` → app tự kéo Drive, ảnh `design\screens\16-live-cloud.png`
 (Tổng quan) + `16-live-cloud-kho.png`, script `design\screens\chup_live_cloud.py`.
 
+### Live 5 s qua tunnel (13/10/2026) — PV2: "đổi thành live 5 s" (app online và laptop)
+
+Bộ thu cloud chạy thêm `--serve-port 8787` (`realtime-lab\serve_live.py`): HTTP server nhỏ phục vụ 8 parquet + **Cloudflare quick tunnel**
+(miễn phí, URL `https://*.trycloudflare.com` ngẫu nhiên) → URL ghi `gdrive:pipeline-data/realtime/tunnel.json` (làm mới 5 phút, cuối job `url: null`).
+`data_live.py` (dict `TUNNEL`, cùng thread `_cloud_loop`): đọc `tunnel.json` từ Drive (`rclone cat`, cache 60 s) → `GET /index.json` 3 s sống →
+mỗi `RT_TUNNEL_EVERY=5` s tải parquet có `mtime` mới hơn bản local (`requests.Session` keep-alive, 4 file song song, timeout 4 s, `.tmp` +
+`os.replace`, giữ mtime server) vào `RT_ROOT\data\<hôm nay>\` → overlay như cũ. Nhãn: **"live 5 s (cloud)"** (thanh ● LIVE: *bộ thu trên GitHub
+Actions → Cloudflare tunnel, app kéo mỗi 5 s (lần cuối hh:mm:ss)*; chân thẻ/nhãn góc chart cũng ghi vậy; thẻ dùng dữ liệu SSI 60 s — khối ngoại
+theo mã/UPCOM — vẫn "live 1 phút (cloud)"). Tunnel lỗi **3 lần liên tiếp** → về Drive 60 s "live 1 phút (cloud)" (`--update`, không đè bản mới hơn),
+thử tunnel lại mỗi 2 phút. Công tắc 5/15/60 s trong header giữ nguyên (chỉ là tần suất render fragment; thread kéo luôn 5 s); "trễ" trên thanh =
+giờ hiện tại − ts dữ liệu; Kho dữ liệu › *Nguồn cloud* hiện URL tunnel, lần cuối, trễ (giờ nhận − mtime file bộ thu), giây/vòng; stdout app log
+`[live] tunnel BAT/TAT/loi`. Token: nếu job cloud đặt secret `RT_TOKEN` thì app cần cùng giá trị ở `st.secrets["RT_TOKEN"]` (Streamlit Cloud →
+Settings → Secrets) hoặc env `RT_TOKEN` (laptop) — không có thì tunnel báo *cần RT_TOKEN* và app dùng Drive. Env: `RT_TUNNEL=0` tắt kênh 5 s,
+`RT_REMOTE` đổi gốc Drive (test), `RT_TUNNEL_EVERY`.
+- **Kiểm chứng 13/10** (không đụng job cloud): bộ thu test local `dnse_stream.py --no-dnse --force --serve-port 8787 --push-remote
+  gdrive:pipeline-data/realtime-test` (cloudflared.exe tải từ GitHub releases, env `CLOUDFLARED`) + app cổng 8777 (`RT_CLOUD=1`,
+  `RT_REMOTE=gdrive:pipeline-data/realtime-test`, `RT_ROOT` rỗng, `MD_ROOT=D:\pipeline-data\market-data`): thanh LIVE "live 5 s (cloud)",
+  1 vòng (index.json + 6 parquet) **0,27–0,30 s** (lần đầu 1,4 s), trễ giờ nhận − mtime **0,5–0,9 s**; khi bộ thu test bị tắt → app báo
+  `HTTP 502` 3 lần (15 s) → Drive → bắt URL tunnel mới sau 2 phút (log 09:42:15 TAT → 09:44:27 BAT). Ảnh `design\screens\18-live-5s.png` +
+  `18-live-5s-kho.png`, script `design\screens\chup_live_5s.py`.
+- Chưa chắc: quick tunnel không SLA, URL đổi mỗi job (app tự theo); xem mục *Streamlit Cloud* trong README cloud-deploy về việc app cloud ra
+  ngoài tới trycloudflare.
+
+### Không làm mờ UI khi live rerun (13/10/2026) — PV2: "giao diện khi cập nhật mỗi lần của live không nên làm mờ"
+
+Streamlit 1.64 khi fragment/script chạy lại gắn `data-stale="true"` cho mọi `[data-testid="stElementContainer"]` cũ và đổi class emotion sang
+`opacity: .33; transition: opacity 1s ease-in .5s` → thẻ/chart mờ đi ~0,5 s sau khi bắt đầu rerun (render fragment 0,7–1,4 s nên thấy rõ, mỗi 5 s
+một lần). `ui_genea.CSS` thêm: `[data-stale="true"] { opacity: 1 !important; transition: none !important; }` (chỉ container, **không** `*` để
+không đụng opacity của Plotly), bỏ transition `stElementContainer/stVerticalBlock/stHorizontalBlock`, ẩn `[data-testid="stStatusWidget"]`
+("Running…"). Đo bằng `design\screens\chup_khong_mo.py` (poll 50 ms trong 12 s): **trước** minOpacity 0,33 / **sau** 1,0; scrollY không đổi
+(0 px), status widget không hiện; ảnh `19-khong-mo-truoc.png` / `19-khong-mo-sau.png`. Chart Plotly có `key` cố định nên không remount, không nháy.
+
 ## Nguồn live-first (09/10/2026 chiều) — "data nào live được thì kéo live, không đợi pipeline"
 
 PV2: *"mấy data thiếu thì fill live luôn không đợi pull tại pipeline nữa"* và *"các data mà live được không cần historical của

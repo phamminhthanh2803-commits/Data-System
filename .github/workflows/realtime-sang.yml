@@ -1,5 +1,8 @@
 # Realtime SANG — bo thu DNSE (10 WebSocket, 5 s) + SSI iBoard 60 s tren GitHub Actions, day parquet len Drive moi 60 s
 # de app laptop doc (market-data/app/data_live.py keo gdrive:pipeline-data/realtime/<ngay>/ ve khi bo thu local khong chay).
+# 13/10/2026 KENH 5 GIAY: --serve-port 8787 (serve_live.py) = HTTP server + Cloudflare quick tunnel (cloudflared, mien phi), URL ghi
+# gdrive:pipeline-data/realtime/tunnel.json -> app GET parquet moi 5 s ("live 5 s (cloud)"); Drive 60 s van la du phong.
+# Secret RT_TOKEN (tuy chon): neu dat thi moi request toi tunnel phai co ?k=<token> (app doc st.secrets/env RT_TOKEN).
 # Gio VN = UTC + 7. 2 job/ngay vi 1 job GitHub toi da 6 gio: SANG 08:25 -> 11:40, CHIEU (realtime-chieu.yml) 12:50 -> 15:15.
 # DNSE chi cho 10 ket noi/user: laptop (task "Realtime DNSE") va cloud KHONG duoc chay cung luc -> xem README muc "Realtime".
 # Chay tay: Actions -> Realtime SANG -> Run workflow -> only_ssi=true (chi SSI, khong can key, khong tranh ket noi voi laptop),
@@ -35,6 +38,8 @@ env:
   RCLONE_REMOTE: gdrive:pipeline-data
   RT_PUSH_REMOTE: gdrive:pipeline-data/realtime
   RT_PUSH_EVERY: "60"
+  RT_SERVE_PORT: "8787"
+  RT_TOKEN: ${{ secrets.RT_TOKEN }}
   RT_UNTIL: "11:40"
   DNSE_API_KEY: ${{ secrets.DNSE_API_KEY }}
   DNSE_API_SECRET: ${{ secrets.DNSE_API_SECRET }}
@@ -67,6 +72,13 @@ jobs:
           curl -fsSL https://rclone.org/install.sh | sudo bash
           rclone version | head -1
 
+      - name: Cai cloudflared (quick tunnel, kenh 5 s; loi -> bo qua, van con Drive 60 s)
+        continue-on-error: true
+        run: |
+          curl -fsSL -o /tmp/cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i /tmp/cloudflared.deb
+          cloudflared --version
+
       - name: Cau hinh rclone tu secret RCLONE_CONF (base64)
         env:
           RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
@@ -92,7 +104,7 @@ jobs:
           EXTRA=""
           if [ "$ONLY_SSI" = "1" ]; then EXTRA="$EXTRA --no-dnse"; fi
           if [ -n "$DURATION" ]; then EXTRA="$EXTRA --force --duration $DURATION"; else EXTRA="$EXTRA --until $RT_UNTIL"; fi
-          echo "python dnse_stream.py --no-backfill $EXTRA --push-every $RT_PUSH_EVERY --push-remote $RT_PUSH_REMOTE"
+          echo "python dnse_stream.py --no-backfill $EXTRA --push-every $RT_PUSH_EVERY --push-remote $RT_PUSH_REMOTE --serve-port $RT_SERVE_PORT"
           python dnse_stream.py --no-backfill $EXTRA --push-every "$RT_PUSH_EVERY" --push-remote "$RT_PUSH_REMOTE" \
             --out "$RT_DIR/data" --db "$RT_DIR/data/realtime.duckdb" 2>&1 | tee "logs/realtime_cloud_sang_$(date +%Y%m%d).log"
 
@@ -102,13 +114,15 @@ jobs:
           echo "## Realtime SANG" >> "$GITHUB_STEP_SUMMARY"
           L=$(ls -t "$RT_DIR"/logs/realtime_cloud_sang_*.log 2>/dev/null | head -1)
           if [ -n "$L" ]; then
-            { echo '```'; grep -E "ket noi|push\]|seed\]|MAX_CONN|XAC THUC|DUNG:|Ket thuc|universe\]" "$L" | tail -25; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            { echo '```'; grep -E "ket noi|push\]|seed\]|serve\]|MAX_CONN|XAC THUC|DUNG:|Ket thuc|universe\]" "$L" | tail -25; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
             if grep -q "MAX_CONNECTIONS_EXCEEDED" "$L"; then
               echo "::warning::DNSE MAX_CONNECTIONS_EXCEEDED - laptop dang giu 10 ket noi? Chay local\\Tat-realtime-laptop.ps1 (xem README)."
             fi
           fi
           echo "Drive: $RT_PUSH_REMOTE/$(date +%F)" >> "$GITHUB_STEP_SUMMARY"
           { echo '```'; rclone lsl "$RT_PUSH_REMOTE/$(date +%F)" 2>/dev/null || echo "(chua co)"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          echo "tunnel.json (cuoi job phai url=null):" >> "$GITHUB_STEP_SUMMARY"
+          { echo '```'; rclone cat "$RT_PUSH_REMOTE/tunnel.json" 2>/dev/null || echo "(khong co)"; echo; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Luu log (artifact 14 ngay)
         if: always()

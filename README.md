@@ -47,6 +47,7 @@ Secret cần đặt trên GitHub (Settings → Secrets and variables → Actions
 | `RCLONE_CONF` | có | file `rclone.conf` (remote `gdrive`) mã hoá base64 — mục 2 |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | không | runner gửi cảnh báo FAIL/STALE qua Telegram; không có thì chỉ ghi log + Summary của job |
 | `DNSE_API_KEY`, `DNSE_API_SECRET` | cho 2 job Realtime | key DNSE Open API — **PV2 tự thêm**, lấy 2 dòng trong `D:\market-data\realtime-lab\dnse.env` (không dán vào chat/commit). Chưa có thì job Realtime báo lỗi rõ, trừ khi chạy tay `only_ssi=true` |
+| `RT_TOKEN` | không | **tuỳ chọn**, chuỗi bất kỳ PV2 tự đặt (vd 32 ký tự ngẫu nhiên): khoá kênh live 5 s qua Cloudflare tunnel (mục *Live 5 s qua tunnel*) — bộ thu chỉ trả parquet khi request có `?k=<token>`; app đọc cùng giá trị từ `st.secrets["RT_TOKEN"]` (Streamlit Cloud: Settings → Secrets) hoặc env `RT_TOKEN` (laptop). Không đặt thì URL tunnel (ngẫu nhiên, đổi mỗi job, chỉ nằm trong `tunnel.json` trên Drive) mở cho ai biết URL |
 
 Quét secret (`pack_code.py`): **không** thấy token/api_key/password/cookie gắn cứng trong code — các "token" trong bond-pivot/VSDC là token CSRF lấy lúc chạy.
 
@@ -159,6 +160,31 @@ cron `50 5 * * 1-5` (12:50 VN) `--until 15:15`; `concurrency: realtime`, timeout
   (c) app cổng 8775 với `RT_ROOT` rỗng + `RT_CLOUD=1` tự kéo Drive, ảnh `app/design/screens/16-live-cloud.png`.
 - Chưa chắc: REST backfill `openapi.dnse.com.vn` từ IP Mỹ (probe gốc timeout, mỗi mã timeout 30 s, lỗi chỉ log); thời gian job thực tế
   (repo Public nên phút Actions không giới hạn); độ trễ Drive thực tế (app cho phép trễ tới 450 s ở chế độ cloud).
+
+### Live 5 s qua tunnel (13/10/2026) — PV2: "đổi thành live 5 s" cho app online lẫn laptop
+Drive 60 s chỉ cho "live 1 phút (cloud)". Kênh 5 s: 2 job Realtime chạy `dnse_stream.py --serve-port 8787` (env `RT_SERVE_PORT`) →
+`market-data/realtime-lab/serve_live.py` mở **HTTP server stdlib** ngay trong tiến trình bộ thu (chỉ `GET /index.json` + `GET /<ngày>/<tên>.parquet`,
+whitelist 8 parquet, `Cache-Control: no-store`, đọc file bằng `open()` — file ghi `.tmp` rồi `os.replace` nên không bao giờ đọc dở) và chạy nền
+**Cloudflare quick tunnel** (`cloudflared tunnel --url http://127.0.0.1:8787 --no-autoupdate`, miễn phí, không cần tài khoản, URL ngẫu nhiên
+`https://<3-4 từ>.trycloudflare.com`). URL bắt từ stderr (chờ tối đa 60 s) → ghi `tunnel.json` `{url, started, updated, run_id, day, token_required}`
+→ `rclone copyto gdrive:pipeline-data/realtime/tunnel.json`, làm mới mỗi 5 phút; cloudflared chết → mở lại (URL mới); **cuối job ghi `url: null`**.
+Bước workflow *Cai cloudflared* (deb từ GitHub releases, `continue-on-error`) — cloudflared lỗi/không có → bộ thu chỉ log, Drive 60 s vẫn chạy.
+- **App** (`market-data/app/data_live.py`, cùng thread kéo Drive): đọc `tunnel.json` (`rclone cat`, cache 60 s) → `GET /index.json` (3 s) sống →
+  mỗi `RT_TUNNEL_EVERY=5` s tải các parquet có `mtime` mới hơn bản local (`requests.Session` keep-alive, 4 file song song, timeout 4 s, ghi
+  `.tmp` + `os.replace`, giữ mtime server) → thanh ● LIVE ghi **"live 5 s (cloud) — … → Cloudflare tunnel, app kéo mỗi 5 s"**; lỗi 3 lần liên
+  tiếp → về Drive 60 s "live 1 phút (cloud)", thử tunnel lại mỗi 2 phút (đọc lại `tunnel.json`). Drive pull thêm `--update` để không đè bản
+  tunnel mới hơn. Kho dữ liệu hiện URL tunnel + trễ + giây/vòng. Env: `RT_TUNNEL=0` tắt kênh 5 s, `RT_REMOTE` đổi gốc Drive (test), `RT_TOKEN`.
+- **Đo 13/10 (laptop VN → tunnel của chính laptop)**: 1 vòng 5 s (index.json + 6 parquet) **0,27–0,30 s** với keep-alive (lần đầu 1,4 s vì
+  bắt tay TLS), trễ = giờ nhận − mtime file trên bộ thu **0,5–0,9 s**; từng request qua internet ~0,85 s nếu không keep-alive. Thanh LIVE
+  "trễ" = giờ hiện tại − ts dữ liệu (test `--no-dnse` nên ts là snapshot SSI 60 s → hiện 5–60 s; job thật có `index_latest` 5 s). Ảnh
+  `market-data/app/design/screens/18-live-5s.png` (+ `-kho`), script `chup_live_5s.py`. Thử lại tại laptop (không đụng job cloud):
+  `set CLOUDFLARED=<đường dẫn cloudflared.exe>` (tải `cloudflared-windows-amd64.exe` từ GitHub releases cloudflare/cloudflared, hoặc
+  `winget install Cloudflare.cloudflared`) rồi `python dnse_stream.py --no-dnse --force --duration 600 --out <tmp> --db <tmp>.duckdb
+  --serve-port 8787 --push-every 60 --push-remote gdrive:pipeline-data/realtime-test`; app: `RT_CLOUD=1 RT_REMOTE=gdrive:pipeline-data/realtime-test
+  RT_ROOT=<thư mục trống>`; xong `rclone purge gdrive:pipeline-data/realtime-test`.
+- **Chưa chắc**: quick tunnel không có SLA (Cloudflare có thể giới hạn/đứt; URL đổi mỗi job và mỗi lần cloudflared khởi động lại → app theo
+  `tunnel.json` 60 s + thử lại 2 phút, lúc đó rơi về Drive 60 s); Streamlit Community Cloud ra ngoài tới `*.trycloudflare.com` — xem mục
+  kiểm chứng bên dưới / app README; tải ước ~0,25 MB/5 s (8 parquet ~230 KB) ≈ 3 MB/phút mỗi app đang mở.
 
 ## Port Tracker: ghép dữ liệu liên tục (09/10/2026)
 App Port & Vessel Tracker không còn tự gọi trang nguồn khi mở. Bước `port-tracker` (Shipping AM) và `port-tracker-pm` (Shipping PM) chạy

@@ -18,6 +18,11 @@ gdrive:pipeline-data/realtime/<YYYY-MM-DD>/ moi 60 s. Neu bo thu LOCAL khong cha
 (chi T2-T6 08:30-15:40; ngoai gio kiem tra 5 phut/lan). rclone tim nhu cloud-deploy/sync_data.py: env RCLONE -> PATH -> ban winget.
 Nhan nguon tren thanh ● LIVE + chan the doi thanh "live 1 phut (cloud)". Env: RT_CLOUD=0 tat han; RT_CLOUD=1 ep cloud ke ca khi
 bo thu local dang chay (test); RT_PUSH_REMOTE doi thu muc Drive. Trang thai: CLOUD dict (on, last_sync, err) - Kho du lieu hien.
+KENH 5 GIAY (13/10/2026): bo thu cloud `--serve-port 8787` (serve_live.py) mo HTTP + Cloudflare quick tunnel, ghi URL vao
+<remote>/tunnel.json. Cung thread tren: doc tunnel.json (rclone cat, cache 60 s) -> GET <url>/index.json -> moi RT_TUNNEL_EVERY=5 s
+tai parquet co mtime moi hon ban local (requests, timeout 4 s, tmp + os.replace) -> nhan "live 5 s (cloud)"; loi 3 lan lien tiep ->
+ve Drive 60 s "live 1 phut (cloud)" va thu lai tunnel moi 2 phut. Env: RT_TUNNEL=0 tat kenh 5 s; RT_REMOTE doi goc Drive (test);
+RT_TOKEN / st.secrets["RT_TOKEN"] khi job cloud dat secret RT_TOKEN. Trang thai: TUNNEL dict (on, url, last_pull, lag, err).
 """
 from __future__ import annotations
 
@@ -201,9 +206,19 @@ def stop_collector() -> str:
 # --------------------------------------------------------------------- CHE DO CLOUD (12/10/2026): keo parquet tu Drive
 LIVE_1M = "live 1 phút"               # ghi canh nhan gio cho the dung nguon 60 s (treemap / KN theo nganh)
 LIVE_1M_CLOUD = "live 1 phút (cloud)"  # bo thu tren GitHub Actions -> Drive -> app keo ve moi 60 s
+LIVE_5S_CLOUD = "live 5 s (cloud)"     # 13/10/2026: bo thu cloud -> Cloudflare quick tunnel -> app GET parquet moi 5 s (TUNNEL duoi)
 CLOUD = {"on": False, "last_sync": None, "err": "", "n": 0, "day": None,
-         "remote": os.environ.get("RT_PUSH_REMOTE", "gdrive:pipeline-data/realtime"),
+         "remote": os.environ.get("RT_REMOTE") or os.environ.get("RT_PUSH_REMOTE", "gdrive:pipeline-data/realtime"),
          "every": int(os.environ.get("RT_CLOUD_EVERY", "60") or 60), "mode": os.environ.get("RT_CLOUD", "auto").strip().lower()}
+# KENH 5 GIAY (13/10/2026): bo thu cloud chay `--serve-port 8787` (realtime-lab/serve_live.py) = HTTP server + cloudflared quick tunnel,
+# ghi URL vao <remote>/tunnel.json. App: doc tunnel.json tu Drive (rclone cat, cache 60 s) -> GET <url>/index.json (3 s) song ->
+# moi RT_TUNNEL_EVERY=5 s tai cac parquet co mtime moi hon ban local (requests, 4 s, ghi .tmp + os.replace, giu mtime server) ->
+# nhan "live 5 s (cloud)". Loi 3 lan lien tiep -> ve Drive 60 s "live 1 phut (cloud)", thu lai tunnel moi 2 phut. RT_TUNNEL=0 tat.
+# Token: st.secrets["RT_TOKEN"] / env RT_TOKEN (chi can khi job cloud dat secret RT_TOKEN) -> them ?k=<token>.
+TUNNEL = {"on": False, "url": None, "token_required": False, "info": None, "info_at": 0.0, "fails": 0, "retry_at": 0.0,
+          "last_pull": None, "n": 0, "n_files": 0, "err": "", "lag": None, "fetch_sec": None,
+          "every": int(os.environ.get("RT_TUNNEL_EVERY", "5") or 5), "mode": os.environ.get("RT_TUNNEL", "auto").strip().lower()}
+TUNNEL_INFO_TTL, TUNNEL_RETRY, TUNNEL_MAX_FAILS = 60, 120, 3
 WINGET_RCLONE = os.path.join(os.path.expanduser("~"), "AppData", "Local", "Microsoft", "WinGet", "Packages",
                              "Rclone.Rclone_Microsoft.Winget.Source_8wekyb3d8bbwe", "rclone-v1.75.1-windows-amd64", "rclone.exe")
 _cloud_th: threading.Thread | None = None
@@ -229,8 +244,8 @@ def _cloud_pull(rc: str, day: str) -> tuple[bool, str]:
     """rclone copy <remote>/<day>/ -> DATA/<day>/ (chi *.parquet; rclone ghi .partial roi doi ten nen app khong doc file do)."""
     dst = os.path.join(DATA, day)
     os.makedirs(dst, exist_ok=True)
-    cmd = [rc, "copy", f"{CLOUD['remote']}/{day}", dst, "--include", "*.parquet", "--no-traverse",
-           "--contimeout", "15s", "--timeout", "60s", "--retries", "2", "--low-level-retries", "5", "-q"]
+    cmd = [rc, "copy", f"{CLOUD['remote']}/{day}", dst, "--include", "*.parquet", "--no-traverse", "--update",   # --update: khong de
+           "--contimeout", "15s", "--timeout", "60s", "--retries", "2", "--low-level-retries", "5", "-q"]        # ban Drive cu hon tunnel
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=150, creationflags=_NOWIN)
     except Exception as e:  # noqa: BLE001
@@ -239,6 +254,188 @@ def _cloud_pull(rc: str, day: str) -> tuple[bool, str]:
         err = (r.stderr or r.stdout or "").strip().splitlines()
         return False, (err[-1][:160] if err else f"rclone exit {r.returncode}")
     return True, ""
+
+
+def _rt_token() -> str | None:
+    """Token kenh 5 s: st.secrets['RT_TOKEN'] (Streamlit Cloud) -> env RT_TOKEN -> None. Khong bao gio in."""
+    try:
+        v = st.secrets.get("RT_TOKEN")
+        if v:
+            return str(v)
+    except Exception:  # noqa: BLE001
+        pass
+    return os.environ.get("RT_TOKEN") or None
+
+
+def _tunnel_info(rc: str, force: bool = False) -> dict | None:
+    """tunnel.json tren Drive (<remote>/tunnel.json) qua `rclone cat`, cache TUNNEL_INFO_TTL s. None = khong co / loi."""
+    if not force and TUNNEL["info"] is not None and time.time() - TUNNEL["info_at"] < TUNNEL_INFO_TTL:
+        return TUNNEL["info"]
+    if not force and TUNNEL["info"] is None and TUNNEL["info_at"] and time.time() - TUNNEL["info_at"] < TUNNEL_INFO_TTL:
+        return None
+    info = None
+    try:
+        r = subprocess.run([rc, "cat", f"{CLOUD['remote']}/tunnel.json", "--contimeout", "15s", "--timeout", "30s", "--retries", "1", "-q"],
+                           capture_output=True, text=True, timeout=60, creationflags=_NOWIN)
+        if r.returncode == 0 and r.stdout.strip():
+            import json
+            info = json.loads(r.stdout)
+    except Exception as e:  # noqa: BLE001
+        TUNNEL["err"] = f"tunnel.json: {type(e).__name__}"
+    TUNNEL["info"], TUNNEL["info_at"] = info, time.time()
+    return info
+
+
+_tunnel_sess = None
+
+
+def _tunnel_get(url: str, path: str, timeout: float):
+    """GET qua requests.Session dung chung (keep-alive: bo bat tay TLS moi request, ~0,3 s/request thay vi ~1 s)."""
+    global _tunnel_sess
+    import requests
+    if _tunnel_sess is None:
+        _tunnel_sess = requests.Session()
+        _tunnel_sess.headers["User-Agent"] = "market-data-app"
+    params = {"k": _rt_token()} if TUNNEL.get("token_required") and _rt_token() else None
+    return _tunnel_sess.get(url.rstrip("/") + path, params=params, timeout=timeout)
+
+
+def _tunnel_alive(url: str) -> dict | None:
+    """GET /index.json trong 3 s -> dict (song) hoac None."""
+    try:
+        r = _tunnel_get(url, "/index.json", 3)
+        if r.status_code == 200:
+            return r.json()
+        TUNNEL["err"] = f"tunnel HTTP {r.status_code}"
+    except Exception as e:  # noqa: BLE001
+        TUNNEL["err"] = f"tunnel: {type(e).__name__}"
+    return None
+
+
+def _tunnel_pull(url: str, day: str) -> tuple[bool, int]:
+    """1 vong 5 s: GET /index.json (4 s) -> tai cac parquet co mtime moi hon ban local vao DATA/<day>/ (tmp + os.replace, giu mtime
+    server). Tra (ok, so file tai). Chi tai file cua dung ngay hom nay."""
+    t0 = time.time()
+    r = _tunnel_get(url, "/index.json", 4)
+    if r.status_code != 200:
+        TUNNEL["err"] = f"tunnel HTTP {r.status_code}"
+        return False, 0
+    idx = r.json()
+    if idx.get("day") != day:
+        TUNNEL["err"] = f"tunnel phục vụ ngày {idx.get('day')}"
+        return False, 0
+    dst = os.path.join(DATA, day)
+    os.makedirs(dst, exist_ok=True)
+    todo = []
+    newest = None
+    for name, meta in (idx.get("files") or {}).items():
+        if name not in FILES or not re.fullmatch(r"[a-z0-9_]+", name):
+            continue
+        mt = float(meta.get("mtime") or 0)
+        newest = mt if newest is None else max(newest, mt)
+        p = os.path.join(dst, f"{name}.parquet")
+        try:
+            s = os.stat(p)
+            if s.st_mtime >= mt - 1e-3 and s.st_size == int(meta.get("size") or -1):
+                continue
+        except OSError:
+            pass
+        todo.append((name, p, mt))
+
+    def _fetch(item):
+        name, p, mt = item
+        try:
+            rf = _tunnel_get(url, f"/{day}/{name}.parquet", 4)
+        except Exception as e:  # noqa: BLE001
+            TUNNEL["err"] = f"{name}: {type(e).__name__}"
+            return 0
+        if rf.status_code != 200 or not rf.content:                # 404 thoang qua (file dang os.replace) -> bo qua, vong sau lay lai
+            TUNNEL["err"] = f"{name}: HTTP {rf.status_code}"
+            return 0
+        tmp = p + f".{os.getpid()}.{threading.get_ident()}.tmp"
+        with open(tmp, "wb") as f:
+            f.write(rf.content)
+        try:
+            os.utime(tmp, (mt, mt))
+        except OSError:
+            pass
+        for _i in range(5):                            # Windows: app dang doc file dich -> PermissionError -> thu lai
+            try:
+                os.replace(tmp, p)
+                return 1
+            except PermissionError:
+                time.sleep(0.1)
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return 0
+
+    n = 0
+    if todo:                                           # tai song song (8 file ~0,25 MB; moi request ~0,3-1 s qua tunnel)
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(4, len(todo))) as ex:
+            n = sum(ex.map(_fetch, todo))
+        if n == 0:                                     # khong tai duoc file nao -> coi la 1 lan loi
+            return False, 0
+        TUNNEL["err"] = ""
+    TUNNEL.update(fetch_sec=round(time.time() - t0, 2), n_files=n,
+                  lag=(round(time.time() - newest, 1) if newest else None))   # tre = gio nhan - mtime file tren bo thu
+    return True, n
+
+
+def _log(msg: str) -> None:
+    print(f"[live] {now_vn():%H:%M:%S} {msg}", flush=True)
+
+
+def _tunnel_step(rc: str, day: str) -> bool:
+    """1 buoc cua vong lap cloud: tunnel dang bat -> keo; tat -> (moi TUNNEL_RETRY s) doc tunnel.json + kiem tra song. Tra TUNNEL['on']."""
+    if TUNNEL["mode"] == "0":
+        return False
+    now = time.time()
+    if not TUNNEL["on"]:
+        if now < TUNNEL["retry_at"]:
+            return False
+        info = _tunnel_info(rc)
+        url = (info or {}).get("url")
+        if not url or not str(url).startswith("https://"):
+            TUNNEL["retry_at"] = now + TUNNEL_RETRY
+            TUNNEL["err"] = "" if info else (TUNNEL["err"] or "chưa có tunnel.json trên Drive")
+            if info and not url:
+                TUNNEL["err"] = "tunnel đã đóng (url=null)"
+            return False
+        TUNNEL["token_required"] = bool(info.get("token_required"))
+        if TUNNEL["token_required"] and not _rt_token():
+            TUNNEL.update(err="tunnel cần RT_TOKEN (st.secrets / env)", retry_at=now + TUNNEL_RETRY)
+            return False
+        if _tunnel_alive(url) is None:
+            TUNNEL["retry_at"] = now + TUNNEL_RETRY
+            _log(f"tunnel {url} khong phan hoi ({TUNNEL['err']}) -> Drive 60 s, thu lai sau {TUNNEL_RETRY} s")
+            return False
+        TUNNEL.update(on=True, url=url, fails=0, err="")
+        _log(f"tunnel BAT {url} (token {'co' if TUNNEL['token_required'] else 'khong'}) -> keo moi {TUNNEL['every']} s")
+    try:
+        ok, _n = _tunnel_pull(TUNNEL["url"], day)
+    except Exception as e:  # noqa: BLE001
+        ok = False
+        TUNNEL["err"] = f"tunnel: {type(e).__name__}: {str(e)[:80]}"
+    TUNNEL["n"] += 1
+    if ok:
+        TUNNEL.update(fails=0, last_pull=now_vn())
+        if TUNNEL["n"] == 1 or TUNNEL["n"] % 120 == 0:   # lan dau + moi 10 phut
+            _log(f"tunnel lan {TUNNEL['n']}: {_n} file, {TUNNEL['fetch_sec']} s, tre {TUNNEL['lag']} s")
+        return True
+    TUNNEL["fails"] += 1
+    _log(f"tunnel loi {TUNNEL['fails']}/{TUNNEL_MAX_FAILS}: {TUNNEL['err']}")
+    if TUNNEL["fails"] >= TUNNEL_MAX_FAILS:              # 3 lan lien tiep -> ve Drive 60 s, thu lai tunnel sau 2 phut (doc lai tunnel.json)
+        TUNNEL.update(on=False, url=None, retry_at=time.time() + TUNNEL_RETRY, info=None, info_at=0.0)
+        _log(f"tunnel TAT -> Drive 60 s, thu lai sau {TUNNEL_RETRY} s")
+        return False
+    return True                                          # con duoi 3 loi: van coi la tunnel, thu lai sau 5 s
+
+
+def tunnel_active() -> bool:
+    return bool(TUNNEL["on"]) and bool(CLOUD["on"])
 
 
 def _cloud_loop() -> None:
@@ -251,14 +448,19 @@ def _cloud_loop() -> None:
         try:
             day = now_vn().strftime("%Y-%m-%d")
             if CLOUD["mode"] == "0":
-                CLOUD["on"] = False
+                CLOUD["on"] = TUNNEL["on"] = False
                 return
             local_on = CLOUD["mode"] != "1" and bool(_collector_pids_raw())
             if local_on:                                   # bo thu local dang ghi truc tiep -> khong keo Drive
                 CLOUD["on"], CLOUD["err"] = False, ""
+                TUNNEL["on"] = False
             elif not _cloud_window():
-                CLOUD["on"] = False
+                CLOUD["on"] = TUNNEL["on"] = False
                 wait = 300
+            elif _tunnel_step(rc, day):                    # kenh 5 s qua tunnel: khong goi rclone (Drive chi la du phong)
+                wait = TUNNEL["every"]
+                has = _has_day(day)
+                CLOUD.update(on=has, err="" if has else "tunnel chưa có file hôm nay", day=day)
             else:
                 ok, err = _cloud_pull(rc, day)
                 CLOUD["n"] += 1
@@ -333,8 +535,11 @@ def live_state() -> dict:
     ensure_cloud_sync()                                    # thread keo Drive khi bo thu local khong chay (1 lan/process)
     day = _day_today()
     cloud = cloud_active()
-    out = {"active": False, "ts": None, "lag": None, "day": day, "reason": "", "cloud": cloud,
-           "src": LIVE_1M_CLOUD if cloud else None, "cloud_err": CLOUD["err"], "cloud_sync": CLOUD["last_sync"]}
+    tunnel = tunnel_active()
+    out = {"active": False, "ts": None, "lag": None, "day": day, "reason": "", "cloud": cloud, "tunnel": tunnel,
+           "src": (LIVE_5S_CLOUD if tunnel else LIVE_1M_CLOUD) if cloud else None, "cloud_err": CLOUD["err"] or TUNNEL["err"],
+           "cloud_sync": TUNNEL["last_pull"] if tunnel else CLOUD["last_sync"],
+           "cloud_every": TUNNEL["every"] if tunnel else CLOUD["every"], "tunnel_url": TUNNEL["url"] if tunnel else None}
     if not on:
         out["reason"] = "tắt"
         return out
@@ -353,8 +558,8 @@ def live_state() -> dict:
         return out
     lag = (now_vn() - ts.to_pydatetime()).total_seconds()
     out.update(ts=ts, lag=lag)
-    # cloud: bo thu day Drive 60 s + app keo 60 s + Drive tre -> cho phep tre toi 450 s (local: 300 s)
-    if in_session() and lag > (450 if cloud else 300):
+    # cloud Drive: bo thu day 60 s + app keo 60 s + Drive tre -> cho phep tre toi 450 s (local / tunnel 5 s: 300 s)
+    if in_session() and lag > (450 if (cloud and not tunnel) else 300):
         out["reason"] = f"bộ thu trễ {lag:,.0f} s" + (" (cloud)" if cloud else "")
         return out
     if not in_session() and lag > 1800:
@@ -724,8 +929,11 @@ def with_live(df: pd.DataFrame, kind: str, **kw) -> pd.DataFrame:
     out = pd.concat([hist, new])
     out.index.name = df.index.name
     out.attrs = dict(df.attrs)
-    out.attrs["live"] = {"ts": stt["ts"], "hist_end": hist.index.max() if len(hist) else None,
-                         "src": stt.get("src") or (LIVE_1M if kind in SRC_1M else None)}   # cloud: moi the deu "live 1 phut (cloud)"
+    if kind in SRC_1M:                                   # du lieu SSI 60 s: luon "live 1 phut" du kenh 5 s hay Drive
+        src = LIVE_1M_CLOUD if stt.get("cloud") else LIVE_1M
+    else:                                                # cloud: "live 5 s (cloud)" (tunnel) / "live 1 phut (cloud)" (Drive); local: None
+        src = stt.get("src")
+    out.attrs["live"] = {"ts": stt["ts"], "hist_end": hist.index.max() if len(hist) else None, "src": src}
     return out
 
 

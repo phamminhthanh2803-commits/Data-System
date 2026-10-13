@@ -70,6 +70,12 @@ toi da 6 gio) va day parquet len Google Drive de app laptop doc (app/data_live.p
                            (INSERT BY NAME) de job chieu co ca lich su 5 s + nen buoi sang (--no-seed de bo).
   MAX_CONNECTIONS_EXCEEDED: DNSE chi cho 10 ket noi/user -> neu laptop dang chay, cloud xac thuc that bai. Moi ket noi thu lai
                            AUTH_RETRY=3 lan cach AUTH_RETRY_WAIT=60 s, van that bai -> log ro, thoat MA 0 (workflow khong do).
+KENH 5 GIAY (13/10/2026, serve_live.py): --serve-port 8787 / RT_SERVE_PORT=8787 -> thread HTTP (stdlib) phuc vu 8 parquet cua
+                           data/<ngay>/ (+ /index.json) va thread cloudflared QUICK TUNNEL (https://*.trycloudflare.com, mien phi);
+                           URL ghi <out>/tunnel.json -> rclone copyto <push-remote>/tunnel.json (lam moi 5 phut, cuoi job url=null).
+                           App data_live.py doc tunnel.json tu Drive roi GET parquet moi 5 s -> "live 5 s (cloud)"; tunnel loi ->
+                           tu ve Drive 60 s. env RT_TOKEN (secret tuy chon) -> moi request phai co ?k=<token>.
+                           cloudflared khong co / loi -> chi log, bo thu + Drive 60 s van chay binh thuong.
 """
 from __future__ import annotations
 
@@ -896,6 +902,8 @@ def main() -> None:
                     help="moi N s rclone copy parquet len Drive (env RT_PUSH_EVERY); 0 = khong day")
     ap.add_argument("--push-remote", default=PUSH_REMOTE, help="dich rclone (env RT_PUSH_REMOTE), mac dinh gdrive:pipeline-data/realtime")
     ap.add_argument("--no-seed", action="store_true", help="khong keo market_summary/nen hom nay tu Drive vao DuckDB luc khoi dong")
+    ap.add_argument("--serve-port", type=int, default=int(os.environ.get("RT_SERVE_PORT", "0") or 0),
+                    help="mo HTTP server + Cloudflare quick tunnel phuc vu parquet moi 5 s cho app (serve_live.py; env RT_SERVE_PORT); 0 = khong")
     a = ap.parse_args()
 
     if a.until:
@@ -997,6 +1005,17 @@ def main() -> None:
         th_push = threading.Thread(target=push_loop, args=(rc, day_dir, a.push_remote, day_s, a.push_every, stop_evt, push_files), daemon=True)
         th_push.start()
 
+    srv = th_tunnel = None
+    if a.serve_port:                                   # kenh 5 giay: HTTP + cloudflared quick tunnel (serve_live.py); loi -> chi log
+        try:
+            import serve_live
+            os.makedirs(day_dir, exist_ok=True)
+            tok = os.environ.get("RT_TOKEN") or None
+            srv = serve_live.start_server(day_dir, day_s, a.serve_port, tok)
+            th_tunnel = serve_live.start_tunnel(a.serve_port, os.path.abspath(a.out), a.push_remote if rc else None, rc, day_s, tok, stop_evt)
+        except Exception as e:  # noqa: BLE001
+            log(f"[serve] ! khong mo duoc server/tunnel: {type(e).__name__}: {str(e)[:160]} (van con Drive {a.push_every}s)")
+
     t0, last_export, last_log = time.time(), 0.0, 0.0
     try:
         while True:
@@ -1032,6 +1051,13 @@ def main() -> None:
             th.join(timeout=5)
         store.flush()
         store.export(day_dir)
+        if th_tunnel is not None:                      # dong cloudflared + tunnel.json url=null len Drive (app ve Drive 60 s)
+            th_tunnel.join(timeout=25)
+        if srv is not None:
+            try:
+                srv.shutdown()
+            except Exception:  # noqa: BLE001
+                pass
         if rc:
             if th_push is not None:
                 th_push.join(timeout=5)

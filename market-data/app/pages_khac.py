@@ -186,10 +186,16 @@ def _bo_thu_realtime():
             else:
                 st.markdown('<div class="gn-note">Chưa có file log trong realtime-lab\\logs\\.</div>', unsafe_allow_html=True)
         with c._foot:  # noqa: SLF001
-            cl = rt.CLOUD
-            if cl["on"]:
+            cl, tn = rt.CLOUD, rt.TUNNEL
+            if cl["on"] and tn["on"]:
+                cloud_txt = (f' · <b>Nguồn cloud</b>: bộ thu trên GitHub Actions (realtime-sang/chieu) → Cloudflare tunnel <code>{tn["url"]}</code>'
+                             f' → app kéo mỗi {tn["every"]} s' + (f' (lần cuối {tn["last_pull"]:%H:%M:%S}' if tn["last_pull"] else "(")
+                             + (f', trễ {tn["lag"]:.1f} s, {tn["fetch_sec"]} s/vòng)' if tn["lag"] is not None else ")")
+                             + f' · dự phòng Drive <code>{cl["remote"]}/{cl["day"]}</code> 60 s')
+            elif cl["on"]:
                 cloud_txt = (f' · <b>Nguồn cloud</b>: bộ thu trên GitHub Actions (realtime-sang/chieu) → Drive <code>{cl["remote"]}/{cl["day"]}</code>'
-                             f' → app kéo về mỗi {cl["every"]} s' + (f' (lần cuối {cl["last_sync"]:%H:%M:%S})' if cl["last_sync"] else ""))
+                             f' → app kéo về mỗi {cl["every"]} s' + (f' (lần cuối {cl["last_sync"]:%H:%M:%S})' if cl["last_sync"] else "")
+                             + (f' · tunnel 5 s: <span style="color:#8c8c8c">{tn["err"]}</span>' if tn["err"] else ""))
             elif not pids and cl["err"]:
                 cloud_txt = f' · Nguồn cloud (Drive): <span style="color:#e23b3b">{cl["err"]}</span>'
             else:

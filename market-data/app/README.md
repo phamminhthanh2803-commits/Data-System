@@ -135,7 +135,7 @@ và mỗi 30 phút, không chặn render), hôm nay trong phiên vẫn do `data_
 | khối ngoại theo mã (`foreign_stocks`) | VNDirect `foreigns type:STOCK` theo ngày — **chỉ các ngày sau pipeline** (Vietcap theo mã) | — | toàn bộ lịch sử Vietcap |
 | `valuation_wide` | VNDirect `ratios` 4 rổ × 5 chỉ tiêu (cột suy ra + `close/eps_index` tính lại từ indices) | 12/2017 | — (`valuation_adjusted` loại Vin vẫn pipeline) |
 | `sectors_wide` | VNDirect `ratios` batch 55 mã ICB — chỉ các ngày sau pipeline | — | lịch sử 55 ngành |
-| `insider` (**mới 09/10/2026**, giao dịch nội bộ) | CafeF `GDCoDong.ashx` theo từng mã (curl_cffi impersonate chrome + Referer + X-Requested-With) | 2005 | — (không có pipeline; chỉ cache `cache\src\insider.parquet`) |
+| `insider` (**mới 09/10/2026**, giao dịch nội bộ) | CafeF `GDCoDong.ashx` theo từng mã (curl_cffi impersonate chrome + Referer + X-Requested-With) | 2005 | — (không có pipeline; chỉ cache `cache\src\insider.<ts>.parquet`) |
 
 - **Gộp** (`datalib.load`, `datalib.tv`): nguồn live-first là **chính** — thay hàng cùng ngày của pipeline (pipeline hay dính hàng
   *dở phiên*: VN-Index 07/10 pipeline 1.753,88 / GTGD 505 tỷ vs VNDirect 1.753,39 / 15.226 tỷ; khối ngoại 07/10 pipeline = 0);
@@ -155,6 +155,36 @@ và mỗi 30 phút, không chặn render), hôm nay trong phiên vẫn do `data_
   Tổng quan/Hiệu suất/Dòng tiền/Định giá có 08/10 + LIVE 09/10, render ấm 0,5–2 s/trang; lần đầu sau khi nguồn đổi ~10 s để ghép giá).
 - Chưa làm: rổ VNMidcap/VNSmallcap (không có rổ trong pipeline → vẫn tv-history, thiếu ngày pipeline chưa kéo); `valuation_adjusted`
   (loại Vin) và `stocks_wide`/`shares` vẫn pipeline; tự doanh theo mã (VNDirect T+1) vẫn pipeline.
+
+### Cache nguồn theo phiên bản (13/10/2026) — sự cố "kẹt ở 09/10"
+
+**Sự cố**: từ 12/10 14:55 mọi dataset live-first lỗi `PermissionError: [WinError 5] Access is denied: ...\cache\src\<name>.parquet.tmp ->
+...\<name>.parquet` ở `_write` (`os.replace`): Windows **không cho đè file đang bị tiến trình khác mở** — app Streamlit (cổng 8765) đang giữ
+parquet (pyarrow/pandas đọc; cache_resource). Cache kẹt ở 2026-10-09 trong khi pipeline đã tới 12/10 → app laptop *và* app online (dùng bản
+seed laptop đẩy lên Drive) đều hiện dữ liệu cũ; thêm nữa `_build_tv_merged` lấy hàng VN "từ ngày đầu nguồn trở đi" từ nguồn nên **hàng
+tv-history mới hơn nguồn bị bỏ**. Đã sửa (`data_src.py`, `datalib.py`, `cloud_boot.py`):
+
+- **Ghi theo phiên bản**: mỗi lần ghi là file **mới** `cache\src\<name>.<YYYYmmddHHMMSS>.parquet` (ghi `.tmp` rồi rename sang tên chưa tồn
+  tại → không đụng file đang bị khoá; rename lỗi PermissionError hiếm → thử lại 5 lần/0,5 s), rồi cập nhật con trỏ `status.json[name]["file"]`,
+  rồi **dọn bản cũ** (`_cleanup`: giữ tối đa `VERSIONS_KEEP = 2` bản, bản đang bị giữ thì bỏ qua — lần chạy sau dọn tiếp; `.tmp` bỏ dở > 10 phút
+  cũng xoá; gọi sau mỗi bước `refresh_all` kể cả khi không ghi). Đĩa đầy/lỗi khác vẫn `_fail` như cũ.
+- **`data_src.path(name)`** = file hiện hành (con trỏ trong status → thiếu thì `<name>.parquet` cũ → bản mới nhất theo mtime; cache theo mtime
+  status.json). Mọi nơi lấy đường dẫn parquet đi qua hàm này: `read/mtime/is_live_first`, `datalib` (`_src_mt`, `_build_tv_merged`,
+  `stock_src_ohlc`, `reg_path()` cho `insider` — REGISTRY vẫn ghi `insider.parquet` làm tên logic), `data_ext` (`src._path` giữ làm alias),
+  `cloud_boot.src_current_files()`. Cache cũ chỉ có `<name>.parquet` vẫn đọc được.
+- **Gộp giá** (`_build_tv_merged`): với mỗi mã, nguồn dùng trong **[ngày đầu, ngày cuối] của nguồn**; ngày **sau** đó mà tv-history có thì
+  **giữ hàng pipeline** (giá điều chỉnh TradingView nối tiếp nguồn, chấp nhận lệch nhỏ nếu có sự kiện quyền) → ngày cuối hiển thị =
+  max(nguồn, pipeline). `_merge_indices/_flows/_valuation/_sectors` vốn đã giữ hàng pipeline không có trong nguồn (kiểm tra: cắt nguồn về
+  06/10 → bản gộp vẫn tới ngày cuối pipeline, 0 hàng pipeline sau 06/10 bị mất; tv gộp tới 09/10 = tv-history).
+- **Drive** (`push_src_cache`): chỉ đẩy **bản hiện hành** từng dataset + `status.json`, rồi `rclone delete` bản cũ trên `app-cache/src`;
+  `pull_src_cache(names=None)` (cloud lần đầu) đọc `status.json` trên Drive để kéo đúng file hiện hành; `pull_src_cache(names=["stock_daily"],
+  newer_only=True)` chỉ kéo khi bản Drive có `last` mới hơn và chỉ thay mục status của dataset đó.
+- Kiểm chứng 13/10 (server test 8778 giữ file mở + 1 tiến trình giữ file): `python data_src.py --only index_daily,flows_daily` OK, status
+  `last=2026-10-12`, file mới `index_daily.20261013093209.parquet`…; chạy toàn bộ 35 s → 7/7 dataset `last=2026-10-12`; bản `<name>.parquet`
+  cũ còn lại vì app 8765 vẫn giữ (xoá được sau khi app đó khởi động lại); app 8778 reload: Tổng quan/Hiệu suất/Dòng tiền/Định giá
+  "Cập nhật lần cuối: 12/10/2026", bảng độ tươi Nguồn = live-first, không LỖI; Drive `app-cache/src` = 7 file phiên bản + status.json.
+  **Lưu ý**: Streamlit tự nạp lại module khi sửa `data_src.py` → app đang chạy khởi động thêm thread nền (đã chặn bằng kiểm tra thread
+  `data_src_bg` còn sống trong `start_background`).
 
 ### Giao dịch nội bộ — nguồn CafeF (09/10/2026) — thẻ **"Giao dịch nội bộ"** ở TTCK VN › Dòng tiền › CỔ PHIẾU
 
@@ -300,9 +330,16 @@ Hướng dẫn bấm-deploy từng bước: `D:\cloud-deploy\HUONG-DAN-STREAMLIT
   lần đầu; thread nền `rclone copy` lại mỗi 30 phút (`CLOUD_REFRESH_SEC`). `rclone_cmd()` / `remote()` dùng chung cho `data_live`
   (realtime/<ngày>). Chạy tay không cần Streamlit: `STREAMLIT_CLOUD=1 RCLONE_CONF=<b64> MD_ROOT=<trống> python cloud_boot.py --pull`.
 - **`requirements.txt`** (thư mục app) = thư viện cho Streamlit Cloud; `.streamlit/config.toml` theme có cả ở gốc repo cloud-deploy.
-- **Laptop → Drive**: thread nền `data_src` sau mỗi lần `refresh_all()` gọi `cloud_boot.push_src_cache()` đẩy `cache\src\*.parquet`
-  + `status.json` lên `gdrive:pipeline-data/market-data/app-cache/src` (tắt: `SRC_CACHE_PUSH=0`) → cloud mở lần đầu có ngay
-  `stock_daily` 3,5 triệu dòng, không kéo nền 1.525 mã Entrade trên máy 1 GB.
+- **Laptop → Drive**: thread nền `data_src` sau mỗi lần `refresh_all()` gọi `cloud_boot.push_src_cache()` đẩy bản parquet **hiện hành**
+  của từng dataset + `status.json` lên `gdrive:pipeline-data/market-data/app-cache/src` (xoá bản cũ trên Drive; tắt: `SRC_CACHE_PUSH=0`)
+  → cloud mở lần đầu có ngay `stock_daily` 3,5 triệu dòng, không kéo nền 1.525 mã Entrade trên máy 1 GB.
+- **Cloud tự làm mới (13/10/2026)** — không chỉ dựa seed: `app.py` vẫn gọi `src.start_background()` (chỉ `APP_NO_BG=1` mới tắt; cloud_boot
+  **không** đặt biến này). Trên cloud thread nền (`data_src._bg_loop`, 30 phút) gọi `refresh_all(only=LIGHT)` với **6 bộ nhẹ**
+  `index_daily, flows_daily, valuation_daily, sectors_tail, foreign_stocks_tail, insider` kéo thẳng từ nguồn; **chỉ `stock_daily`** (nặng,
+  3,5 triệu dòng) dựa seed: mỗi vòng `pull_src_cache(names=["stock_daily"], newer_only=True)` kéo lại từ Drive khi laptop đã đẩy bản có
+  ngày cuối mới hơn (laptop đẩy sau mỗi `refresh_all`). Ghi đè: `SRC_BG_ONLY=all` (cloud tự kéo cả stock_daily) hoặc danh sách
+  `SRC_BG_ONLY=index_daily,flows_daily`. Trạng thái trong `status.json["_run"]`: `pushed` / `push_error` (laptop), `seed_pulled` /
+  `seed_files` / `seed_error` (cloud).
 - **RAM (vì cloud ~1 GB)** — đo trên laptop bằng psutil RSS tiến trình streamlit (Windows, gồm phần allocator giữ lại), mở lần lượt
   Tổng quan → Hiệu suất → Dòng tiền → Định giá → Vĩ mô, `APP_NO_BG=1` (tắt thread live-first để đo sạch):
 

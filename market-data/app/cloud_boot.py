@@ -24,6 +24,7 @@ import glob
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -235,26 +236,142 @@ def _copy_code(root: str) -> None:
                 shutil.copy2(f, d)
 
 
+_VER_RX = re.compile(r"^([A-Za-z_]\w*?)(\.\d{14}(_\d+)?)?\.parquet$")   # <name>.parquet | <name>.<YYYYmmddHHMMSS>[_k].parquet
+
+
+def _read_status(path: str) -> dict:
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _write_status(path: str, data: dict) -> None:
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=1, default=str)
+    for i in range(5):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if i == 4:
+                raise
+            time.sleep(0.2)
+
+
+def src_current_files(src_dir: str) -> dict:
+    """{dataset: ten file parquet HIEN HANH} trong cache\\src (13/10/2026 cache theo phien ban - xem data_src.path): con tro
+    status.json[name]['file'] -> `<name>.parquet` cu -> ban moi nhat theo mtime. Khong import data_src (dung duoc cho moi src_dir)."""
+    st = _read_status(os.path.join(src_dir, "status.json"))
+    names: dict[str, list[str]] = {}
+    try:
+        for f in os.listdir(src_dir):
+            m = _VER_RX.match(f)
+            if m:
+                names.setdefault(m.group(1), []).append(f)
+    except OSError:
+        return {}
+    for n in st:
+        if not n.startswith("_") and n not in names:
+            names[n] = []
+    out = {}
+    for n, fs in names.items():
+        f = st.get(n, {}).get("file")
+        if f and os.path.exists(os.path.join(src_dir, f)):
+            out[n] = f
+        elif fs:
+            out[n] = max(fs, key=lambda x: (os.path.getmtime(os.path.join(src_dir, x)), x))
+    return out
+
+
 def push_src_cache(src_dir: str) -> float:
-    """LAPTOP: day cache\\src/*.parquet + status.json len Drive (app-cache/src) de cloud seed lan dau (rclone copy, chi file doi)."""
+    """LAPTOP: day ban parquet HIEN HANH cua tung dataset + status.json len Drive (app-cache/src) de cloud seed (rclone copy, chi file
+    doi), roi xoa ban cu tren Drive (13/10/2026: cache theo phien ban nen ten file doi moi lan ghi)."""
     if not os.path.isdir(src_dir):
         return 0.0
     t0 = time.time()
-    rc, _ = run_rclone(["copy", src_dir, remote(APP_CACHE_REMOTE), "--include", "/*.parquet", "--include", "/status.json"],
-                       timeout=600)
+    cur = src_current_files(src_dir)
+    if not cur:
+        return 0.0
+    inc = ["--include", "/status.json"]
+    for f in cur.values():
+        inc += ["--include", "/" + f]
+    rc, _ = run_rclone(["copy", src_dir, remote(APP_CACHE_REMOTE)] + inc, timeout=600)
     if rc != 0:
         raise RuntimeError(f"rclone copy app-cache loi (exit {rc})")
+    flt = []
+    for f in cur.values():
+        flt += ["--filter", "- /" + f]
+    flt += ["--filter", "+ /*.parquet", "--filter", "- *"]
+    rc, out = run_rclone(["delete", remote(APP_CACHE_REMOTE)] + flt, timeout=300)   # ban cu tren Drive (khong loi neu khong co)
+    if rc not in (0, 3):
+        _log(f"xoa ban cu app-cache tren Drive loi (exit {rc}) - bo qua")
     return time.time() - t0
 
 
-def pull_src_cache(src_dir: str) -> float:
-    """CLOUD lan dau: keo app-cache/src tu Drive ve SRC_CACHE (neu Drive co); sau do data_src chi cap nhat tang dan."""
+def pull_src_cache(src_dir: str, names: list[str] | None = None, newer_only: bool = False) -> list[str]:
+    """CLOUD: keo app-cache/src tu Drive ve SRC_CACHE. Lan dau (names=None): status.json + ban hien hanh moi dataset (theo con tro
+    `file` cua status tren Drive; Drive chua co status -> moi *.parquet). Thread nen (names=['stock_daily'], newer_only=True): chi keo
+    dataset nang khi ban tren Drive co `last` MOI HON ban local, va chi cap nhat muc status cua dataset do (khong de len muc cua
+    dataset cloud tu keo). Tra danh sach file da keo."""
     os.makedirs(src_dir, exist_ok=True)
-    t0 = time.time()
-    rc, _ = run_rclone(["copy", remote(APP_CACHE_REMOTE), src_dir, "--include", "/*.parquet", "--include", "/status.json"])
+    tmpd = tempfile.mkdtemp(prefix="srcstat_")
+    rst_path = os.path.join(tmpd, "status.json")
+    rc, _ = run_rclone(["copyto", remote(APP_CACHE_REMOTE) + "/status.json", rst_path], timeout=120)
+    rst = _read_status(rst_path) if rc == 0 else {}
+    shutil.rmtree(tmpd, ignore_errors=True)
+    if not rst:
+        if names is not None:
+            return []
+        rc, _ = run_rclone(["copy", remote(APP_CACHE_REMOTE), src_dir, "--include", "/*.parquet", "--include", "/status.json"])
+        if rc != 0:
+            _log("khong keo duoc app-cache/src (chua co tren Drive?) - data_src se keo nen tu nguon")
+            return []
+        return sorted(f for f in os.listdir(src_dir) if f.endswith(".parquet"))
+    lst_path = os.path.join(src_dir, "status.json")
+    lst = _read_status(lst_path)
+    want = {}
+    for n in (names or [k for k in rst if not k.startswith("_")]):
+        d = rst.get(n) or {}
+        f = d.get("file") or f"{n}.parquet"
+        if newer_only:
+            lo = (lst.get(n) or {}).get("last") or ""
+            lf = (lst.get(n) or {}).get("file") or f"{n}.parquet"
+            if os.path.exists(os.path.join(src_dir, lf)) and str(d.get("last") or "") <= str(lo):
+                continue
+        want[n] = f
+    if not want:
+        return []
+    inc = []
+    for f in want.values():
+        inc += ["--include", "/" + f]
+    rc, _ = run_rclone(["copy", remote(APP_CACHE_REMOTE), src_dir] + inc, timeout=900)
     if rc != 0:
-        _log("khong keo duoc app-cache/src (chua co tren Drive?) - data_src se keo nen tu nguon")
-    return time.time() - t0
+        _log(f"keo app-cache/src loi (exit {rc})")
+        return []
+    got = [f for f in want.values() if os.path.exists(os.path.join(src_dir, f))]
+    if names is None:                                    # lan dau: lay nguyen status Drive (con tro file + ngay cuoi + ghi chu)
+        new = {k: v for k, v in rst.items() if not k.startswith("_")}
+        new.update({k: v for k, v in lst.items() if k.startswith("_")})
+    else:
+        new = dict(lst)
+        for n, f in want.items():
+            if f in got:
+                new[n] = dict(rst.get(n) or {})
+    _write_status(lst_path, new)
+    for n, f in want.items():                            # ban cu cua dataset vua keo (cloud, khong bi khoa) -> xoa
+        if f not in got:
+            continue
+        for x in os.listdir(src_dir):
+            m = _VER_RX.match(x)
+            if m and m.group(1) == n and x != f:
+                try:
+                    os.remove(os.path.join(src_dir, x))
+                except OSError:
+                    pass
+    return got
 
 
 def _set_env(root: str) -> None:
@@ -342,8 +459,10 @@ def pull_all(root: str, progress=None, first: bool = False) -> dict:
     if first:
         if progress:
             progress("Kéo cache nguồn live-first (app-cache/src) …")
-        s = pull_src_cache(os.environ.get("SRC_CACHE") or os.path.join(os.path.dirname(root), "app-cache", "src"))
-        steps.append(("app-cache/src", round(s, 1)))
+        t1 = time.time()
+        got = pull_src_cache(os.environ.get("SRC_CACHE") or os.path.join(os.path.dirname(root), "app-cache", "src"))
+        steps.append(("app-cache/src", round(time.time() - t1, 1)))
+        _log(f"app-cache/src: {len(got)} file")
     if progress:
         progress("Dựng cache giá (parquet) …")
     built = _prebuild_tv(root)

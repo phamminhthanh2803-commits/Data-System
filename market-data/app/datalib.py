@@ -186,11 +186,21 @@ def read_csv(path: str, mt: float, **kw) -> pd.DataFrame:
     return df
 
 
+def reg_path(key: str) -> str:
+    """Duong dan file that cua dataset: dataset chi co nguon live-first (insider) -> parquet HIEN HANH theo phien ban
+    (data_src.path, 13/10/2026 - ten file doi moi lan ghi); con lai -> file pipeline trong REGISTRY."""
+    if key in SRC_ONLY and src is not None:
+        return src.path(SRC_KEYS[key])
+    return REGISTRY[key][2]
+
+
 def load(key: str, **kw) -> pd.DataFrame:
     """Dataset trong REGISTRY. indices / flows / valuation_wide / sectors_wide: nguon live-first la chinh (thay hang cung ngay
-    cua pipeline), lich su pipeline noi phia truoc; nguon chua co / loi -> pipeline nguyen ban. Cot tra ve giu nguyen."""
+    cua pipeline), lich su pipeline noi phia truoc; nguon chua co / loi -> pipeline nguyen ban. Hang pipeline KHONG co trong
+    nguon (ke ca ngay SAU ngay cuoi nguon khi nguon tut hau) duoc GIU. Cot tra ve giu nguyen."""
     path = REGISTRY[key][2]
     if key in SRC_ONLY:
+        path = reg_path(key)
         return read_csv(path, _raw_mt(path))
     if not kw and key != "tv_history" and live_first(key):
         try:
@@ -412,8 +422,9 @@ def adjust_stock_src(s: pd.DataFrame, tv_close: pd.DataFrame, exch: pd.Series) -
 
 
 def load_tv_merged(mt: float, mt_src: float) -> pd.DataFrame:
-    """tv-history (pipeline) + stock_daily (live-first): hang VN cua tung ma tu ngay dau nguon tro di lay tu nguon (gia x adj),
-    phan truoc do + san nuoc ngoai giu tv-history. Cache parquet cache\tv-live.parquet theo (mt, mt_src).
+    """tv-history (pipeline) + stock_daily (live-first): hang VN cua tung ma trong [ngay dau, ngay cuoi] cua nguon lay tu nguon
+    (gia x adj), phan truoc do + phan SAU ngay cuoi nguon (13/10/2026: pipeline moi hon nguon thi giu) + san nuoc ngoai giu
+    tv-history -> ngay cuoi hien thi = max(nguon, pipeline). Cache parquet cache\tv-live.parquet theo (mt, mt_src).
     12/10/2026: khong st.cache_data (xem load_tv) - parquet tren dia la cache; chi dung lai khi (mt, mt_src) doi."""
     pq = os.path.join(CACHE, "tv-live.parquet")
     tag = os.path.join(CACHE, "tv-live.stamp")
@@ -436,7 +447,7 @@ def _build_tv_merged(mt: float, mt_src: float, pq: str, tag: str) -> pd.DataFram
     import pyarrow as pa
     import pyarrow.parquet as ppq
     t = load_tv(mt)
-    path = src._path("stock_daily")
+    path = src.path("stock_daily")
     try:
         sd = pd.read_parquet(path, columns=["symbol", "date"])
     except Exception:  # noqa: BLE001
@@ -445,13 +456,17 @@ def _build_tv_merged(mt: float, mt_src: float, pq: str, tag: str) -> pd.DataFram
     sd = sd[sd.symbol.isin(exch.index)]
     if sd.empty:
         return t
-    first = sd.groupby("symbol").date.min()                 # ngay dau cua nguon tung ma: pipeline chi giu phan TRUOC do
+    rng = sd.groupby("symbol").date.agg(["min", "max"])     # [ngay dau, ngay cuoi] cua nguon tung ma
+    first, last = rng["min"], rng["max"]
     syms = sorted(first.index)
     del sd
     vn_mask = t.exchange.isin(VN_EX)
     vn = t[vn_mask]
     vn_sym = vn.symbol.astype(str)
-    keep = (vn.date < vn_sym.map(first).fillna(pd.Timestamp("2100-01-01")).values)
+    # pipeline giu phan TRUOC ngay dau nguon va phan SAU ngay cuoi nguon (13/10/2026: nguon tut hau - vd cache khong ghi duoc -
+    # thi tv-history moi hon van hien; gia dieu chinh TradingView noi tiep nguon, chap nhan lech nho neu co su kien quyen)
+    keep = ((vn.date < vn_sym.map(first).fillna(pd.Timestamp("2100-01-01")).values)
+            | (vn.date > vn_sym.map(last).fillna(pd.Timestamp("1900-01-01")).values))
     tv_close_all = vn[["symbol", "date", "close"]]
     tv_close_all = tv_close_all[tv_close_all.date < tv_close_all.date.max()]   # ngay cuoi tv-history co the DO PHIEN
     dict_t = pa.dictionary(pa.int32(), pa.string())
@@ -506,7 +521,7 @@ def stock_src_ohlc(code: str, mt_src: float) -> pd.DataFrame:
     if src is None or not live_first("tv_history"):
         return pd.DataFrame()
     try:
-        d = pd.read_parquet(src._path("stock_daily"), filters=[("symbol", "==", code)])
+        d = pd.read_parquet(src.path("stock_daily"), filters=[("symbol", "==", code)])
     except Exception:  # noqa: BLE001
         return pd.DataFrame()
     return d.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
@@ -1790,6 +1805,7 @@ def freshness(stamp: float) -> pd.DataFrame:
     rows = []
     today = pd.Timestamp.now().normalize()
     for key, (ten, nhom, path, dcol, ecol, mota) in REGISTRY.items():
+        path = reg_path(key)
         if not os.path.exists(path):
             rows.append({"Dataset": ten, "Nhóm": nhom, "Trạng thái": "THIẾU FILE",
                          "Dữ liệu đến": None, "Trễ (ngày)": None, "Số dòng": 0,

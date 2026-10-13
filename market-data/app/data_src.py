@@ -21,7 +21,10 @@ Nguon (khong can key, header User-Agent Mozilla, 0,3-1 s/request):
                 KHONG tra gi -> phai goi tung ma (1.525 ma, ThreadPool 6). Loc StartDate theo PublishedDate (MM/dd/yyyy!); ban ghi
                 duoc CAP NHAT TAI CHO khi co ket qua (PublishedDate giu nguyen) -> tang dan phai keo lai ca dang ky con mo.
 
-File cache (long-format, parquet, ghi tmp roi os.replace):
+File cache (long-format, parquet). 13/10/2026 CACHE THEO PHIEN BAN: moi lan ghi la file MOI `<name>.<YYYYmmddHHMMSS>.parquet`
+(ghi .tmp roi rename sang ten chua ton tai), con tro `file` trong status.json chi ban hien hanh, path(name) tra duong dan do, ban cu
+don dan (giu <= VERSIONS_KEEP). Ly do: Windows khong cho os.replace de len parquet dang bi app Streamlit (tien trinh khac) mo ->
+12/10 moi dataset ket o 2026-10-09 voi PermissionError. Ten `<name>.parquet` cu van doc duoc (tuong thich nguoc).
   index_daily.parquet        date, index_code (VNINDEX VN30 HNXINDEX UPCOM HNX30 VN30F1M), open high low close volume value(trieu VND) src
   stock_daily.parquet        symbol, date, open high low close (DONG), volume, value (VND), ref (gia tham chieu, chi dong vnd/eod), src
   flows_daily.parquet        schema flows-master (date,index_code,flow_type,buy_val...): VNINDEX/VN30/HNXINDEX/UPCOM x foreign/prop
@@ -49,6 +52,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -195,13 +200,54 @@ def _vnd(endpoint, q, sort, size=PAGE, max_pages=50):
     return rows
 
 
+VERSIONS_KEEP = 2                 # so phien ban parquet giu lai moi dataset (ban hien hanh + 1 ban cu co the dang bi app mo)
+_PATH_CACHE: dict = {}            # name -> (mtime status.json, duong dan) - path() goi nhieu lan moi render
+
+
+def _status_mt() -> float:
+    try:
+        return os.path.getmtime(STATUS_JSON)
+    except OSError:
+        return 0.0
+
+
+def _versions(name) -> list[str]:
+    """Moi file parquet cua dataset trong SRC_DIR: <name>.parquet (cu) + <name>.<YYYYmmddHHMMSS>.parquet, moi nhat truoc."""
+    rx = re.compile(rf"^{re.escape(name)}(\.\d{{14}}(_\d+)?)?\.parquet$")
+    try:
+        fs = [os.path.join(SRC_DIR, f) for f in os.listdir(SRC_DIR) if rx.match(f)]
+    except OSError:
+        return []
+    return sorted(fs, key=lambda f: (os.path.getmtime(f), f), reverse=True)
+
+
+def path(name) -> str:
+    """Duong dan parquet HIEN HANH cua dataset (13/10/2026 - cache theo phien ban).
+
+    Windows khong cho os.replace de len file dang duoc tien trinh khac mo (app Streamlit doc parquet) -> moi lan ghi la 1 file MOI
+    `<name>.<YYYYmmddHHMMSS>.parquet`, con tro `file` trong status.json chi ban hien hanh. Thieu con tro (cache cu) -> `<name>.parquet`
+    hoac ban moi nhat theo mtime. Moi noi can duong dan parquet (datalib, data_ext, cloud_boot) deu goi ham nay."""
+    mt = _status_mt()
+    c = _PATH_CACHE.get(name)
+    if c and c[0] == mt and os.path.exists(c[1]):
+        return c[1]
+    f = _status_read().get(name, {}).get("file")
+    p = os.path.join(SRC_DIR, f) if f else ""
+    if not (f and os.path.exists(p)):
+        vs = _versions(name)
+        p = vs[0] if vs else os.path.join(SRC_DIR, f"{name}.parquet")
+    _PATH_CACHE[name] = (mt, p)
+    return p
+
+
 def _path(name):
-    return os.path.join(SRC_DIR, f"{name}.parquet")
+    """Ten cu (datalib/data_ext goi src._path) - giu de tuong thich."""
+    return path(name)
 
 
 def mtime(name) -> float:
     try:
-        return os.path.getmtime(_path(name))
+        return os.path.getmtime(path(name))
     except OSError:
         return 0.0
 
@@ -212,7 +258,7 @@ def mtime_all() -> float:
 
 def read(name, columns=None) -> pd.DataFrame:
     """Doc parquet cache (rong neu chua co / dang ghi loi). columns: chi doc vai cot (stock_daily 3,5 trieu dong - RAM)."""
-    p = _path(name)
+    p = path(name)
     if not os.path.exists(p):
         return pd.DataFrame()
     for i in range(3):
@@ -223,26 +269,98 @@ def read(name, columns=None) -> pd.DataFrame:
     return pd.DataFrame()
 
 
+def _unchanged(p: str, df: pd.DataFrame) -> bool:
+    """So sanh bang metadata + row group cuoi, khong doc lai ca parquet (RAM)."""
+    try:
+        import pyarrow.parquet as ppq
+        pf = ppq.ParquetFile(p)
+        if pf.metadata.num_rows == len(df) and pf.schema_arrow.names == list(df.columns):
+            old = pf.read_row_group(pf.num_row_groups - 1).to_pandas().tail(300)
+            a, b = old.select_dtypes("number").sum(), df.tail(300).select_dtypes("number").sum()
+            if len(a) == len(b) and np.allclose(a.fillna(0).values, b.fillna(0).values, rtol=1e-9):
+                return True
+    except Exception:  # noqa: BLE001
+        pass
+    return False
+
+
 def _write(name, df: pd.DataFrame, force=False):
-    """Ghi parquet (tmp + os.replace). KHONG ghi neu noi dung khong doi (cung shape + cung tong so 300 dong cuoi) de mtime
-    khong doi -> cache st.cache_data cua app khong phai dung lai moi 30 phut. force=True: luon ghi (insider: ban ghi giua bang
-    duoc cap nhat tai cho, 300 dong cuoi khong phan anh)."""
-    p = _path(name)
-    if os.path.exists(p) and not force:
-        try:                                   # 12/10/2026: so sanh bang metadata + row group cuoi, khong doc lai ca parquet (RAM)
-            import pyarrow.parquet as ppq
-            pf = ppq.ParquetFile(p)
-            if pf.metadata.num_rows == len(df) and pf.schema_arrow.names == list(df.columns):
-                old = pf.read_row_group(pf.num_row_groups - 1).to_pandas().tail(300)
-                a, b = old.select_dtypes("number").sum(), df.tail(300).select_dtypes("number").sum()
-                if len(a) == len(b) and np.allclose(a.fillna(0).values, b.fillna(0).values, rtol=1e-9):
-                    return
-        except Exception:  # noqa: BLE001
-            pass
-    tmp = p + ".tmp"
+    """Ghi parquet THEO PHIEN BAN (13/10/2026): <name>.<YYYYmmddHHMMSS>.parquet (ghi .tmp roi rename sang ten MOI chua ton tai ->
+    khong dinh khoa file cua app dang mo), cap nhat con tro status.json[name]['file'], roi don ban cu (bo qua ban dang bi giu,
+    lan sau don tiep; giu toi da VERSIONS_KEEP ban). KHONG ghi neu noi dung khong doi (cung shape + cung tong so 300 dong cuoi)
+    de mtime khong doi -> cache st.cache_data cua app khong phai dung lai moi 30 phut. force=True: luon ghi (insider: ban ghi
+    giua bang duoc cap nhat tai cho, 300 dong cuoi khong phan anh)."""
+    cur = path(name)
+    if os.path.exists(cur) and not force and _unchanged(cur, df):
+        return
     with _LOCK:
-        df.to_parquet(tmp, index=False)
-        os.replace(tmp, p)
+        ts = now_vn().strftime("%Y%m%d%H%M%S")
+        new = os.path.join(SRC_DIR, f"{name}.{ts}.parquet")
+        k = 0
+        while os.path.exists(new) or os.path.exists(new + ".tmp"):
+            k += 1
+            new = os.path.join(SRC_DIR, f"{name}.{ts}_{k}.parquet")
+        tmp = new + ".tmp"
+        try:
+            df.to_parquet(tmp, index=False)
+            for i in range(5):                        # rename sang ten moi: PermissionError hiem (antivirus/indexer) -> thu lai
+                try:
+                    os.replace(tmp, new)
+                    break
+                except PermissionError:
+                    if i == 4:
+                        raise
+                    time.sleep(0.5)
+        except Exception:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+            raise
+        _status_set(name, file=os.path.basename(new))
+        _PATH_CACHE.pop(name, None)
+        _cleanup(name)
+
+
+def _cleanup(name, keep: int = VERSIONS_KEEP) -> list[str]:
+    """Xoa ban parquet cu cua dataset (tru ban hien hanh + (keep-1) ban moi nhat) va file .tmp bo do. File dang bi tien trinh khac
+    giu (Windows) -> PermissionError -> bo qua, lan sau don tiep. Tra danh sach file da xoa."""
+    cur = os.path.normpath(path(name))
+    gone = []
+    others = [f for f in _versions(name) if os.path.normpath(f) != cur]
+    for f in others[max(keep - 1, 0):]:
+        try:
+            os.remove(f)
+            gone.append(f)
+        except OSError:
+            pass
+    try:
+        for f in os.listdir(SRC_DIR):
+            if f.startswith(name + ".") and f.endswith(".parquet.tmp"):
+                fp = os.path.join(SRC_DIR, f)
+                if time.time() - os.path.getmtime(fp) > 600:        # .tmp bo do > 10 phut (khong phai dang ghi)
+                    try:
+                        os.remove(fp)
+                        gone.append(fp)
+                    except OSError:
+                        pass
+    except OSError:
+        pass
+    return gone
+
+
+def cleanup_all() -> list[str]:
+    return [f for n in DATASETS for f in _cleanup(n)]
+
+
+def current_files() -> dict:
+    """{name: ten file parquet hien hanh} (chi dataset da co file) - cloud_boot.push/pull dung."""
+    out = {}
+    for n in DATASETS:
+        p = path(n)
+        if os.path.exists(p):
+            out[n] = os.path.basename(p)
+    return out
 
 
 # ---------------------------------------------------------------------------------------------- trang thai
@@ -263,7 +381,14 @@ def _status_set(name, **kw):
         tmp = STATUS_JSON + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(s, f, ensure_ascii=False, indent=1, default=str)
-        os.replace(tmp, STATUS_JSON)
+        for i in range(5):                            # Windows: tien trinh khac dang doc status.json dung luc -> thu lai
+            try:
+                os.replace(tmp, STATUS_JSON)
+                break
+            except PermissionError:
+                if i == 4:
+                    raise
+                time.sleep(0.2)
 
 
 def _done(name, df: pd.DataFrame, dcol="date", note=""):
@@ -324,7 +449,7 @@ def status_line() -> str:
 
 def is_live_first(name) -> bool:
     """Co cache dung duoc (da keo xong it nhat 1 lan) - khong phu thuoc dang 'running'."""
-    return bool(_status_read().get(name, {}).get("last")) and os.path.exists(_path(name))
+    return bool(_status_read().get(name, {}).get("last")) and os.path.exists(path(name))
 
 
 # ================================================================================================ ENTRADE
@@ -1049,28 +1174,73 @@ def refresh_all(full=False, only=None) -> dict:
         except Exception as e:  # noqa: BLE001
             _fail(name, e)
             res[name] = f"lỗi: {e}"
+        _cleanup(name)                                   # ban parquet cu / .tmp bo do (ke ca khi khong phai ghi lai)
     _status_set("_run", last=now_vn().strftime("%Y-%m-%d %H:%M:%S"), result=res)
     return res
 
 
+LIGHT = ["index_daily", "flows_daily", "valuation_daily", "sectors_tail", "foreign_stocks_tail", "insider"]   # nhe: cloud tu keo
+HEAVY = ["stock_daily"]          # 3,5 trieu dong: cloud (RAM 1 GB) KHONG tu cap nhat, keo ban seed laptop day len Drive
+
+
+def _is_cloud() -> bool:
+    if os.environ.get("STREAMLIT_CLOUD") == "1":
+        return True
+    try:
+        import cloud_boot
+        return bool(cloud_boot.is_cloud())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def bg_only() -> list[str] | None:
+    """Dataset ma thread nen tu cap nhat: env SRC_BG_ONLY (vd 'index_daily,flows_daily'; 'all' = tat ca) -> tren cloud chi LIGHT
+    (13/10/2026: cloud khong con chi dua vao seed - index/flows/valuation/sectors/foreign/insider tu keo nguon moi 30 phut;
+    stock_daily keo lai ban seed tu Drive khi laptop co ban moi hon) -> laptop: tat ca (None)."""
+    v = os.environ.get("SRC_BG_ONLY", "").strip()
+    if v:
+        return None if v.lower() == "all" else [x.strip() for x in v.split(",") if x.strip()]
+    return list(LIGHT) if _is_cloud() else None
+
+
 def _push_cache():
-    """Laptop: day cache\\src (stock_daily 52 MB, insider...) len Drive app-cache/ de app tren Streamlit Cloud mo lan dau
-    khong phai keo nen 1.525 ma Entrade (RAM 1 GB) - cloud_boot.push_src_cache (12/10/2026). Tat bang env SRC_CACHE_PUSH=0."""
+    """Laptop: day cache\\src (ban HIEN HANH tung dataset + status.json) len Drive app-cache/ de app tren Streamlit Cloud mo lan dau
+    khong phai keo nen 1.525 ma Entrade (RAM 1 GB) va cap nhat stock_daily - cloud_boot.push_src_cache (12/10/2026).
+    Tat bang env SRC_CACHE_PUSH=0."""
     if os.environ.get("SRC_CACHE_PUSH", "1") == "0" or os.environ.get("STREAMLIT_CLOUD") == "1":
         return
     try:
         import cloud_boot
         if not cloud_boot.is_cloud():
             cloud_boot.push_src_cache(SRC_DIR)
+            _status_set("_run", push_error=None, pushed=now_vn().strftime("%Y-%m-%d %H:%M:%S"))
     except Exception as e:  # noqa: BLE001
         _status_set("_run", push_error=f"{type(e).__name__}: {str(e)[:160]}")
+
+
+def _pull_seed_heavy():
+    """Cloud: keo lai ban seed cua dataset nang (stock_daily) tu Drive neu laptop da day ban co ngay cuoi MOI HON."""
+    try:
+        import cloud_boot
+        got = cloud_boot.pull_src_cache(SRC_DIR, names=HEAVY, newer_only=True)
+        if got:
+            _PATH_CACHE.clear()
+            _status_set("_run", seed_pulled=now_vn().strftime("%Y-%m-%d %H:%M:%S"), seed_files=got)
+    except Exception as e:  # noqa: BLE001
+        _status_set("_run", seed_error=f"{type(e).__name__}: {str(e)[:160]}")
 
 
 def _bg_loop(interval=1800):
     while True:
         try:
-            refresh_all()
-            _push_cache()
+            only = bg_only()
+            refresh_all(only=only)
+            if _is_cloud():
+                if only is not None and any(h not in only for h in HEAVY):
+                    _pull_seed_heavy()
+                cleanup_all()
+            else:
+                _push_cache()
         except Exception as e:  # noqa: BLE001
             _status_set("_run", error=str(e)[:200])
         time.sleep(interval)
@@ -1082,6 +1252,8 @@ def start_background(interval=1800) -> bool:
         t = _BG.get("thread")
         if t is not None and t.is_alive():
             return False
+        if any(x.name == "data_src_bg" and x.is_alive() for x in threading.enumerate()):
+            return False                      # Streamlit nap lai module khi sua file -> _BG moi nhung thread cu van chay
         th = threading.Thread(target=_bg_loop, args=(interval,), name="data_src_bg", daemon=True)
         th.start()
         _BG["thread"], _BG["started"] = th, now_vn()
@@ -1090,6 +1262,10 @@ def start_background(interval=1800) -> bool:
 
 if __name__ == "__main__":
     import argparse
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")     # console cp1252 (Windows) in duoc tieng Viet
+    except Exception:  # noqa: BLE001
+        pass
     ap = argparse.ArgumentParser(description="Cap nhat cache nguon live-first (chay tay / test)")
     ap.add_argument("--full", action="store_true")
     ap.add_argument("--only", help="vd index_daily,flows_daily,insider")

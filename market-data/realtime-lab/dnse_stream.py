@@ -195,11 +195,22 @@ def _f(v):
         return None
 
 
+_I64_MAX = 2 ** 63 - 1
+
+
 def _i(v):
+    """int an toan cho BIGINT DuckDB. 13/10/2026: DNSE phat foreignerOrderLimitQuantity = 2^64-22718464
+    (so am bi wrap unsigned 64 bit) -> pandas uint64 -> DuckDB ConversionException -> bo thu chet. Wrap lai ve so am;
+    van ngoai int64 -> None."""
     try:
-        return None if v is None else int(float(v))
-    except (TypeError, ValueError):
+        if v is None:
+            return None
+        x = int(float(v))
+    except (TypeError, ValueError, OverflowError):
         return None
+    if x > _I64_MAX:
+        x -= 2 ** 64
+    return x if -_I64_MAX - 1 <= x <= _I64_MAX else None
 
 
 def _q10(v, sym):
@@ -342,18 +353,27 @@ class Store:
         n = 0
         with self.lock:
             for tbl, rows in batches.items():
-                df = pd.DataFrame(rows)
-                keys = KEYS.get(tbl)
-                if keys:
-                    df = df.drop_duplicates(subset=keys, keep="last")
-                self.con.register("df_new", pa.Table.from_pandas(df, preserve_index=False))
-                if keys:
-                    cond = " AND ".join(f"{tbl}.{k} = df_new.{k}" for k in keys)
-                    self.con.execute(f"DELETE FROM {tbl} USING df_new WHERE {cond}")
-                cols = ", ".join(df.columns)
-                self.con.execute(f"INSERT INTO {tbl} ({cols}) SELECT {cols} FROM df_new")
-                self.con.unregister("df_new")
-                n += len(df)
+                try:
+                    df = pd.DataFrame(rows)
+                    keys = KEYS.get(tbl)
+                    if keys:
+                        df = df.drop_duplicates(subset=keys, keep="last")
+                    self.con.register("df_new", pa.Table.from_pandas(df, preserve_index=False))
+                    if keys:
+                        cond = " AND ".join(f"{tbl}.{k} = df_new.{k}" for k in keys)
+                        self.con.execute(f"DELETE FROM {tbl} USING df_new WHERE {cond}")
+                    cols = ", ".join(df.columns)
+                    self.con.execute(f"INSERT INTO {tbl} ({cols}) SELECT {cols} FROM df_new")
+                    n += len(df)
+                except Exception as e:  # noqa: BLE001 - 13/10/2026: 1 batch loi khong duoc giet bo thu
+                    self.flush_errors = getattr(self, "flush_errors", 0) + 1
+                    if self.flush_errors <= 20 or self.flush_errors % 100 == 0:
+                        log(f"  ! flush {tbl} ({len(rows)} dong) bo qua: {type(e).__name__}: {str(e)[:200]}")
+                finally:
+                    try:
+                        self.con.unregister("df_new")
+                    except Exception:  # noqa: BLE001
+                        pass
         return n
 
     @staticmethod
@@ -1020,7 +1040,10 @@ def main() -> None:
     try:
         while True:
             time.sleep(1)
-            store.flush()
+            try:
+                store.flush()
+            except Exception as e:  # noqa: BLE001
+                log(f"  ! flush: {type(e).__name__}: {str(e)[:160]}")
             if time.time() - last_export >= 5:
                 try:
                     store.export(day_dir)
@@ -1049,8 +1072,11 @@ def main() -> None:
         stop_evt.set()
         if th is not None:
             th.join(timeout=5)
-        store.flush()
-        store.export(day_dir)
+        try:
+            store.flush()
+            store.export(day_dir)
+        except Exception as e:  # noqa: BLE001
+            log(f"  ! flush/export cuoi: {type(e).__name__}: {str(e)[:160]}")
         if th_tunnel is not None:                      # dong cloudflared + tunnel.json url=null len Drive (app ve Drive 60 s)
             th_tunnel.join(timeout=25)
         if srv is not None:

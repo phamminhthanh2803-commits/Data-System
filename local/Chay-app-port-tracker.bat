@@ -8,7 +8,7 @@ set PYTHONIOENCODING=utf-8
 set MD_ROOT=D:\pipeline-data\market-data
 set SHIP_ROOT=D:\pipeline-data\shipping
 if not exist D:\pipeline-data\shipping\port-tracker\app.py (
-    echo   Chua co D:\pipeline-data\shipping\port-tracker\app.py - chay local\Run-Local-Mini.ps1 (hoac seed_drive.ps1) truoc.
+    echo   Chua co D:\pipeline-data\shipping\port-tracker\app.py - chay local\Run-Local-Mini.ps1 ^(hoac seed_drive.ps1^) truoc.
     pause
     exit /b 1
 )

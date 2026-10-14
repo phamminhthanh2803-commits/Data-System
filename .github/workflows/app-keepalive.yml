@@ -1,0 +1,46 @@
+﻿# App keepalive â€” giu app Streamlit Community Cloud luon thuc (14/10/2026 PV2: 'app on 24/24').
+# Streamlit Cloud cho app public ngu sau ~12 gio khong ai mo. Job nay mo app bang Chromium headless moi 4 gio
+# (app_keepalive.py): dang ngu -> bam danh thuc, doi render xong. Chay tay: Actions -> App keepalive -> Run workflow.
+name: App keepalive
+
+on:
+  schedule:
+    - cron: "17 */4 * * *"            # 4 gio/lan (phut 17 de tranh gio cao diem cron GitHub)
+  workflow_dispatch:
+
+concurrency:
+  group: app-keepalive
+  cancel-in-progress: false
+
+env:
+  APP_URL: https://vnstockterminal.streamlit.app/
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Lay code
+        uses: actions/checkout@v4
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cai Playwright + Chromium
+        run: |
+          pip install -q playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Mo app (danh thuc neu dang ngu)
+        run: python app_keepalive.py "$APP_URL" --timeout 420
+
+      - name: Anh man hinh (artifact 3 ngay)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keepalive-${{ github.run_id }}
+          path: keepalive.png
+          if-no-files-found: ignore
+          retention-days: 3

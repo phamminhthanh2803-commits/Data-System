@@ -17,7 +17,14 @@ try {
     Copy-Code 'market-data'; Copy-Code 'shipping'; Ensure-BondJunction
     $md = $env:MD_ROOT; $ship = $env:SHIP_ROOT; $isMon = (Get-Date).DayOfWeek -eq 'Monday'
 
-    if (-not $NoWait) { Wait-CloudStatus 'market-data/status-PM.txt' 150 5 | Out-Null }
+    # 14/10/2026: ky Market PM can xu ly = hom nay neu da qua 18:30, nguoc lai = hom qua (task chay bu luc mo may se KHONG doi
+    # 150 phut status-PM hom nay). Da xu ly ky do roi (stamp) -> thoat, de 18:40 chay dung ky.
+    $expect = $(if ((Get-Date).TimeOfDay -ge [TimeSpan]'18:30') { Get-Date -Format 'yyyy-MM-dd' } else { (Get-Date).AddDays(-1).ToString('yyyy-MM-dd') })
+    $stamp = Join-Path $script:Data 'logs\local-mini_done.txt'
+    $done = $(if (Test-Path $stamp) { (Get-Content $stamp -ErrorAction SilentlyContinue | Select-Object -First 1).Trim() } else { '' })
+    if ($done -eq $expect -and -not $NoWait) { Write-Log "ky PM $expect da xu ly luc truoc (stamp) -> khong chay lai"; exit 0 }
+    Write-Log "ky Market PM can xu ly: $expect (da xu ly gan nhat: $done)"
+    if (-not $NoWait) { Wait-CloudStatus 'market-data/status-PM.txt' 150 5 $expect | Out-Null }
 
     # --- keo ve thu muc 2 buoc can (market-valuation, index-fetcher 1 phan, vsdc, transmission)
     $steps = 'valuation-region,nganh-ck'
@@ -64,7 +71,8 @@ try {
         if ($rc -ne 0) { Write-Log "sync app exit $rc" 'WARN' }
     }
     $st = Get-Content "$md\status-PM.txt" -ErrorAction SilentlyContinue
-    Write-Log "===== KET THUC Local Mini: $st ====="
+    Set-Content -Path $stamp -Value $expect -Encoding ascii
+    Write-Log "===== KET THUC Local Mini (ky $expect): $st ====="
 } catch {
     Write-Log "NGOAI LE: $($_.Exception.Message)" 'ERROR'
 }

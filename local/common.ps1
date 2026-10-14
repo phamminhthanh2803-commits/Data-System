@@ -56,9 +56,9 @@ function Ensure-BondJunction {
     }
 }
 
-function Wait-CloudStatus([string]$relPath, [int]$maxMinutes = 150, [int]$everyMinutes = 5) {
-    # doi file status-<slot>.txt tren Drive co ngay HOM NAY (cloud da chay xong slot) - tranh 2 ben ghi de nhau
-    $rc = Find-Rclone; $today = Get-Date -Format 'yyyy-MM-dd'; $deadline = (Get-Date).AddMinutes($maxMinutes)
+function Wait-CloudStatus([string]$relPath, [int]$maxMinutes = 150, [int]$everyMinutes = 5, [string]$targetDate = '') {
+    # doi file status-<slot>.txt tren Drive co ngay $targetDate (mac dinh HOM NAY: cloud da chay xong slot) - tranh 2 ben ghi de nhau
+    $rc = Find-Rclone; $today = $(if ($targetDate) { $targetDate } else { Get-Date -Format 'yyyy-MM-dd' }); $deadline = (Get-Date).AddMinutes($maxMinutes)
     while ($true) {
         $txt = & $rc cat "$($script:Remote)/$relPath" 2>$null
         if ($txt -and ($txt -join ' ') -match $today) { Write-Log "cloud da xong ($relPath): $($txt -join ' ')"; return $true }

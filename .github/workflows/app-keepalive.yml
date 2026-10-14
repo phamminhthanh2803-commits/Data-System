@@ -1,4 +1,4 @@
-﻿# App keepalive â€” giu app Streamlit Community Cloud luon thuc (14/10/2026 PV2: 'app on 24/24').
+﻿# App keepalive - giu app Streamlit Community Cloud luon thuc (14/10/2026 PV2: 'app on 24/24').
 # Streamlit Cloud cho app public ngu sau ~12 gio khong ai mo. Job nay mo app bang Chromium headless moi 4 gio
 # (app_keepalive.py): dang ngu -> bam danh thuc, doi render xong. Chay tay: Actions -> App keepalive -> Run workflow.
 name: App keepalive

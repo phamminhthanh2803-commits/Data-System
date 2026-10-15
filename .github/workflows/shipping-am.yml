@@ -34,6 +34,7 @@ env:
   RCLONE_REMOTE: gdrive:pipeline-data
   TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
   TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  ECONDB_TOKEN: ${{ secrets.ECONDB_TOKEN }}       # buoc econdb (14/10/2026); thieu secret -> buoc tu bo qua
   ONLY: ${{ inputs.only }}
 
 jobs:

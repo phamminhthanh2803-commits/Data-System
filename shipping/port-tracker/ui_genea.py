@@ -636,16 +636,8 @@ PLOTLY_CONFIG = {"displaylogo": False, "responsive": True,
                  "toImageButtonOptions": {"format": "png", "scale": 2}}
 
 
-def _xaxis_fmt(fig, months):
-    f = "%d/%m" if months <= 3 else ("%m/%Y" if months <= 36 else "%Y")
-    fig.update_xaxes(tickformat=f, hoverformat="%d/%m/%Y")
-    if months > 36:
-        fig.update_xaxes(dtick="M12" if months <= 180 else "M24")
-
-
-def apply_rangebreaks(fig):
-    """Truc ngay: an cuoi tuan + ngay le/ngay khong co du lieu (09/10/2026 PV2: bieu do dut quang vi ve ca ngay nghi).
-    Chi ap cho chuoi theo NGAY (buoc giua cac moc <= 3 ngay); chuoi trong phien (<2 ngay) va chuoi thang/quy giu nguyen."""
+def _fig_dates(fig):
+    """Moi moc thoi gian tren truc x cua cac trace (DatetimeIndex da sap, duy nhat); None neu truc khong phai ngay."""
     xs = []
     for tr in fig.data:
         x = getattr(tr, "x", None)
@@ -654,22 +646,91 @@ def apply_rangebreaks(fig):
         try:
             xi = pd.DatetimeIndex(pd.to_datetime(pd.Index(list(x)), errors="coerce")).dropna()
         except Exception:  # noqa: BLE001
-            return
+            return None
         if len(xi):
             xs.append(xi)
     if not xs:
-        return
+        return None
     allx = xs[0]
     for o in xs[1:]:
         allx = allx.append(o)
-    if allx.max() - allx.min() < pd.Timedelta(days=2):
-        return                                                   # trong phien: khong dung
+    return pd.DatetimeIndex(allx.unique()).sort_values()
+
+
+def time_freq(idx) -> str:
+    """Khung thoi gian cua 1 chuoi moc: 'intraday' | 'D' | 'W' | 'M' | 'Q' | 'Y' (theo buoc trung vi giua cac moc)."""
+    if idx is None or len(idx) < 2:
+        return "D"
+    if idx.max() - idx.min() < pd.Timedelta(days=2):
+        return "intraday"
+    days = pd.DatetimeIndex(idx.normalize().unique()).sort_values()
+    if len(days) < 2:
+        return "intraday"
+    step = pd.Series(days[1:] - days[:-1]).median().days
+    if step <= 3:
+        return "D"
+    if step <= 10:
+        return "W"
+    if step <= 45:
+        return "M"
+    if step <= 200:
+        return "Q"
+    return "Y"
+
+
+def _quy(ts) -> str:
+    return f"Q{(ts.month - 1) // 3 + 1}/{ts.year}"
+
+
+# Nhan ky: thang -> 09/2026, quy -> Q3/2026, nam -> 2026 (moc = CUOI ky, PV2 15/10/2026)
+PERIOD_LABEL = {"M": lambda t: f"{t:%m/%Y}", "Q": _quy, "Y": lambda t: f"{t:%Y}"}
+
+
+def _xaxis_fmt(fig, months):
+    """Nhan truc x theo DUNG khung thoi gian cua du lieu (15/10/2026 PV2):
+    - chuoi ngay / trong phien: Plotly tu chia (dd/mm hoac mm/yyyy hoac yyyy theo do dai khung)
+    - chuoi tuan: nhan = ngay cuoi tuan dd/mm (them nam neu khung > 12 thang)
+    - chuoi thang / quy / nam: tick dat DUNG tai moc du lieu (cuoi ky) voi nhan 09/2026, Q3/2026, 2026 -
+      khong de Plotly tu dat tick o DAU thang/nam (lech 1 ky, de hieu nham)."""
+    idx = _fig_dates(fig)
+    fr = time_freq(idx)
+    if fr == "intraday":
+        fig.update_xaxes(tickformat="%H:%M", hoverformat="%H:%M %d/%m")
+        return
+    if fr == "D":
+        f = "%d/%m" if months <= 3 else ("%m/%Y" if months <= 36 else "%Y")
+        fig.update_xaxes(tickformat=f, hoverformat="%d/%m/%Y")
+        if months > 36:
+            fig.update_xaxes(dtick="M12" if months <= 180 else "M24")
+        return
+    if fr == "W":
+        fig.update_xaxes(tickformat="%d/%m" if months <= 12 else "%d/%m/%y", hoverformat="tuần đến %d/%m/%Y")
+        return
+    # M / Q / Y: tick tai moc du lieu
+    lab = PERIOD_LABEL[fr]
+    n = len(idx)
+    target = 10                                                 # toi da ~10 nhan tren truc
+    cands = {"M": [1, 2, 3, 6, 12, 24, 60], "Q": [1, 2, 4, 8, 20], "Y": [1, 2, 5, 10]}[fr]
+    k = next((c for c in cands if n / c <= target), cands[-1])
+    pos = list(range(n - 1, -1, -k))[::-1]                      # neo tai moc cuoi (ky moi nhat luon co nhan)
+    vals = [idx[i] for i in pos]
+    hover = {"M": "%m/%Y", "Q": "Q%q/%Y", "Y": "%Y"}[fr]
+    # dem le 2 dau truc ~0,6 ky: nhan ky cuoi (quan trong nhat) nam gon trong khung, Plotly khong an (ticklabeloverflow)
+    step = pd.Series(idx[1:] - idx[:-1]).median()
+    pad = max(step * 0.6, (idx.max() - idx.min()) * 0.03)      # >= 3% be rong truc de nhan cuoi (~45px) khong tran khung
+    fig.update_xaxes(tickmode="array", tickvals=vals, ticktext=[lab(v) for v in vals], hoverformat=hover, tickangle=0,
+                     range=[idx.min() - pad, idx.max() + pad], ticklabeloverflow="allow")
+
+
+def apply_rangebreaks(fig):
+    """Truc ngay: an cuoi tuan + ngay le/ngay khong co du lieu (09/10/2026 PV2: bieu do dut quang vi ve ca ngay nghi).
+    Chi ap cho chuoi theo NGAY (buoc giua cac moc <= 3 ngay); chuoi trong phien (<2 ngay) va chuoi tuan/thang/quy giu nguyen."""
+    allx = _fig_dates(fig)
+    if allx is None or time_freq(allx) != "D":
+        return
     days = pd.DatetimeIndex(allx.normalize().unique()).sort_values()
     if len(days) < 3:
         return
-    step = pd.Series(days[1:] - days[:-1]).median()
-    if step > pd.Timedelta(days=3):
-        return                                                   # tuan/thang/quy: khong phai ngay nghi
     full = pd.date_range(days.min(), days.max(), freq="D")
     missing = full.difference(days)
     rb = [dict(bounds=["sat", "mon"])]

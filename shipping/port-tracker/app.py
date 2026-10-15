@@ -25,6 +25,20 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import trackerlib as tl  # noqa: E402
 import livedata as ld   # noqa: E402
 import ui_genea as ui   # noqa: E402
+import econdb as ed     # noqa: E402
+import nowcast as nw    # noqa: E402
+
+
+def _fresh(mod):
+    """server Streamlit đang chạy giữ module cũ trong bộ nhớ (chỉ app.py được nạp lại) -> nạp lại khi file module đổi"""
+    import importlib
+    t = os.path.getmtime(mod.__file__)
+    if getattr(mod, '_LOADED_MTIME', None) != t:
+        mod = importlib.reload(mod); mod._LOADED_MTIME = t
+    return mod
+
+
+ed = _fresh(ed); nw = _fresh(nw)
 
 st.set_page_config(page_title='Port & Vessel Tracker', page_icon='⚓', layout='wide', initial_sidebar_state='collapsed')
 ui.inject_css()
@@ -120,7 +134,8 @@ def add_measure(df):
 
 
 def bucket(s, freq):
-    return s.dt.to_period('W-SUN').dt.start_time if freq == 'Tuần' else s.dt.to_period('M').dt.to_timestamp()
+    """kỳ = mốc CUỐI kỳ: tuần -> Chủ nhật, tháng -> ngày cuối tháng (chuẩn chung 15/10/2026)"""
+    return s.dt.to_period('W-SUN').dt.end_time.dt.normalize() if freq == 'Tuần' else s.dt.to_period('M').dt.to_timestamp('M')
 
 
 def by_period(df, lo=None, hi=None):
@@ -128,12 +143,12 @@ def by_period(df, lo=None, hi=None):
     d = df[(df['arr_day'] >= pd.Timestamp(lo if lo is not None else LO)) & (df['arr_day'] <= pd.Timestamp(hi if hi is not None else LAST))].copy()
     if d.empty: return d
     d['ky'] = bucket(d['arr_day'], FREQ)
-    cur = bucket(pd.Series([LAST]), FREQ).iloc[0]
-    end = (cur + pd.offsets.MonthEnd(0)) if FREQ == 'Tháng' else cur + pd.Timedelta(days=6)
-    if LAST < end: d = d[d['ky'] < cur]
+    cur = bucket(pd.Series([LAST]), FREQ).iloc[0]                 # mốc cuối kỳ hiện tại
+    if LAST < cur: d = d[d['ky'] < cur]                            # kỳ cuối chưa trọn
     first = d['ky'].min() if len(d) else None
-    if first is not None and d.loc[d['ky'] == first, 'arr_day'].min() > first + pd.Timedelta(days=2 if FREQ == 'Tuần' else 5):
-        d = d[d['ky'] > first]
+    if first is not None:
+        p0 = first - pd.Timedelta(days=6) if FREQ == 'Tuần' else first.replace(day=1)     # ngày đầu kỳ đầu tiên
+        if d.loc[d['ky'] == first, 'arr_day'].min() > p0 + pd.Timedelta(days=2 if FREQ == 'Tuần' else 5): d = d[d['ky'] > first]
     return d
 
 
@@ -203,9 +218,10 @@ def dl_row(df, name, key):
 
 
 # ================================================================ điều hướng + deep-link
-PAGES = {'tong-quan': 'Tổng quan', 'hang-tau': 'Hãng tàu & tàu', 'dieu-do': 'Điều độ & cảnh báo', 'tuyen': 'Tuyến', 'du-lieu': 'Dữ liệu'}
+PAGES = {'tong-quan': 'Tổng quan', 'hang-tau': 'Hãng tàu & tàu', 'dieu-do': 'Điều độ & cảnh báo', 'tuyen': 'Tuyến',
+         'san-luong': 'Sản lượng', 'du-lieu': 'Dữ liệu'}
 LEVELS = {'toan-quoc': 'Toàn quốc', 'cang-vu': 'Từng cảng vụ', 'cang': 'Từng cảng'}
-CU = {'ben-cang': 'tong-quan', 'tau': 'hang-tau', 'canh-bao': 'dieu-do'}            # slug trang cũ
+CU = {'ben-cang': 'tong-quan', 'tau': 'hang-tau', 'canh-bao': 'dieu-do', 'econdb': 'san-luong', 'du-bao': 'san-luong'}            # slug trang cũ
 ALL_AUTHS = list(ld.AUTHS)
 
 
@@ -655,7 +671,7 @@ def page_lanes(level, auth, term, K):
     with b:
         with ui.card('Chặng theo tháng', unit=mlab, key=f'{K}_series', periods=PER, default='2Y', end=LAST, compact=True) as cd:
             pick = st.multiselect('Chặng theo dõi (tối đa 6)', order, default=order[:4], max_selections=6, key=f'{K}_pick')
-            g = L[L['lane'].isin(pick) & (L['month'] >= pd.Timestamp(cd.d0)) & (L['month'] <= pd.Timestamp(cd.d1)) & (L['month'] < LAST.to_period('M').to_timestamp())]
+            g = L[L['lane'].isin(pick) & (L['month'] >= pd.Timestamp(cd.d0)) & (L['month'] <= pd.Timestamp(cd.d1)) & (L['month'] < tl.me(LAST))]
             w = g.groupby(['month', 'lane'])[mcol].sum().unstack('lane').reindex(columns=[k for k in order if k in pick]).fillna(0)
             w.index = pd.DatetimeIndex(w.index); w.index.name = 'Tháng'
             cd.chart(ui.fig_line(w, unit=mlab, zero=True, hover_nd=0), w, last=LAST, ten='chang_theo_thang')
@@ -718,6 +734,478 @@ def page_data(level, auth, term, K):
         cd.table(d.sort_values('arr_day', ascending=False).head(5000).reset_index(drop=True), ten='du_lieu_theo_bo_loc', height=420, df_export=d)
 
 
+# ================================================================ TRANG 6: SẢN LƯỢNG - thực tế EconDB (container full / throughput terminal) + ước/dự báo hồi quy
+@st.cache_data(show_spinner=False, max_entries=2)
+def get_econdb(stamp): return ed.load()
+
+
+ED_PER = ['6M', '1Y', '2Y', '3Y', 'All']
+ED_REGION = {'China': 'Trung Quốc', 'Korea & Japan': 'Hàn Quốc & Nhật Bản', 'North America East': 'Bờ Đông Bắc Mỹ', 'North America West': 'Bờ Tây Bắc Mỹ',
+             'US GOM': 'Vịnh Mexico (Mỹ)', 'North West Europe': 'Tây Bắc Âu', 'West Mediterranean': 'Tây Địa Trung Hải', 'South east Asia': 'Đông Nam Á',
+             'Southeast Asia': 'Đông Nam Á', 'Central America': 'Trung Mỹ', 'East South America': 'Đông Nam Mỹ', 'West Africa': 'Tây Phi', 'India': 'Ấn Độ',
+             'Africa': 'Châu Phi', 'East Asia': 'Đông Á', 'Europe': 'Châu Âu', 'Latin America': 'Mỹ Latinh', 'Middle East': 'Trung Đông',
+             'North America': 'Bắc Mỹ', 'South Asia': 'Nam Á'}
+ED_NAME = {**ed.VN_PORTS, **ed.PEERS, **ed.PARTNERS, **ed.SERIES_VN, **ED_REGION, 'Unknown': 'Chưa rõ', 'Others': 'Khác'}
+
+
+def ed_wide(s, metric, scopes=None, by='series', flow=True):
+    """chuỗi EconDB -> bảng rộng kỳ × (series|scope). Chuỗi tuần: Độ phân giải 'Tháng' cộng tuần thành tháng (bỏ tháng đầu/cuối chưa trọn).
+    flow=False (ngày nằm bãi): gộp nhiều cảng bằng bình quân."""
+    d = s[s['metric'] == metric]
+    if scopes is not None: d = d[d['scope'].isin(scopes)]
+    d = d[d['date'] <= TODAY]                                   # sức chở theo tuyến có lịch tương lai
+    if d.empty: return pd.DataFrame()
+    w = d.pivot_table(index='date', columns=by, values='value', aggfunc='sum' if flow else 'mean').sort_index()
+    weekly = len(w) > 2 and w.index.to_series().diff().median() <= pd.Timedelta(days=8)
+    if weekly and FREQ == 'Tháng' and flow:
+        # chia đều mỗi tuần cho 7 ngày rồi cộng theo tháng dương lịch (cộng theo thứ Hai thì tháng có 5 tuần nhảy vọt)
+        first, last = w.index.min(), w.index.max()
+        dd = (w / 7).reindex(pd.date_range(first, last + pd.Timedelta(days=6), freq='D')).ffill(limit=6)
+        w = dd.groupby(tl.me(dd.index)).sum(min_count=1)
+        if last + pd.Timedelta(days=6) < last + pd.offsets.MonthEnd(0): w = w.iloc[:-1]
+        if first.day > 1: w = w.iloc[1:]
+    elif weekly:
+        w.index = w.index + pd.Timedelta(days=6)                 # EconDB ghi thứ Hai đầu tuần -> Chủ nhật cuối tuần
+    else:
+        w.index = tl.me(w.index)                                 # EconDB ghi 01 tháng -> cuối tháng
+    w = w.rename(columns=lambda c: ED_NAME.get(c, c))
+    w = w.T.groupby(level=0).sum(min_count=1).T if flow else w.T.groupby(level=0).mean().T   # gộp tên trùng (Transshipment/s)
+    w.index = pd.DatetimeIndex(w.index); w.index.name = 'Kỳ'
+    return w
+
+
+def ed_top(w, n=7):
+    """giữ n cột lớn nhất (theo 24 tháng gần nhất, thứ tự cố định để màu không đổi khi đổi kỳ) + Khác; 'Chưa rõ' để riêng ở cuối"""
+    if w.empty: return w
+    rec = w[w.index >= w.index.max() - pd.DateOffset(months=24)]
+    order = [c for c in rec.sum().sort_values(ascending=False).index if c not in ('Khác', 'Chưa rõ')]
+    keep = order[:n]; rest = [c for c in w.columns if c not in keep and c != 'Chưa rõ']
+    out = w[keep].copy()
+    if rest: out['Khác'] = w[rest].sum(axis=1, min_count=1)
+    if 'Chưa rõ' in w: out['Chưa rõ'] = w['Chưa rõ']
+    return out
+
+
+def _norm(x): return ''.join(ch for ch in str(x).upper() if ch.isalnum())
+
+
+# ---- mô hình ước/dự báo (nowcast.py)
+def nc_visits():
+    """luôn dùng lượt cập bến tàu container, không theo bộ lọc Loại tàu"""
+    return visits[visits['is_container']]
+
+
+def nc_auth(auth, E):
+    """cấp cảng vụ = hồi quy RIÊNG từng cảng EconDB thuộc cảng vụ (biến = bến thuộc cảng, thực tế = container full cảng) rồi cộng"""
+    lcs = ed.AUTH_LOCODES.get(auth)
+    if not lcs or E['series'].empty: return None
+    key = ('nc_auth', auth, KEY, ed.stamp())
+    cache = st.session_state.setdefault('_nc', {})
+    if key not in cache:
+        v = nc_visits(); cache[key] = nw.fit_ports(v[v['auth'] == auth], E['series'], lcs, ed.terminal_port(auth), LAST)
+    return cache[key]
+
+
+def nc_matched(auth, E):
+    """lượt tàu EconDB của các cảng thuộc cảng vụ, ghép với bến cảng vụ (tên tàu + giờ đến)"""
+    lcs = ed.AUTH_LOCODES.get(auth); cl = E['calls']
+    if not lcs or cl.empty: return None, None
+    key = ('nc_match', auth, KEY, ed.stamp())
+    cache = st.session_state.setdefault('_nc', {})
+    if key not in cache:
+        c = cl[cl['locode'].isin(lcs)]; v = nc_visits()
+        cache[key] = (nw.match_calls(c, v[v['auth'] == auth]), c)
+    return cache[key]
+
+
+def nc_pooled(auth, E):
+    """hệ số chung THEO NHÓM bến (nước sâu / sông lớn / sông nhỏ, nowcast.terminal_class) từ các bến có số công bố của cảng vụ;
+    cảng vụ không có bến công bố thì gộp toàn quốc. Trả về ({nhóm: hệ số}, phạm vi)"""
+    T = nw.load_targets()
+    key = ('nc_pooled', auth, KEY, os.path.getmtime(nw.TARGETS) if os.path.exists(nw.TARGETS) else 0)
+    cache = st.session_state.setdefault('_nc', {})
+    if key in cache: return cache[key]
+    v = nc_visits()
+
+    def pairs(auths):
+        out = []
+        for a in auths:
+            va = v[v['auth'] == a]
+            for g in T.loc[T['auth'] == a, 'terminal'].drop_duplicates():
+                members = [nw.nfc(x.strip()) for x in str(g).split('+')]
+                f = nw.features(va[va['terminal'].map(nw.nfc).isin(members)], LAST)
+                if len(f): out.append((f, nw.target_series(T, a, members[0])))
+        return out
+    pools = nw.pooled_by_class(pairs([auth])); scope = tl.AUTH_LABEL.get(auth, auth)
+    if not pools.get('chung'):
+        pools = nw.pooled_by_class(pairs(sorted(T['auth'].unique()))); scope = 'toàn quốc'
+    cache[key] = (pools, scope)
+    return cache[key]
+
+
+def nc_term(auth, term, E, ra):
+    """bến: thực tế = container full EconDB cảng × tỷ trọng bến (lượt EconDB ghép được). Đủ tháng -> hồi quy riêng (res);
+    chưa đủ -> bảng phân bổ (view) = ước/dự báo cảng vụ × tỷ trọng TB 3 tháng gần nhất."""
+    lcs = ed.AUTH_LOCODES.get(auth)
+    if not lcs: return None
+    force = st.session_state.get(f'nc_force_{auth}_{nw.nfc(term)}')          # PV2 chọn tay mô hình cho bến (chip "So sánh mô hình")
+    force = force if force in nw.MODELS else None
+    key = ('nc_term', auth, term, KEY, ed.stamp(), nw.MIN_TRAIN_TERM, os.path.getmtime(nw.TARGETS) if os.path.exists(nw.TARGETS) else 0, force)
+    cache = st.session_state.setdefault('_nc', {})
+    if key in cache: return cache[key]
+    v = nc_visits(); va = v[v['auth'] == auth]; ft = nw.features(va[va['terminal'].map(nw.nfc) == nw.nfc(term)], LAST)
+    port = nw.econdb_monthly(E['series'], lcs)                    # mùa vụ cho dự báo bến lấy từ chuỗi cảng (mượt hơn)
+    ts = nw.terminal_series(E['series'], lcs, ed.TERMINAL_MAP, term, TODAY)
+    # 0) bến có số CÔNG BỐ (nowcast_targets.csv) -> ưu tiên: EconDB terminal chỉ đếm container có hàng, lệch dần so công bố
+    T = nw.load_targets(); pub = nw.target_series(T, auth, term); grp = nw.target_group(T, auth, term)
+    if len(pub) >= nw.MIN_TRAIN_TERM + 3:
+        members = [x.strip() for x in grp.split('+')]
+        fg = ft if len(members) == 1 else nw.features(va[va['terminal'].map(nw.nfc).isin([nw.nfc(x) for x in members])], LAST)   # nhóm: biến gộp các bến
+        res = nw.run(fg, pub, min_train=nw.MIN_TRAIN_TERM, seasonal_ref=port, force=force)
+        if res is not None:
+            if len(members) > 1 and len(ts): ts = nw.terminal_series(E['series'], lcs, ed.TERMINAL_MAP, members[0], TODAY)
+            for x in members[1:]: ts = ts.add(nw.terminal_series(E['series'], lcs, ed.TERMINAL_MAP, x, TODAY), fill_value=0) if len(members) > 1 else ts
+            cache[key] = {'res': res, 'group': grp if len(members) > 1 else None, 'econ': ts,
+                          'src': f'số công bố {"gộp " + " + ".join(members) + " " if len(members) > 1 else ""}({pub.index.min():%m/%Y}–{pub.index.max():%m/%Y}, nowcast_targets.csv)'}
+            return cache[key]
+    # 0b) bến KHÔNG có / thiếu số công bố -> HỆ SỐ CHUNG rút từ các bến đã có số công bố (cùng cảng vụ, không đủ thì toàn quốc)
+    pools, pscope = nc_pooled(auth, E); cls = nw.terminal_class(ft)
+    pooled = pools.get(cls) or pools.get('chung')
+    if pooled is not None:
+        res = nw.apply_pooled(ft, pooled, pub if len(pub) else None, port)
+        if res is not None:
+            cache[key] = {'res': res, 'econ': ts, 'cls': cls,
+                          'src': f'hệ số nhóm "{pooled["label"]}" ({pooled["n_terms"]} bến công bố {pscope}; bến này xếp nhóm {cls}: {nw.CLASS_RULES[cls]}; '
+                          + ' · '.join(f'{c} × {v:.2f}' for c, v in pooled['coef'].items()) + ')'}
+            return cache[key]
+    # 1) bến có mã terminal EconDB (TERMINAL_MAP) -> throughput từng terminal từ 2022 -> TỰ hồi quy cho chính nó
+    if len(ts):
+        res = nw.run(ft, ts, min_train=nw.MIN_TRAIN_TERM, seasonal_ref=port, force=force)
+        if res is not None:
+            codes = ', '.join(k for lc in lcs for k, t in ed.TERMINAL_MAP.get(lc, {}).items() if nw.nfc(term) in nw._members(t))
+            cache[key] = {'res': res, 'src': f'throughput terminal EconDB ({codes})'}
+            return cache[key]
+    # 2) bến không có mã terminal EconDB (hoặc chưa đủ tháng): tỷ trọng từ lượt tàu EconDB ghép được với bến
+    matched, c = nc_matched(auth, E)
+    if matched is None or matched.empty: return None
+    port = nw.econdb_monthly(E['series'], lcs)
+    act, sh = nw.terminal_actual(port, matched, term, c)
+    res = nw.run(ft, act, min_train=nw.MIN_TRAIN_TERM, seasonal_ref=port, force=force) if len(act) >= nw.MIN_TRAIN_TERM + 3 else None
+    view = None
+    if res is None and ra is not None:
+        d = ra['data']; full_sh = sh[sh.index.isin(act.index)]
+        sh_avg = full_sh.iloc[-3:].mean() if len(full_sh) else np.nan
+        est_rows = d[d['actual'].isna()]
+        view = pd.concat([
+            pd.DataFrame({'actual': act, 'kind': 'thực tế', 'port': port.reindex(act.index), 'share': full_sh}),
+            pd.DataFrame({'actual': np.nan, 'kind': est_rows['kind'], 'port': est_rows['est'], 'share': sh_avg,
+                          'est': est_rows['est'] * sh_avg, 'lo': est_rows['lo'] * sh_avg, 'hi': est_rows['hi'] * sh_avg}, index=est_rows.index)])
+        view['backtest'] = np.nan; view.index.name = 'Tháng'
+    out = {'res': res, 'view': view, 'act': act, 'share': sh, 'match_rate': matched.attrs.get('match_rate', np.nan),
+           'src': 'container full EconDB cảng × tỷ trọng container xếp dỡ của bến (lượt tàu EconDB)'}
+    cache[key] = out
+    return out
+
+
+def fig_nowcast(d, bt_name):
+    fig = go.Figure()
+    a = d['actual']; W = 22 * 86400000                  # độ rộng cột cố định (ms): trace 1 điểm thì Plotly vẽ cột mảnh gần như vô hình
+    fig.add_trace(go.Bar(x=d.index, y=a, name='Thực tế', marker_color=TOK['gray'], width=W, hovertemplate='%{y:,.0f}<extra>Thực tế</extra>'))
+    for kind, col in [('nowcast', TOK['orange']), ('nowcast (tháng đang chạy)', TOK['orange_light']),
+                      ('dự báo tháng tới', TOK['tan'])]:
+        x = d[d['kind'] == kind]
+        if x.empty: continue
+        fig.add_trace(go.Bar(x=x.index, y=x['est'], name=kind[0].upper() + kind[1:], marker_color=col, width=W,
+                             error_y=dict(type='data', symmetric=False, array=(x['hi'] - x['est']).values, arrayminus=(x['est'] - x['lo']).values,
+                                          color=TOK['ink3'], thickness=1.2, width=4),
+                             hovertemplate='%{y:,.0f}<extra>' + kind + '</extra>'))
+    if 'modeled' in d:                                     # model fit (hệ số cuối) suốt lịch sử, như biểu đồ "Model Fit" của PV2
+        f = d.loc[d['kind'] != 'nowcast (tháng đang chạy)', 'modeled'].dropna()      # tháng đang chạy mới vài ngày -> fit quy đổi nhiễu, không vẽ
+        fig.add_trace(go.Scatter(x=f.index, y=f.values, name=f'Mô hình fit ({bt_name.split(":")[0]})' if bt_name else 'Mô hình fit', mode='lines+markers',
+                                 line=dict(color=TOK['down'], width=2, dash='dash'), marker=dict(size=5), hovertemplate='%{y:,.0f}<extra>Mô hình fit</extra>'))
+    b = d['backtest'].dropna() if bt_name else pd.Series(dtype=float)
+    if len(b) and 'modeled' in d and b.equals(d['modeled'].reindex(b.index)): b = b.iloc[0:0]      # hệ số chung: backtest = fit -> không vẽ trùng
+    if len(b):
+        fig.add_trace(go.Scatter(x=b.index, y=b.values, name='Backtest ngoài mẫu', mode='markers', marker=dict(size=6, color=TOK['brown'], symbol='diamond'),
+                                 hovertemplate='%{y:,.0f}<extra>Backtest ngoài mẫu</extra>'))
+    fig.update_layout(height=380, barmode='overlay', bargap=0.25, yaxis=dict(title='TEU / tháng', rangemode='tozero'))
+    return fig
+
+
+def vn_total(E):
+    """tổng các cảng vụ có EconDB = combine() các mô hình cảng vụ (thực tế + ước/dự báo cộng theo tháng)"""
+    parts = {tl.AUTH_LABEL[a]: nc_auth(a, E) for a in ed.AUTH_LOCODES}
+    return nw.combine(parts, f'tổng {sum(1 for p in parts.values() if p)} cảng vụ')
+
+
+def terminal_rows(auth, E, ra):
+    """1 dòng/bến có mã terminal EconDB thuộc cảng vụ, mỗi bến tự hồi quy (nc_term); sắp theo thực tế giảm dần"""
+    s = E['series']; rows = []; seen = set()
+    tser = s[(s['metric'] == 'term_throughput') & s['scope'].isin(ed.AUTH_LOCODES.get(auth, []))][['scope', 'series']].drop_duplicates()
+    for lc, k in tser.itertuples(index=False):
+        t = ed.TERMINAL_MAP.get(lc, {}).get(k)
+        tt = nc_term(auth, nw._members(t)[0], E, ra) if t else None
+        if not tt or tt.get('res') is None: continue
+        label = tt.get('group') or nw._members(t)[0]          # bến công bố gộp (Chùa Vẽ + Tân Vũ) chỉ 1 dòng
+        if label in seen: continue
+        seen.add(label); rows.append({'Phạm vi': label.replace('+', ' + '), **nw.summary(tt['res'])})
+    return sorted(rows, key=lambda r: -(r.get('TEU thực tế cuối') or 0))
+
+
+def parts_note(res):
+    """1 dòng mô tả các mô hình thành phần (từng cảng / cảng vụ)"""
+    ps = res.get('parts') or {}
+    if len(ps) <= 1: return ''
+    return 'Hồi quy riêng: ' + '; '.join(f'{ed.VN_PORTS.get(k, k)} ({p["best"].split(":")[0]}, MAPE ' + f'{p["mape"][p["best"]]:.1f}%'.replace('.', ',') + ')'
+                                          for k, p in ps.items()) + ' → cộng lại.'
+
+
+def vol_model(level, auth, term, E):
+    """dict(d = bảng tháng actual/est/lo/hi/kind/backtest, res = kết quả hồi quy hoặc None, src, note)"""
+    if level == 'toan-quoc':
+        r = vn_total(E)
+        if r is None: return None
+        return {'d': r['data'], 'res': r, 'src': 'tổng container full EconDB của ' + ', '.join(tl.AUTH_LABEL[a] for a in ed.AUTH_LOCODES),
+                'note': parts_note(r)}
+    ra = nc_auth(auth, E)
+    if level == 'cang-vu':
+        if ra is None: return None
+        return {'d': ra['data'], 'res': ra, 'src': 'container full EconDB (' + ' + '.join(ed.VN_PORTS[x] for x in ed.AUTH_LOCODES[auth]) + ')',
+                'note': parts_note(ra)}
+    tt = nc_term(auth, term, E, ra)
+    if not tt: return None
+    if tt.get('res') is not None: return {'d': tt['res']['data'], 'res': tt['res'], 'src': tt['src'], 'econ': tt.get('econ')}
+    if tt.get('view') is None or tt['act'].empty: return None
+    return {'d': tt['view'], 'res': None, 'src': tt['src'], 'share': tt['share'],
+            'note': f'Bến chưa có chuỗi terminal EconDB đủ dài → ước/dự báo = ước/dự báo cảng vụ × tỷ trọng TB 3 tháng '
+                    f'(ghép được {tt["match_rate"] * 100:.0f}% lượt tàu EconDB).'}
+
+
+def vol_kpis(m, s, scopes):
+    d = m['d']; res = m['res']; a = d['actual'].dropna()
+    rng = lambda r: f"{fmt_int(r['lo'])} – {fmt_int(r['hi'])}"  # noqa: E731
+
+    def yoy(k, v):
+        ly = nw.ly(k)
+        return v / d.loc[ly, 'actual'] - 1 if ly in d.index and pd.notna(d.loc[ly, 'actual']) and d.loc[ly, 'actual'] else None
+    items = []
+    if len(a):
+        y = yoy(a.index[-1], a.iloc[-1])
+        items.append((f'Thực tế T{a.index[-1]:%m/%Y}', fmt_int(a.iloc[-1]), f'{fmt_pct(y) or "–"} cùng kỳ', 0 if y is None else (1 if y >= 0 else -1)))
+    for k, r in d[d['actual'].isna()].iloc[-2:].iterrows():
+        y = yoy(k, r['est'])
+        items.append((f'{"Dự báo" if r["kind"] == "dự báo tháng tới" else "Ước"} T{k:%m/%Y}', fmt_int(r['est']),
+                      rng(r) + (f' · {fmt_pct(y)} cùng kỳ' if y is not None else ''), 0 if y is None else (1 if y >= 0 else -1)))
+    if res:
+        mm = res['mape']; b = res['best']
+        mr = res.get('mape_recent') or {}; nv = mm.get(nw.NAIVE)
+        if res.get('pooled'):
+            items.append(('Sai số hệ số chung', f'{mm[b]:.1f}%'.replace('.', ','), 'trong mẫu gộp các bến công bố · chưa backtest riêng', 0))
+        else:
+            items.append(('Sai số mô hình (MAPE)', f'{mm[b]:.1f}%'.replace('.', ','),
+                          (f'{b.split(":")[0]}' + (f' · 6 tháng gần {mr[b]:.1f}%' if b in mr else '') + (f' · naive {nv:.1f}%' if nv is not None else '')).replace('.', ','),
+                          0 if nv is None else (1 if mm[b] < nv else -1)))
+    dw = s[(s['metric'] == 'dwell') & s['scope'].isin(scopes) & (s['series'] == 'Imports')].groupby('date')['value'].mean().sort_index()
+    if len(dw) >= 2 and len(items) < 5:
+        dd = dw.iloc[-1] - dw.iloc[-2]
+        items.append((f'Nằm bãi hàng nhập T{dw.index[-1]:%m}', f'{fmt_h(dw.iloc[-1])} ngày', f'{dd:+.1f} ngày so tháng trước'.replace('.', ','),
+                      -1 if dd > 0 else 1))
+    ui.kpi_strip(items)
+
+
+VOL_CHIPS = {'toan-quoc': ['Thực tế & dự báo', 'Theo chiều', 'Theo cảng', 'XK theo nước', 'NK theo nước', 'So khu vực'],
+             'cang-vu': ['Thực tế & dự báo', 'Theo chiều', 'Theo terminal', 'Theo hãng', 'XK theo đối tác', 'NK theo đối tác'],
+             'cang': ['Thực tế & dự báo', 'Tỷ trọng trong cảng vụ']}
+# chip -> (chỉ tiêu EconDB, cột tách, giữ top n, kỳ gần nhất thấp giả)
+VOL_SPLIT = {'Theo chiều': ('traffic', 'series', None, False), 'Theo cảng': ('traffic', 'scope', None, False),
+             'Theo terminal': ('term_throughput', 'series', 8, False), 'Theo hãng': ('cap_throughput', 'series', 7, False),
+             'XK theo nước': ('p2p_export', 'series', 7, True), 'NK theo nước': ('p2p_import', 'series', 7, True),
+             'XK theo đối tác': ('partner_export', 'series', None, True), 'NK theo đối tác': ('partner_import', 'series', None, True)}
+
+
+def page_volume(level, auth, term, K):
+    """TRANG SẢN LƯỢNG: thực tế EconDB + ước/dự báo hồi quy (nowcast.py) trong cùng 1 thẻ, tách theo chiều/cảng/terminal/hãng/đối tác,
+    1 thẻ chi tiết (bảng tháng, so sánh mô hình, nằm bãi, lịch tàu, lượt ghé)"""
+    E = get_econdb(ed.stamp()); s = E['series']
+    if s.empty:
+        ui.card_empty('Sản lượng', note_text='Chưa có dữ liệu EconDB (store/econdb/). Chạy bước pipeline "econdb" (cần biến môi trường ECONDB_TOKEN).'); return
+    ui.DATA_MIN = date(2022, 1, 1)
+    scopes = list(ed.VN_PORTS) if level == 'toan-quoc' else ed.AUTH_LOCODES.get(auth, [])
+    if not scopes:
+        ui.card_empty('Sản lượng', note_text=f'EconDB không theo dõi cảng thuộc {tl.AUTH_LABEL[auth]} (chỉ Hải Phòng, TP.HCM – Cái Mép, Đà Nẵng, Đồng Nai).'); return
+    name = 'Việt Nam' if level == 'toan-quoc' else (tl.AUTH_LABEL[auth] if level == 'cang-vu' else f'{term} ({tl.AUTH_LABEL[auth]})')
+    m = vol_model(level, auth, term, E)
+    ui.h2(f'Sản lượng container · {name}')
+    if m: vol_kpis(m, s, scopes)
+    unit = 'TEU / ' + FREQ.lower()
+    chips = VOL_CHIPS[level] if m else ([c for c in VOL_CHIPS[level] if c in VOL_SPLIT or c == 'So khu vực'] or ['Theo chiều'])
+
+    # ---- thẻ chính
+    with ui.card('Sản lượng container', unit='TEU có hàng xếp dỡ (EconDB)', key=f'{K}_vol', periods=ED_PER, default='2Y', end=TODAY,
+                 chips=chips, chip_default=chips[0], chip_label='Xem',
+                 help='Thực tế = EconDB (container full của cảng / throughput từng terminal). Ước/dự báo = hồi quy không hệ số chặn trên biến cảng vụ '
+                      '(giờ nằm bến, sức chở TEU, số lượt), chọn mô hình theo sai số backtest ngoài mẫu; gạch = khoảng ± MAPE; đường nâu = backtest.') as cd:
+        ch = cd.chip if cd.chip in chips else chips[0]
+        if ch == 'Thực tế & dự báo':
+            dd = m['d'][m['d'].index >= cd.d0]
+            note = f'Thực tế: {m["src"]}. ' + (m.get('note') or '')
+            r = m['res']
+            if r and nw.NAIVE in r['mape'] and r['mape'][r['best']] >= r['mape'][nw.NAIVE] and r.get('n_bt', 99) >= 6:
+                note += ' ⚠ Mô hình chưa tốt hơn "lấy tháng trước" → dùng số dự báo thận trọng.'
+            elif r and not r.get('pooled') and r.get('n_bt', 99) < 6:
+                note += f' Chỉ {r["n_bt"]} tháng backtest chung → sai số chưa đáng tin.'
+            fig = fig_nowcast(dd, m['res']['best'] if m['res'] else '')
+            econ = m.get('econ')
+            if econ is not None and len(econ):            # bến dùng số công bố: vẽ thêm EconDB (full) để đối chiếu
+                e = econ[econ.index >= cd.d0]
+                fig.add_trace(go.Scatter(x=e.index, y=e.values, name='EconDB (full)', mode='lines', line=dict(color=TOK['ink3'], width=1.5, dash='dot'),
+                                         hovertemplate='%{y:,.0f}<extra>EconDB full</extra>'))
+                dd = dd.join(e.rename('econdb_full'))
+                note += ' Đường chấm xám = EconDB chỉ đếm container có hàng nên thấp hơn số công bố.'
+            cd.chart(fig, dd[[c for c in ['actual', 'backtest', 'est', 'lo', 'hi', 'kind', 'econdb_full'] if c in dd]].round(0),
+                     ten=f'san_luong_{_norm(name)}', note_text=note)
+        elif ch == 'Tỷ trọng trong cảng vụ':
+            v = nc_visits(); va = v[v['auth'] == auth]
+            ft = nw.features(va[va['terminal'].map(nw.nfc) == nw.nfc(term)], LAST); fa = nw.features(va, LAST)
+            w = pd.DataFrame({'Theo giờ nằm bến (cảng vụ)': ft['hours'] / fa['hours'].replace(0, np.nan) * 100})
+            ts = nw.terminal_series(s, scopes, ed.TERMINAL_MAP, term, TODAY)
+            if len(ts): w = w.join((ts / nw.econdb_monthly(s, scopes).reindex(ts.index) * 100).rename('Theo throughput EconDB'), how='outer')
+            if m and m.get('share') is not None: w = w.join((m['share'] * 100).rename('Theo container xếp dỡ (EconDB)'), how='outer')
+            w = cd.cut(w[w.index < tl.me(TODAY)]); w.index.name = 'Tháng'
+            cd.chart(ui.fig_line(w, unit='% cảng vụ', zero=True, hover_nd=1), w.round(1), ten=f'ty_trong_{_norm(term)}')
+        elif ch == 'So khu vực':
+            vn = ed_wide(s, 'traffic', scopes).sum(axis=1, min_count=1).rename('Việt Nam')
+            pw = ed_wide(s, 'traffic', list(ed.PEERS), by='scope')
+            w = cd.cut(pd.concat([vn, pw], axis=1))
+            show = w[['Việt Nam'] + [c for c in ['Singapore', 'Tanjung Pelepas', 'Port Klang', 'Laem Chabang'] if c in w]]
+            cd.chart(ui.fig_line(show, unit=unit, zero=True, hover_nd=0), w, ten='so_khu_vuc', note_text='Container full EconDB; tệp tải về có đủ 13 cảng khu vực.')
+        else:
+            metric, by, top, lag = VOL_SPLIT[ch]
+            w = ed_wide(s, metric, ['VN'] if metric.startswith('p2p') else scopes, by=by)
+            if metric == 'term_throughput':
+                tmap = {k: nw._members(t)[0] for lc in scopes for k, t in ed.TERMINAL_MAP.get(lc, {}).items()}
+                w = w.rename(columns=lambda c: tmap.get(c, c)); w = w[w.index < tl.me(TODAY)]
+            if top: w = ed_top(w, n=top)
+            w = cd.cut(w)
+            cd.chart(ui.fig_stack(w, unit=unit), w, ten=f'{metric}_{_norm(name)}',
+                     note_text='Kỳ gần nhất thường thấp giả: EconDB bổ sung cảng đích/hãng dần sau khi tàu rời.' if lag else None)
+
+    # ---- thẻ chi tiết
+    if level == 'toan-quoc':
+        rows = []
+        for a in ed.AUTH_LOCODES:
+            r = nc_auth(a, E)
+            if not r: continue
+            rows.append({'Phạm vi': tl.AUTH_LABEL[a], **nw.summary(r)})
+            if len(r.get('parts') or {}) > 1:
+                for lc, p in r['parts'].items(): rows.append({'Phạm vi': f'   ○ {ed.VN_PORTS.get(lc, lc)}', **nw.summary(p)})
+            rows += [{**row, 'Phạm vi': '   └ ' + row['Phạm vi']} for row in terminal_rows(a, E, r)]
+        with ui.card('Ước và dự báo theo cảng vụ, bến', unit='TEU / tháng', key=f'{K}_vol_tbl', controls=False,
+                     help='Mỗi dòng = 1 mô hình riêng; thực tế cảng vụ = container full EconDB, bến = throughput terminal EconDB.') as cd:
+            if rows: cd.table(pd.DataFrame(rows).drop(columns=['Số tháng huấn luyện'], errors='ignore').round(1), ten='du_bao_cang_vu_ben',
+                              height=min(560, 60 + 36 * len(rows)))
+            else: cd.empty('Chưa đủ dữ liệu')
+        return
+    tabs = (['Bảng tháng', 'So sánh mô hình'] if m and m['res'] else ['Bảng tháng'] if m else []) + \
+           (['Theo bến'] if level == 'cang-vu' else ['Số công bố']) + ['Nằm bãi', 'Lịch tàu', 'Lượt ghé']
+    with ui.card('Chi tiết', key=f'{K}_vol_det', controls=False, chips=tabs, chip_default=tabs[0], chip_label='Chi tiết') as cd:
+        ch = cd.chip if cd.chip in tabs else tabs[0]
+        if ch == 'Bảng tháng':
+            cols = [c for c in ['kind', 'actual', 'backtest', 'est', 'lo', 'hi', 'calls', 'teu', 'hours', 'days_obs', 'share'] if c in m['d']]
+            t = m['d'][cols].iloc[::-1].copy(); t.index = t.index.strftime('%m/%Y')
+            cd.table(t.rename(columns={'kind': 'Loại', 'actual': 'Thực tế', 'backtest': 'Backtest', 'est': 'Ước/dự báo', 'lo': 'Thấp', 'hi': 'Cao',
+                                       'calls': 'Lượt (cảng vụ)', 'teu': 'Sức chở TEU', 'hours': 'Giờ bến', 'days_obs': 'Số ngày dữ liệu',
+                                       'share': 'Tỷ trọng'}).round(3), ten=f'bang_thang_{_norm(name)}', height=380)
+        elif ch == 'So sánh mô hình':
+            ps = m['res'].get('parts') or {}
+            if len(ps) > 1:          # cảng vụ nhiều cảng: bảng mô hình từng cảng
+                t = pd.DataFrame([{'Cảng': ed.VN_PORTS.get(k, k), 'Mô hình': p['best'], 'MAPE (%)': p['mape'][p['best']], 'Naive (%)': p['mape'][nw.NAIVE],
+                                   'Tháng huấn luyện': p['n_train'], 'Hệ số': ' · '.join(f'{c} × {v:.2f}' for c, v in p['coef'].items()),
+                                   'Mùa vụ tháng tới': p['seasonal']} for k, p in ps.items()])
+                cd.table(t.round(2), ten=f'mo_hinh_tung_cang_{_norm(name)}', height=60 + 36 * len(t))
+                ui.note('Mỗi cảng EconDB một mô hình riêng (biến = các bến thuộc cảng đó); cảng vụ = tổng. MAPE của tổng tính trên các tháng mọi cảng đều có backtest.')
+            elif m['res'].get('pooled'):
+                ui.note(f'Bến chưa có số công bố → dùng hệ số chung: {m["src"]}. Sai số {m["res"]["mape"][m["res"]["best"]]:.1f}% là sai số TRONG MẪU gộp của các bến công bố, '
+                        'không phải backtest riêng của bến này. Nhập số công bố ở chip "Số công bố" để có mô hình riêng.')
+            else:
+                r = m['res']; d = r['data']
+                if level == 'cang' and r.get('fits') is not None:
+                    # chọn tay mô hình cho bến (mặc định: tự động theo điểm backtest)
+                    opts = ['Tự động'] + list(nw.MODELS)
+                    st.selectbox('Mô hình dùng cho bến này', opts, key=f'nc_force_{auth}_{nw.nfc(term)}',
+                                 format_func=lambda x: f'Tự động ({r["auto"].split(":")[0]})' if x == 'Tự động' else x)
+                rows = []
+                for k in nw.MODELS:
+                    rows.append({'Mô hình': k, 'Đang dùng': '✔' if k == r['best'] else ('tự động' if k == r.get('auto') else ''),
+                                 'MAPE backtest (%)': r['mape'].get(k), '6 tháng gần (%)': (r.get('mape_recent') or {}).get(k),
+                                 'Fit trong mẫu (%)': (r.get('fit_err') or {}).get(k)})
+                rows.append({'Mô hình': nw.NAIVE, 'Đang dùng': '', 'MAPE backtest (%)': r['mape'].get(nw.NAIVE), '6 tháng gần (%)': (r.get('mape_recent') or {}).get(nw.NAIVE)})
+                t = pd.DataFrame(rows).sort_values('MAPE backtest (%)')
+                cd.table(t.round(1).reset_index(drop=True), ten=f'so_sanh_mo_hinh_{_norm(name)}', height=60 + 36 * len(t))
+                if r.get('fits') is not None:
+                    # đối chiếu fit: thực tế (cột) + fit của mô hình đang dùng và 2 mô hình tốt kế tiếp
+                    score = {k: 0.5 * r['mape'][k] + 0.5 * r['mape_recent'][k] for k in nw.MODELS}
+                    show = [r['best']] + [k for k in sorted(score, key=score.get) if k != r['best']][:2]
+                    fits = r['fits'][show]; fits = fits[fits.index >= d.index.min()]
+                    fig = go.Figure(go.Bar(x=d.index, y=d['actual'], name='Thực tế', marker_color=TOK['gray'], width=22 * 86400000, hovertemplate='%{y:,.0f}<extra>Thực tế</extra>'))
+                    for i, k in enumerate(show):
+                        fig.add_trace(go.Scatter(x=fits.index, y=fits[k].values, name=k, mode='lines+markers', marker=dict(size=4),
+                                                 line=dict(width=2.2 if i == 0 else 1.4, dash='dash' if i == 0 else 'dot', color=[TOK['down'], TOK['brown'], TOK['tan']][i]),
+                                                 hovertemplate='%{y:,.0f}<extra>' + k + '</extra>'))
+                    fig.update_layout(height=340, yaxis=dict(title='TEU / tháng', rangemode='tozero'), bargap=0.25)
+                    cd.chart(fig, fits.join(d['actual']).round(0), ten=f'fit_mo_hinh_{_norm(name)}', height=340,
+                             note_text=f'Fit trong mẫu (hệ số cuối) của mô hình đang dùng ({r["best"].split(":")[0]}) và 2 mô hình tốt kế tiếp theo điểm backtest. '
+                                       f'{r["n_train"]} tháng huấn luyện; hệ số ' + ' · '.join(f'{k} × {v:.2f}' for k, v in r['coef'].items()) + f'; mùa vụ tháng tới {r["seasonal"]:.2f}.')
+        elif ch == 'Theo bến':
+            rows = terminal_rows(auth, E, m['res'] if m else None)
+            if not rows: cd.empty('Chưa có bến nào đủ dữ liệu')
+            else:
+                t = pd.DataFrame(rows)
+                tot = {'Phạm vi': 'Tổng các bến có mô hình', 'TEU thực tế cuối': t['TEU thực tế cuối'].sum(), 'Ước TEU': t['Ước TEU'].sum(), 'Dự báo TEU': t['Dự báo TEU'].sum()}
+                if m and m['res']: tot_port = {'Phạm vi': f'Mô hình cảng vụ ({tl.AUTH_LABEL[auth]})', **nw.summary(m['res'])}; t = pd.concat([t, pd.DataFrame([tot, tot_port])], ignore_index=True)
+                cd.table(t.drop(columns=['Số tháng huấn luyện'], errors='ignore').round(1), ten=f'du_bao_theo_ben_{_norm(name)}', height=min(560, 60 + 36 * len(t)))
+                ui.note(f'Mỗi bến TỰ hồi quy trên lượt cập bến của chính nó, thực tế = số công bố nếu đã nhập (vd HICT), không thì throughput terminal EconDB; backtest từ tháng thứ {nw.MIN_TRAIN_TERM + 1}. '
+                        'Tổng các bến có thể lệch mô hình cảng vụ vì EconDB không tách hết mọi bến (phần "Others"). Bấm "Từng cảng" để xem chi tiết từng bến.')
+        elif ch == 'Số công bố':
+            T = nw.load_targets(); cur = nw.target_series(T, auth, term)
+            econ = nw.terminal_series(s, scopes, ed.TERMINAL_MAP, term, TODAY)
+            ui.note(f'Sản lượng {term} do doanh nghiệp/cảng công bố (TEU/tháng, gồm cả container rỗng). Có ≥ {nw.MIN_TRAIN_TERM + 3} tháng thì mô hình dùng số này '
+                    'thay cho EconDB (EconDB chỉ đếm container có hàng). Sửa trực tiếp trong bảng rồi bấm Lưu.')
+            base = pd.DataFrame({'month': cur.index, 'actual_teu': cur.values}) if len(cur) else pd.DataFrame({'month': pd.Series(dtype='datetime64[ns]'), 'actual_teu': pd.Series(dtype=float)})
+            if len(econ): base = base.merge(pd.DataFrame({'month': econ.index, 'EconDB (full)': econ.values}), on='month', how='outer').sort_values('month')
+            edt = st.data_editor(base, num_rows='dynamic', key=f'{K}_tg_edit_{_norm(term)}', width='stretch', height=380,
+                                 column_config={'month': st.column_config.DateColumn('Tháng', format='MM/YYYY'),
+                                                'actual_teu': st.column_config.NumberColumn('Công bố (TEU)', format='%d'),
+                                                'EconDB (full)': st.column_config.NumberColumn('EconDB (TEU full)', format='%d', disabled=True)})
+            if st.button('💾 Lưu số công bố', key=f'{K}_tg_save_{_norm(term)}'):
+                rows = edt[['month', 'actual_teu']].copy(); rows['month'] = tl.me(pd.to_datetime(rows['month']))
+                nw.save_targets(auth, term, rows); st.session_state.pop('_nc', None); st.rerun()
+        elif ch == 'Nằm bãi':
+            w = ed_wide(s, 'dwell', scopes, flow=False)
+            cd.chart(ui.fig_line(w, unit='ngày', hover_nd=1), w.round(2), ten=f'nam_bai_{_norm(name)}', height=300,
+                     note_text='Ngày container nằm bãi bình quân tháng của cảng (EconDB, không tách theo bến).')
+        elif ch == 'Lịch tàu':
+            sc = E['schedule']; sc = sc[sc['locode'].isin(scopes)] if len(sc) else sc
+            if level == 'cang' and len(sc):
+                codes = [k for lc in scopes for k, t in ed.TERMINAL_MAP.get(lc, {}).items() if nw.nfc(term) in nw._members(t)]
+                sc = sc[sc['terminal_code'].isin(codes)] if codes else sc.iloc[0:0]
+            if sc.empty: cd.empty('Chưa có lịch tàu')
+            else:
+                cols = [c for c in ['start_date', 'end_date', 'port_name', 'terminal_code', 'ship_name', 'ship_imo', 'ship_teu', 'voyage_code'] if c in sc]
+                t = sc.sort_values('start_date')[cols].fillna({'terminal_code': '', 'voyage_code': ''}).rename(columns={
+                    'start_date': 'Đến', 'end_date': 'Rời', 'port_name': 'Cảng', 'terminal_code': 'Terminal', 'ship_name': 'Tàu', 'ship_imo': 'IMO',
+                    'ship_teu': 'TEU', 'voyage_code': 'Chuyến'})
+                cd.table(t.reset_index(drop=True), ten=f'lich_tau_{_norm(name)}', height=380)
+        else:
+            cl = E['calls']; cl = cl[cl['locode'].isin(scopes)].sort_values('start', ascending=False) if len(cl) else cl
+            if cl.empty: cd.empty('Chưa có lượt ghé')
+            else:
+                cols = ['start', 'end', 'port_name', 'ship_name', 'ship_imo', 'import_count', 'export_count']
+                cd.table(cl[cols].rename(columns={'start': 'Đến', 'end': 'Rời', 'port_name': 'Cảng', 'ship_name': 'Tàu', 'ship_imo': 'IMO',
+                                                  'import_count': 'Dỡ', 'export_count': 'Xếp'}).reset_index(drop=True), ten=f'luot_ghe_{_norm(name)}', height=380)
+                ui.note('Lượt tàu container EconDB của cả cảng (không tách bến), số container xếp/dỡ theo tàu; tích luỹ từ 16/06/2026.')
+
+
 # ================================================================ khung nội dung: cấp 1 (trang) + cấp 2 (phạm vi) + trang
 PG = ui.nav(list(PAGES), 'nav_page', default='tong-quan', kind='pills', fmt=lambda k: PAGES[k])
 with st.container(border=True, key='khung_noi_dung'):
@@ -729,7 +1217,8 @@ with st.container(border=True, key='khung_noi_dung'):
         st.info('Chọn cảng vụ / bến để xem.')
     else:
         K = f'{PG}_{LV}'
-        {'tong-quan': page_overview, 'hang-tau': page_operators, 'dieu-do': page_ops, 'tuyen': page_lanes, 'du-lieu': page_data}[PG](LV, AUTH, TERM, K)
+        {'tong-quan': page_overview, 'hang-tau': page_operators, 'dieu-do': page_ops, 'tuyen': page_lanes, 'san-luong': page_volume,
+         'du-lieu': page_data}[PG](LV, AUTH, TERM, K)
 tick('render')
 st.markdown(f'<div class="gn-note" style="margin-top:10px">Dữ liệu đến {LAST:%d/%m/%Y} · 12 cảng vụ · kho <code>{ld.STORE}</code> · '
             'Giao diện theo mẫu Market Data App (ui_genea.py)</div>', unsafe_allow_html=True)

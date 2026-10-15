@@ -61,6 +61,7 @@ $Steps = @(
     @{ Slot='AM'; Name='cv-national'; Kind='py'; Script=(Join-Path $Root 'cangvu-toanquoc\national_build.py');     When=$true }   # gop chuyen tau toan quoc
     @{ Slot='AM'; Name='cvhp-vessels'; Kind='py'; Script=(Join-Path $Root 'cangvu-haiphong\vessel_enrich.py');     When=$true }   # tra IMO/loai tau/TEU/hang cho tau ca HP + HCM (BalticShipping/Flexport, toi da 300 tau/ngay) + ghep vao calls
     @{ Slot='AM'; Name='itinerary'; Kind='py'; Script=(Join-Path $Root 'vessel-itinerary\vessel_itinerary.py'); ExtraArgs=@('--all','--since','2025-01-01','--no-png'); When=$true }   # lo trinh tung tau + chang + vong tuyen tu calls HP+HCM
+    @{ Slot='AM'; Name='econdb'; Kind='py'; Script=(Join-Path $Root 'port-tracker\econdb.py');                     When=$true }   # EconDB API (env ECONDB_TOKEN) -> port-tracker\store\econdb\
     @{ Slot='AM'; Name='alibra'; Kind='ps1'; Script=(Join-Path $Root 'alibra-scraper\run.ps1');                    When=$isMon }
     @{ Slot='PM'; Name='bcti';   Kind='py';  Script=(Join-Path $Root 'BCTI-scraper\scrape_bcti.py'); ExtraArgs=@('ALL'); When=$true }
 )

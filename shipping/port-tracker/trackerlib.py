@@ -34,6 +34,15 @@ CLASS_LABEL = {'container': 'Container', 'container?': 'Container (suy đoán)',
                'other': 'Khác', '': 'Chưa rõ'}
 
 
+def me(x):
+    """Mốc CUỐI THÁNG (PV2 15/10/2026: toàn hệ thống dùng ngày cuối kỳ, không dùng 01 tháng để khỏi hiểu nhầm).
+    Series / DatetimeIndex / Timestamp -> cùng loại; 01/09 -> 30/09, 30/09 giữ nguyên."""
+    off = pd.offsets.MonthEnd(0)
+    if isinstance(x, pd.Series): return pd.to_datetime(x, errors='coerce').dt.normalize() + off
+    if isinstance(x, pd.DatetimeIndex): return (x.normalize() + off).rename(x.name)
+    return (pd.Timestamp(x).normalize() + off) if pd.notna(x) else x
+
+
 def mtime(key):
     p = FILES[key]
     return os.path.getmtime(p) if os.path.exists(p) else 0.0
@@ -118,7 +127,7 @@ def load_visits(calls, tmeta):
     v = v.merge(tmeta, on=['auth', 'terminal'], how='left')
     for col in ('group', 'ticker', 'kind'): v[col] = v[col].fillna('')
     v = v[~v['kind'].isin(['anchorage'])]
-    v['month'] = v['arr_day'].dt.to_period('M').dt.to_timestamp()
+    v['month'] = me(v['arr_day'])
     return v.drop(columns=['berths'])
 
 
@@ -163,7 +172,7 @@ def load_lanes():
     d = _read('lanes')
     if d.empty: return d
     for c in ('legs', 'ships', 'teu_sum'): d[c] = pd.to_numeric(d[c], errors='coerce').fillna(0)
-    d['month'] = pd.to_datetime(d['month'] + '-01', errors='coerce')
+    d['month'] = me(pd.to_datetime(d['month'] + '-01', errors='coerce'))
     d['lane'] = d['from'] + ' → ' + d['to']
     return d
 
@@ -340,5 +349,5 @@ def lanes_from_legs(L):
     if L.empty: return pd.DataFrame(columns=['month', 'from', 'to', 'operator', 'legs', 'ships', 'teu_sum', 'lane'])
     lanes = (L.groupby(['month', 'from', 'to', 'operator'], as_index=False)
              .agg(legs=('ship_key', 'size'), ships=('ship_key', 'nunique'), teu_sum=('teu', 'sum')))
-    lanes['month'] = pd.to_datetime(lanes['month'] + '-01'); lanes['lane'] = lanes['from'] + ' → ' + lanes['to']
+    lanes['month'] = me(pd.to_datetime(lanes['month'] + '-01')); lanes['lane'] = lanes['from'] + ' → ' + lanes['to']
     return lanes

@@ -158,6 +158,7 @@ STEP_FOLDERS: dict[str, list] = {
                          ("shipping/cangvu-hcm", "r", None), ("shipping/cangvu-toanquoc", "r", None)],
     "alibra":           [("shipping/Alibra-scraper", "rw", None)],
     "port-tracker":     [("shipping/port-tracker", "rw", None)],
+    "econdb":           [("shipping/port-tracker", "rw", None)],   # store/econdb/ (14/10/2026, can secret ECONDB_TOKEN)
     # shipping PM
     "bcti":             [("shipping/BCTI-scraper", "rw", None)],
     "port-tracker-pm":  [("shipping/port-tracker", "rw", None)],

@@ -25,7 +25,11 @@ st.set_page_config(page_title="Market Data", page_icon="◆", layout="wide", ini
 # STREAMLIT COMMUNITY CLOUD (12/10/2026): co secret RCLONE_CONF / env STREAMLIT_CLOUD=1 -> keo du lieu tu Google Drive ve /tmp
 # (rclone), dat MD_ROOT/RT_ROOT/APP_CACHE truoc khi import datalib; tren laptop boot() tra False va khong lam gi (cloud_boot.py).
 import cloud_boot  # noqa: E402
-CLOUD = cloud_boot.boot()
+try:
+    CLOUD = cloud_boot.boot()
+except cloud_boot.DriveAuthError as _e:            # 15/10/2026: token Drive het han -> huong dan ro rang thay vi trace do
+    st.error(f"**Không kéo được dữ liệu từ Google Drive.** {_e}")
+    st.stop()
 import datalib as dl  # noqa: E402
 import data_live as rt  # noqa: E402
 import ui_genea as ui  # noqa: E402

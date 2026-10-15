@@ -191,6 +191,18 @@ def read_csv(path: str, mt: float, **kw) -> pd.DataFrame:
     return df
 
 
+def cuoi_ky(x, freq: str = "M"):
+    """Doi moc thoi gian ve CUOI ky (PV2 15/10/2026: toan he thong dung ngay cuoi thang/quy/nam, khong dung dau ky
+    de khoi hieu nham). freq M: 01/09/2026 -> 30/09/2026 (da la cuoi thang thi giu nguyen); Q: -> cuoi quy; A/Y: -> 31/12.
+    Nhan Series / DatetimeIndex / Timestamp."""
+    off = {"M": pd.offsets.MonthEnd(0), "Q": pd.offsets.QuarterEnd(0), "A": pd.offsets.YearEnd(0), "Y": pd.offsets.YearEnd(0)}[freq]
+    if isinstance(x, pd.Series):
+        return pd.to_datetime(x, errors="coerce").dt.normalize() + off
+    if isinstance(x, pd.DatetimeIndex):
+        return (x.normalize() + off).rename(x.name)
+    return (pd.Timestamp(x).normalize() + off) if pd.notna(x) else x
+
+
 def reg_path(key: str) -> str:
     """Duong dan file that cua dataset: dataset chi co nguon live-first (insider) -> parquet HIEN HANH theo phien ban
     (data_src.path, 13/10/2026 - ten file doi moi lan ghi); con lai -> file pipeline trong REGISTRY."""
@@ -939,6 +951,7 @@ def mv(names=None, group=None, contains=None) -> pd.DataFrame:
     if names:
         m = m[m.series_name.isin(names)]
     d = m.pivot_table(index="date", columns="series_name", values="value", aggfunc="last")
+    d.index = cuoi_ky(d.index)                      # IMF ghi 01 thang -> cuoi thang
     d.index.name = "Ngày"
     return d
 
@@ -946,7 +959,7 @@ def mv(names=None, group=None, contains=None) -> pd.DataFrame:
 def mv_last(name):
     m = load("macro_vn")
     s = m[m.series_name == name].dropna(subset=["value"]).sort_values("date")
-    return (s.value.iloc[-1], s.date.iloc[-1]) if len(s) else (np.nan, None)
+    return (s.value.iloc[-1], cuoi_ky(s.date.iloc[-1])) if len(s) else (np.nan, None)
 
 
 # ------------------------------------------------------------- NSO (CUC THONG KE)
@@ -985,6 +998,7 @@ def nso_monthly_wide(mt: float, group: str, metric: str, section: str = "") -> p
     if section:                                   # XK/NK: "MẶT HÀNG CHỦ YẾU"; FDI: "Phân theo ... địa phương / nước"
         m = m[m.section.fillna("").str.contains(section, case=False, regex=False)]
     d = m.pivot_table(index="date", columns="item", values="value", aggfunc="last")
+    d.index = cuoi_ky(d.index)                      # NSO ghi 01 thang (quy: 01 thang cuoi quy) -> cuoi thang = cuoi ky
     d.index.name = "Ngày"
     return d
 
@@ -1009,7 +1023,7 @@ def nm_last(series_id: str, pct: bool = False):
     if not len(s):
         return np.nan, None
     v = s.value.iloc[-1]
-    return (v - 100 if pct and nso_key(series_id.split("|")[-1]) != "lamphatcoban" else v), s.date.iloc[-1]
+    return (v - 100 if pct and nso_key(series_id.split("|")[-1]) != "lamphatcoban" else v), cuoi_ky(s.date.iloc[-1])
 
 
 @st.cache_data(show_spinner="Đang nạp niên giám NSO ...")
@@ -1037,7 +1051,7 @@ def nso_catalog() -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def nso_table_wide(mt: float, table_id: str, freq: str) -> pd.DataFrame:
-    """1 bang PX-Web -> wide (ngay x chuoi). freq A: nam (01/01), M: thang, Q: quy (thang cuoi quy)."""
+    """1 bang PX-Web -> wide (ngay x chuoi). Moc = CUOI ky: A -> 31/12, M -> cuoi thang, Q -> cuoi quy."""
     d = nso_long(mt)
     d = d[(d.table_id == table_id) & (d.freq == freq)]
     if d.empty:
@@ -1045,7 +1059,7 @@ def nso_table_wide(mt: float, table_id: str, freq: str) -> pd.DataFrame:
     if freq == "Q":
         dt = pd.PeriodIndex(d["date"].str.replace("-Q", "Q"), freq="Q").to_timestamp(how="end").normalize()
     else:
-        dt = pd.to_datetime(d["date"], errors="coerce")
+        dt = cuoi_ky(pd.to_datetime(d["date"], errors="coerce"), "A" if freq == "A" else "M")
     d = d.assign(dt=dt).dropna(subset=["dt"])
     w = d.pivot_table(index="dt", columns="label", values="value", aggfunc="last")
     order = d.groupby("label")["pos"].min().sort_values().index
@@ -1157,7 +1171,7 @@ def gdp_last():
     if not len(s):
         return np.nan, None, ""
     r = s.iloc[-1]
-    return r.value - 100, r.date, (r.status if isinstance(r.status, str) else "")
+    return r.value - 100, cuoi_ky(r.date), (r.status if isinstance(r.status, str) else "")
 
 
 def unemp_nso() -> pd.DataFrame:

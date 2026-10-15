@@ -200,12 +200,23 @@ def remote(sub: str = "") -> str:
     return f"{REMOTE}/{HUB}/{sub}" if sub else f"{REMOTE}/{HUB}"
 
 
+class DriveAuthError(RuntimeError):
+    """Token Google Drive cua rclone bi thu hoi/het han (invalid_grant) - can lam moi token + cap nhat secret RCLONE_CONF."""
+
+
+DRIVE_AUTH_HINT = ("Quyền Google Drive của rclone đã hết hạn (invalid_grant). Trên laptop chạy "
+                   "D:\\cloud-deploy\\local\\Lam-moi-token-Drive.ps1, rồi dán chuỗi mới vào secret RCLONE_CONF "
+                   "(GitHub Actions + Streamlit Cloud → Settings → Secrets) và Reboot app.")
+
+
 def run_rclone(args: list[str], timeout: int = 900) -> tuple[int, str]:
     cmd = rclone_cmd(*args) + RCLONE_COMMON
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, encoding="utf-8", errors="replace")
     out = (r.stdout + r.stderr).strip()
     if r.returncode != 0:
         _log(f"rclone exit {r.returncode}: {out[-400:]}")
+        if "invalid_grant" in out or "couldn't fetch token" in out:   # 15/10/2026: OAuth Testing -> token chet sau 7 ngay
+            raise DriveAuthError(DRIVE_AUTH_HINT)
     return r.returncode, out
 
 

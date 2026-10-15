@@ -417,7 +417,7 @@ def trai_phieu(ctx, nav):
                 st.dataframe(bang, width="stretch")
         with ui.card("Phát hành theo quý", "tỷ đồng", help="Theo bộ lọc hiện tại; chồng theo loại.", key="tp_quy", periods=["3Y", "5Y", "All"], default="5Y") as c:
             q = b.pivot_table(index="quy_ph", columns="loai", values="gia_tri_ty", aggfunc="sum").fillna(0)
-            q.index = pd.PeriodIndex(q.index, freq="Q").to_timestamp()
+            q.index = pd.PeriodIndex(q.index, freq="Q").to_timestamp(how="end").normalize()      # cuoi quy
             q.index.name = "Quý"
             d = c.cut(q)
             c.chart(ui.fig_stack(d, "tỷ đồng", colors={"Riêng lẻ trong nước": ui.TOK["orange"], "Quốc tế (USD)": ui.TOK["gray"]}), d, ten="Phat hanh theo quy")

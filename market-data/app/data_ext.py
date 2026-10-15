@@ -279,7 +279,7 @@ def monthly_turnover() -> pd.DataFrame:
     t = to[to["Phiên"] == "Đã đóng cửa"]["Toàn thị trường"]
     m = t.groupby(t.index.to_period("M")).agg(["mean", "count"])
     m.columns = ["GTGD bình quân phiên", "Số phiên"]
-    m.index = m.index.to_timestamp()
+    m.index = m.index.to_timestamp("M")             # cuoi thang (PV2 15/10/2026)
     m.index.name = "Tháng"
     last = t.index.max()
     m["Chưa kết thúc"] = (m.index.to_period("M") == last.to_period("M")) & (last.day < 28)

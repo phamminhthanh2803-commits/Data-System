@@ -330,6 +330,7 @@ def parse_args(default_slot: str, argv=None):
     ap.add_argument("--skip", default="", help="bo qua cac buoc nay (cong them env CLOUD_SKIP), vd cvhcm,nganh-ck")
     ap.add_argument("--dry-run", action="store_true", help="chi liet ke buoc se chay, khong chay")
     a = ap.parse_args(argv)
-    a.only = [x.strip() for x in a.only.split(",") if x.strip()]
+    a.only = re.sub(r"^\s*only\s*[=:]\s*", "", a.only, flags=re.I)                 # PV2 go "only = econdb" vao o workflow_dispatch -> bo tien to
+    a.only = [x.strip() for x in re.split(r"[,\s]+", a.only) if x.strip()]
     a.skip = [x.strip() for x in a.skip.split(",") if x.strip()]
     return a

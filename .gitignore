@@ -99,3 +99,6 @@ secrets.toml
 app-cache/
 *.conf
 !*.example.conf
+
+# GitHub Pages (trang chu + privacy cho OAuth app rclone)
+!docs/*.html

@@ -275,18 +275,28 @@ def _cdate(c):
     return c['arrival'].fillna(c['departure'])
 
 
+def _per_auth(auths, build, keep):
+    """ghép chuyến LẦN LƯỢT từng cảng vụ (chuyến không vắt qua 2 cảng vụ nên kết quả như ghép chung) -> đỉnh RAM = cảng vụ lớn nhất,
+    không phải cả 12 cùng lúc (15/10/2026: bản online Streamlit Cloud ~1 GB RAM; ghép chung đẩy RAM 96 -> 867 MB)"""
+    import gc
+    parts = []
+    for a in auths:
+        c = build(a)
+        if len(c): parts.append(c[keep(c)])
+        del c; gc.collect()
+    return pd.concat(parts, ignore_index=True) if parts else pd.DataFrame()
+
+
 def calls_frozen(auths, lo, b):
     """phần LỊCH SỬ: chuyến có ngày < b. Dùng sự kiện tới b+30 ngày để chuyến vào trước b vẫn thấy lượt rời."""
     b = pd.Timestamp(b)
-    c = ld.build_calls(ld.load_events(list(auths), lo, (b + pd.Timedelta(days=30)).date()))
-    return c[_cdate(c) < b] if len(c) else c
+    return _per_auth(auths, lambda a: ld.build_calls(ld.load_events([a], lo, (b + pd.Timedelta(days=30)).date())), lambda c: _cdate(c) < b)
 
 
 def calls_tail(auths, b, hi):
     """phần ĐUÔI gần đây: chuyến có ngày >= b. Dùng sự kiện từ b-45 ngày để có ngữ cảnh lượt vào."""
     b = pd.Timestamp(b)
-    c = ld.build_calls(ld.load_events(list(auths), (b - pd.Timedelta(days=45)).date(), hi))
-    return c[_cdate(c) >= b] if len(c) else c
+    return _per_auth(auths, lambda a: ld.build_calls(ld.load_events([a], (b - pd.Timedelta(days=45)).date(), hi)), lambda c: _cdate(c) >= b)
 
 
 def ship_calls(ship_key):

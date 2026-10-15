@@ -42,6 +42,28 @@ ed = _fresh(ed); nw = _fresh(nw)
 
 st.set_page_config(page_title='Port & Vessel Tracker', page_icon='⚓', layout='wide', initial_sidebar_state='collapsed')
 ui.inject_css()
+
+
+def _gate():
+    """bản online public: nếu secret APP_PASSWORD có thì phải nhập mật khẩu (dữ liệu EconDB là gói trả phí, không phát tán)"""
+    try: pw = st.secrets.get('APP_PASSWORD')
+    except Exception: pw = None  # noqa: E701,BLE001
+    if not pw or st.session_state.get('_auth_ok'): return
+    _, mid, _ = st.columns([2, 3, 2])
+    with mid:
+        st.markdown('<div class="gn-logo" style="margin-top:12vh"><span class="dia"></span>Port &amp; Vessel Tracker</div>', unsafe_allow_html=True)
+        v = st.text_input('Mật khẩu', type='password', key='_pw')
+        if v and v == str(pw): st.session_state['_auth_ok'] = True; st.rerun()
+        if v: st.error('Sai mật khẩu')
+    st.stop()
+
+
+_gate()
+import cloud_boot_pt as cb   # noqa: E402
+try:
+    CLOUD = cb.boot()
+except cb.DriveAuthError as _e:
+    st.error(str(_e)); st.stop()
 ui.PERIOD_MONTHS['2Y'] = 24
 PER = ['3M', '6M', '1Y', '2Y', '3Y', 'All']
 MEASURES = {'Lượt tàu': 'calls', 'TEU danh nghĩa': 'teu', 'DWT': 'dwt'}
@@ -296,6 +318,7 @@ with st.spinner('Đang ghép chuyến tàu từ kho (lần đầu trong tháng c
 if calls.empty:
     st.error('Kho chưa có dữ liệu. Kiểm tra mạng hoặc vào trang "Dữ liệu" để kéo từ nguồn.'); st.stop()
 visits = get_visits(*KEY)
+if CLOUD: cb.trim_memory()                         # bản online: trả RAM tạm sau ghép chuyến (máy ~1 GB)
 tick('get_calls+visits')
 LAST = min(calls.loc[calls['arr_day'].notna(), 'arr_day'].max(), TODAY)
 LO = LOAD_LO

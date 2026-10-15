@@ -31,10 +31,13 @@ SKIP_DIRS = {'data', 'store', 'cache', 'logs', '__pycache__', 'khao-sat', 'raw',
 SKIP_FILES = {'nowcast_targets.csv'}            # số công bố nội bộ PV2 -> kéo từ Drive lúc chạy, không public
 MAX_CSV = 2_000_000
 REQ = """# Port & Vessel Tracker (Streamlit Community Cloud) - 15/10/2026
-streamlit==1.57.0
+streamlit==1.64.0
+starlette==1.6.0          # 15/10/2026: streamlit 1.57 + starlette 1.8 loi "Expected ASGI message http.response.start" khi gui file tinh
+uvicorn==0.53.0
+psutil==7.2.2
 pandas==2.3.3
 numpy==2.2.6
-pyarrow==24.0.0
+pyarrow==25.0.1
 plotly==7.1.0
 requests==2.34.2
 urllib3==2.7.0

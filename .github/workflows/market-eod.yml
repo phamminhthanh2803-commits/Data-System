@@ -53,7 +53,7 @@ jobs:
 
       - name: Cai rclone
         run: |
-          curl -fsSL https://rclone.org/install.sh | sudo bash
+          bash ci/install_rclone.sh      # 15/10/2026: co du phong GitHub releases / apt
           rclone version
 
       - name: Cau hinh rclone tu secret RCLONE_CONF (base64)

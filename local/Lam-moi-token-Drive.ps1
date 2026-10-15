@@ -14,13 +14,22 @@
 $ErrorActionPreference = 'Stop'
 $rc = Join-Path $env:LOCALAPPDATA 'Microsoft\WinGet\Packages\Rclone.Rclone_Microsoft.Winget.Source_8wekyb3d8bbwe\rclone-v1.75.1-windows-amd64\rclone.exe'
 if (-not (Test-Path $rc)) { $c = Get-Command rclone -ErrorAction SilentlyContinue; if ($c) { $rc = $c.Source } else { throw 'Khong tim thay rclone' } }
-$conf = Join-Path $env:APPDATA 'rclone\rclone.conf'
+# 15/10/2026: KHONG doan duong dan - hoi chinh rclone (may nay dung C:\Users\User\.config\rclone\rclone.conf;
+# %APPDATA%\rclone\rclone.conf chi la ban ao trong phien Claude, script chay ngoai khong thay)
+$conf = ((& $rc config file) | Where-Object { $_ -match 'rclone\.conf' } | Select-Object -Last 1).Trim()
+Write-Host "File cau hinh rclone: $conf"
 
 Write-Host ''
 Write-Host '== 1/4 Lam moi quyen Drive: trinh duyet se mo, dang nhap Google (phamminhthanh2803) roi bam Allow / Cho phep ==' -ForegroundColor Cyan
 Write-Host '   (Neu hoi "Refresh token?" -> go y roi Enter. Neu hien "Google hasn''t verified this app" -> Advanced -> Go to rclone)'
-& $rc config reconnect gdrive:
-if ($LASTEXITCODE -ne 0) { throw "rclone config reconnect loi (exit $LASTEXITCODE)" }
+& $rc lsd gdrive:pipeline-data *> $null
+if ($LASTEXITCODE -eq 0) {
+    Write-Host '   Drive dang doc duoc (token con hieu luc) -> bo qua dang nhap.' -ForegroundColor Green
+} else {
+    Write-Host '   (Neu hoi "Configure this as a Shared Drive?" -> Enter = No)'
+    & $rc config reconnect gdrive:
+    if ($LASTEXITCODE -ne 0) { throw "rclone config reconnect loi (exit $LASTEXITCODE)" }
+}
 
 Write-Host ''
 Write-Host '== 2/4 Kiem tra Drive ==' -ForegroundColor Cyan

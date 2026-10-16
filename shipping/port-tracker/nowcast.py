@@ -85,6 +85,9 @@ def features(v, last_day):
     d['m'] = me(d['arr_day'])
     f = d.groupby('m').agg(calls=('arr_day', 'size'), teu=('teu', 'sum'), hours=('hours_c', 'sum'))
     f = f.reindex(pd.date_range(f.index.min(), f.index.max(), freq='ME'), fill_value=0)
+    # tháng ĐẦU chuỗi thiếu (dữ liệu bắt đầu giữa tháng, vd Cái Mép trong cảng vụ HCM từ cuối 07/2025: 2 lượt -> 1.952 TEU/giờ
+    # so ~150 các tháng khác) -> bỏ, không thì lệch hệ số hồi quy
+    if len(f) > 1 and d['arr_day'].min().day > 5: f = f.iloc[1:]
     f['days_month'] = f.index.days_in_month
     f['days_obs'] = f['days_month']
     lm = me(last_day)
@@ -210,6 +213,15 @@ def load_targets():
     t = pd.read_csv(TARGETS, dtype={'auth': str, 'terminal': str, 'month': str})
     t['month'] = me(pd.to_datetime(t['month'].str[:7] + '-01', errors='coerce')); t['actual_teu'] = pd.to_numeric(t['actual_teu'], errors='coerce')
     return t.dropna(subset=['month', 'actual_teu'])
+
+
+def own_min_train(feat, actual):
+    """min_train cho bến TỰ hồi quy: đủ MIN_TRAIN_TERM+3 tháng trùng (biến × số công bố) -> MIN_TRAIN_TERM; 7–8 tháng (vd Cái Mép:
+    cảng vụ HCM mới có từ 07/2025) -> trùng - 3 (backtest 3 điểm, kém chắc chắn); < 7 -> None (dùng hệ số nhóm)"""
+    if feat is None or feat.empty or actual is None or actual.empty: return None
+    n = len(feat[~feat['partial'] & (feat['teu'] > 0)].join(actual.rename('_y'), how='inner').dropna(subset=['_y']))
+    if n >= MIN_TRAIN_TERM + 3: return MIN_TRAIN_TERM
+    return n - 3 if n >= 7 else None
 
 
 def target_group(t, auth, terminal):

@@ -881,15 +881,17 @@ def nc_term(auth, term, E, ra):
     ts = nw.terminal_series(E['series'], lcs, ed.TERMINAL_MAP, term, TODAY)
     # 0) bến có số CÔNG BỐ (nowcast_targets.csv) -> ưu tiên: EconDB terminal chỉ đếm container có hàng, lệch dần so công bố
     T = nw.load_targets(); pub = nw.target_series(T, auth, term); grp = nw.target_group(T, auth, term)
-    if len(pub) >= nw.MIN_TRAIN_TERM + 3:
+    if len(pub) >= 7:
         members = [x.strip() for x in grp.split('+')]
         fg = ft if len(members) == 1 else nw.features(va[va['terminal'].map(nw.nfc).isin([nw.nfc(x) for x in members])], LAST)   # nhóm: biến gộp các bến
-        res = nw.run(fg, pub, min_train=nw.MIN_TRAIN_TERM, seasonal_ref=port, force=force)
+        mt = nw.own_min_train(fg, pub)                            # 7–8 tháng trùng (Cái Mép) vẫn tự hồi quy, backtest ít điểm
+        res = nw.run(fg, pub, min_train=mt, seasonal_ref=port, force=force) if mt else None
         if res is not None:
             if len(members) > 1 and len(ts): ts = nw.terminal_series(E['series'], lcs, ed.TERMINAL_MAP, members[0], TODAY)
             for x in members[1:]: ts = ts.add(nw.terminal_series(E['series'], lcs, ed.TERMINAL_MAP, x, TODAY), fill_value=0) if len(members) > 1 else ts
             cache[key] = {'res': res, 'group': grp if len(members) > 1 else None, 'econ': ts,
-                          'src': f'số công bố {"gộp " + " + ".join(members) + " " if len(members) > 1 else ""}({pub.index.min():%m/%Y}–{pub.index.max():%m/%Y}, nowcast_targets.csv)'}
+                          'src': f'số công bố {"gộp " + " + ".join(members) + " " if len(members) > 1 else ""}({pub.index.min():%m/%Y}–{pub.index.max():%m/%Y}); '
+                                 f'ước/dự báo: hồi quy riêng của bến ({res["n_train"]} tháng trùng dữ liệu cảng vụ)'}
             return cache[key]
     # 0b) bến KHÔNG có / thiếu số công bố -> HỆ SỐ CHUNG rút từ các bến đã có số công bố (cùng cảng vụ, không đủ thì toàn quốc)
     pools, pscope = nc_pooled(auth, E); cls = nw.terminal_class(ft)
@@ -898,7 +900,8 @@ def nc_term(auth, term, E, ra):
         res = nw.apply_pooled(ft, pooled, pub if len(pub) else None, port)
         if res is not None:
             cache[key] = {'res': res, 'econ': ts, 'cls': cls,
-                          'src': f'hệ số nhóm "{pooled["label"]}" ({pooled["n_terms"]} bến công bố {pscope}; bến này xếp nhóm {cls}: {nw.CLASS_RULES[cls]}; '
+                          'src': (f'số công bố ({pub.index.min():%m/%Y}–{pub.index.max():%m/%Y}); ' if len(pub) else 'chưa có số công bố; ')
+                          + f'ước/dự báo: hệ số nhóm "{pooled["label"]}" ({pooled["n_terms"]} bến công bố {pscope}; bến này xếp nhóm {cls}: {nw.CLASS_RULES[cls]}; '
                           + ' · '.join(f'{c} × {v:.2f}' for c, v in pooled['coef'].items()) + ')'}
             return cache[key]
     # 1) bến có mã terminal EconDB (TERMINAL_MAP) -> throughput từng terminal từ 2022 -> TỰ hồi quy cho chính nó

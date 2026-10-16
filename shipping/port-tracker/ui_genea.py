@@ -110,6 +110,10 @@ CSS = """
 html, body, [data-testid="stAppViewContainer"], .main, [data-testid="stHeader"] {
   background: var(--bg) !important; color: var(--ink); font-family: Inter, system-ui, Avenir, Arial, sans-serif !important; }
 [data-testid="stAppViewContainer"] *, [data-testid="stMarkdownContainer"] * { font-family: Inter, system-ui, Avenir, Arial, sans-serif; }
+/* 16/10/2026: quy tắc trên ép cả biểu tượng Streamlit sang Inter -> tên biểu tượng hiện thành chữ ("visibility" ở ô mật khẩu) */
+[data-testid="stIconMaterial"], [data-testid="stAppViewContainer"] [data-testid="stIconMaterial"],
+span[class*="material-symbols"], .material-symbols-rounded, .material-icons {
+  font-family: "Material Symbols Rounded", "Material Icons" !important; }
 [data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid="stSidebarCollapsedControl"] { display: none !important; }
 [data-testid="stHeader"] { display: none !important; }
 [data-testid="stToolbar"], [data-testid="stDecoration"], #MainMenu, footer { display: none !important; }

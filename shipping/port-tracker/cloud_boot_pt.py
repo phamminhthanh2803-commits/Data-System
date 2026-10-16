@@ -32,7 +32,8 @@ REFRESH_SEC = int(os.environ.get('CLOUD_REFRESH_SEC', '1800'))
 PULL = [('port-tracker', ['/store/**', '/nowcast_targets.csv']),
         ('cangvu-haiphong', ['/data/vessel_master.csv']),
         ('vessel-itinerary', ['/data/vessel_route_pattern.csv', '/data/lane_monthly.csv', '/data/itinerary_legs.csv',
-                       '/data/port_pairs_nm.csv'])]     # cache hải lý: thiếu -> trang Tuyến phải gọi searoute cho mọi cặp cảng
+                       '/data/port_pairs_nm.csv']),
+        ('vimawa-sanluong', ['/data/vimawa_sanluong.csv'])]                   # biểu 28-T Cục Hàng hải: tham chiếu trang Sản lượng     # cache hải lý: thiếu -> trang Tuyến phải gọi searoute cho mọi cặp cảng
 STATE = {'error': None, 'last': None, 'mb': None}
 
 

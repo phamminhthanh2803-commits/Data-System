@@ -39,6 +39,7 @@ STEPS = [
          extra_args=("--all", "--since", "2025-01-01", "--no-png"), when=True),                        # lo trinh tung tau + chang + vong tuyen
     Step("AM", "port-tracker", "port-tracker/pt_update.py", when=True),                                # ghep du lieu cang vu LIEN TUC cho app Port Tracker -> store/ parquet (cloud: 11 cang vu; laptop: PT_AUTHS=HCM)
     Step("AM", "econdb", "port-tracker/econdb.py", when=True),                                         # EconDB API (can ECONDB_TOKEN): container full/hang/doi tac/nam bai/lich tau 6 cang VN -> store/econdb/ (trang "San luong (EconDB)")
+    Step("AM", "vimawa", "vimawa-sanluong/vimawa_sanluong.py", when=True),                              # bieu 28-T Cuc Hang hai (vimawa.gov.vn/vi/thong-ke): san luong qua cang toan quoc, tham chieu trang San luong
     Step("AM", "alibra", "alibra-scraper/run.ps1", kind="ps1", when=is_mon,
          fallback_py=("alibra-scraper/fetch.py", "alibra-scraper/combine.py")),
     Step("PM", "bcti", "BCTI-scraper/scrape_bcti.py", extra_args=("ALL",), when=True),                 # BDI/BCI/BPI/BSI/BHI/BCTI/BDTI/SCFI (stockq.org)

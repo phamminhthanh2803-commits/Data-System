@@ -156,6 +156,7 @@ STEP_FOLDERS: dict[str, list] = {
                          ("shipping/cangvu-toanquoc", "r", None)],
     "itinerary":        [("shipping/vessel-itinerary", "rw", None), ("shipping/cangvu-haiphong", "r", None),
                          ("shipping/cangvu-hcm", "r", None), ("shipping/cangvu-toanquoc", "r", None)],
+    "vimawa":           [("shipping/vimawa-sanluong", "rw", None)],   # data/ + raw/ (file goc + cache OCR) 16/10/2026
     "alibra":           [("shipping/Alibra-scraper", "rw", None)],
     "port-tracker":     [("shipping/port-tracker", "rw", None)],
     "econdb":           [("shipping/port-tracker", "rw", None)],   # store/econdb/ (14/10/2026, can secret ECONDB_TOKEN)

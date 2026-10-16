@@ -54,3 +54,4 @@ geojson==3.2.0
 #   markitdown==0.1.6        # bctc/pdf-detector/markitdown-tool/pdf2md.py
 #   vl-convert-python==1.9.0.post1   # chart-pack/ftse/ftse_charts.py
 #   playwright==1.60.0
+python-docx==1.2.0

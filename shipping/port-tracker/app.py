@@ -34,7 +34,10 @@ def _fresh(mod):
     import importlib
     t = os.path.getmtime(mod.__file__)
     if getattr(mod, '_LOADED_MTIME', None) != t:
-        mod = importlib.reload(mod); mod._LOADED_MTIME = t
+        try: mod = importlib.reload(mod)
+        except (KeyError, ImportError):            # Streamlit vừa gỡ module khỏi sys.modules lúc cập nhật code (bản online) -> nạp mới
+            mod = importlib.import_module(mod.__name__)
+        mod._LOADED_MTIME = t
     return mod
 
 
@@ -998,6 +1001,7 @@ def nc_published_total(auth, name):
     của phạm vi (12 cảng vụ / cảng vụ X); hồi quy 2 biến kéo về điểm tựa của chính chuỗi (self_prior). None nếu < 7 tháng trùng."""
     T = nw.load_targets(); pub = nw.target_series(T, auth, name)
     if pub.empty: return None                                      # file số công bố chưa có dòng tổng (vd bản online chưa kéo file mới)
+    pub_all = pub                                                  # cả T1–T7/2025 suy từ lũy kế cùng kỳ: làm mùa vụ + hiện như thực tế
     cut = PUB_COVER_FROM.get(auth)                                 # chỉ học từ tháng dữ liệu cảng vụ đã phủ đủ phạm vi VPA
     if cut: pub = pub[pd.DatetimeIndex(pub.index) >= pd.Timestamp(cut)]
     if len(pub) < 7: return None
@@ -1006,28 +1010,75 @@ def nc_published_total(auth, name):
     if key not in cache:
         v = nc_visits(); f = nw.features(v if auth == 'VN' else v[v['auth'] == auth], LAST)
         mt = nw.own_min_train(f, pub)
-        r = nw.run(f, pub, min_train=mt, prior=nw.self_prior(f, pub)) if mt else None
+        r = nw.run(f, pub, min_train=mt, seasonal_ref=pub_all, prior=nw.self_prior(f, pub)) if mt else None
         cache[key] = None if r is None else {
             'd': r['data'], 'res': r,
             'src': ('VPA TỔNG CỘNG (mọi cảng container cả nước, gồm rỗng)' if auth == 'VN' else 'VPA, cộng các cảng thuộc cảng vụ')
-                   + f' {pub.index.min():%m/%Y}–{pub.index.max():%m/%Y}',
+                   + f' {pub_all.index.min():%m/%Y}–{pub_all.index.max():%m/%Y}',
             'note': f'Ước/dự báo: hồi quy 2 biến trên mọi lượt tàu container {"12 cảng vụ" if auth == "VN" else "của cảng vụ"} '
                     f'(TEU = ' + ' + '.join(f'{x:,.2f} × {"giờ bến" if c == "hours" else "sức chở"}' for c, x in r['coef'].items()) + ').'}
     return cache[key]
+
+
+VIMAWA = os.path.join(tl.HUB, 'vimawa-sanluong', 'data', 'vimawa_sanluong.csv')
+
+
+def vimawa_stamp(): return os.path.getmtime(VIMAWA) if os.path.exists(VIMAWA) else 0
+
+
+@st.cache_data(show_spinner=False, max_entries=2)
+def vimawa_teu(stamp):
+    """container toàn quốc (1000 TEU -> TEU) theo tháng từ biểu 28-T Cục Hàng hải: thuc_te (suy từ lũy kế) + uoc (cột tháng báo cáo)"""
+    if not stamp: return pd.DataFrame()
+    d = pd.read_csv(VIMAWA, usecols=['period', 'ky_loai', 'nhom', 'chieu', 'don_vi', 'thang_bao_cao', 'thang_thuc_te'])
+    d = d[(d['ky_loai'] == 'thang') & (d['nhom'] == 'container') & (d['chieu'] == 'tong') & (d['don_vi'] == '1000 TEU')]
+    d.index = pd.DatetimeIndex(tl.me(pd.to_datetime(d['period'] + '-01')))
+    return pd.DataFrame({'thuc_te': d['thang_thuc_te'] * 1000, 'uoc': d['thang_bao_cao'] * 1000}).sort_index()
+
+
+def vimawa_compare(d, vm, n=6):
+    """bảng tháng: VPA thực tế, ước/dự báo app, Cục HH thực tế / ước / quy về phạm vi VPA (tỷ lệ trung vị n tháng trùng gần nhất)"""
+    vpa = d['actual']; cuc = vm['thuc_te']
+    both = pd.concat([vpa, cuc], axis=1, keys=['v', 'c']).dropna()
+    both = both[both.index >= pd.Timestamp('2025-04-30')]           # Cục HH đổi phạm vi từ T4/2025
+    ratio = float((both['v'] / both['c']).tail(n).median()) if len(both) else None
+    cuc_any = cuc.fillna(vm['uoc'])
+    w = pd.DataFrame({'VPA thực tế': vpa, 'Ước/dự báo app': d['est'] if 'est' in d else np.nan,
+                      'Cục HH thực tế': cuc, 'Cục HH ước (cột tháng báo cáo)': vm['uoc'].where(cuc.isna()),
+                      'Cục HH quy về phạm vi VPA': cuc_any * ratio if ratio else np.nan})
+    w = w[w.index >= pd.Timestamp('2024-01-31')].dropna(how='all'); w.index.name = 'Tháng'
+    return w, ratio
+
+
+def with_pub_history(m, auth, name):
+    """thêm các tháng SỐ CÔNG BỐ chưa có trong bảng mô hình (vd T1–T7/2025 VPA suy từ lũy kế cùng kỳ, trước khi cảng vụ phủ Cái Mép)
+    thành dòng thực tế: hiện trên biểu đồ/bảng, không đưa vào hồi quy"""
+    if not m or m.get('d') is None or not len(m['d']): return m
+    pub = nw.target_series(nw.load_targets(), auth, name)
+    d = m['d']; la = d['actual'].last_valid_index()
+    add = pub[~pd.DatetimeIndex(pub.index).isin(d.index)]
+    if la is not None: add = add[add.index <= la]
+    if add.empty: return m
+    extra = pd.DataFrame({'actual': add.astype(float).values, 'kind': 'thực tế'}, index=pd.DatetimeIndex(add.index))
+    d2 = pd.concat([extra, d]).sort_index(); d2.index.name = d.index.name
+    m = dict(m); m['d'] = d2
+    m['note'] = (m.get('note') or '') + (f' Tháng {add.index.min():%m/%Y}–{add.index.max():%m/%Y}: chỉ số công bố, '
+                                         'không đưa vào hồi quy (lịch cảng vụ đã nạp chưa có hoặc chưa phủ đủ phạm vi).')
+    return m
 
 
 def vol_model(level, auth, term, E):
     """dict(d = bảng tháng actual/est/lo/hi/kind/backtest, res = kết quả hồi quy hoặc None, src, note)"""
     if level == 'toan-quoc':
         rv = nc_published_total('VN', 'TOÀN QUỐC')                 # VPA TỔNG CỘNG (mọi cảng cả nước, gồm container rỗng)
-        if rv: return rv
+        if rv: return with_pub_history(rv, 'VN', 'TOÀN QUỐC')
         r = vn_total(E)
         if r is None: return None
         return {'d': r['data'], 'res': r, 'src': 'tổng container full EconDB của ' + ', '.join(tl.AUTH_LABEL[a] for a in ed.AUTH_LOCODES),
                 'note': parts_note(r)}
     if level == 'cang-vu':
         rv = nc_published_total(auth, '__CANG_VU__')               # cộng các cảng VPA thuộc cảng vụ
-        if rv: return rv
+        if rv: return with_pub_history(rv, auth, '__CANG_VU__')
     ra = nc_auth(auth, E)
     if level == 'cang-vu':
         if ra is None: return None
@@ -1035,7 +1086,9 @@ def vol_model(level, auth, term, E):
                 'note': parts_note(ra)}
     tt = nc_term(auth, term, E, ra)
     if not tt: return None
-    if tt.get('res') is not None: return {'d': tt['res']['data'], 'res': tt['res'], 'src': tt['src'], 'econ': tt.get('econ')}
+    if tt.get('res') is not None:
+        m = {'d': tt['res']['data'], 'res': tt['res'], 'src': tt['src'], 'econ': tt.get('econ')}
+        return with_pub_history(m, auth, term) if str(tt['src']).startswith('số công bố') else m
     if tt.get('view') is None or tt['act'].empty: return None
     return {'d': tt['view'], 'res': None, 'src': tt['src'], 'share': tt['share'],
             'note': f'Bến chưa có chuỗi terminal EconDB đủ dài → ước/dự báo = ước/dự báo cảng vụ × tỷ trọng TB 3 tháng '
@@ -1151,6 +1204,19 @@ def page_volume(level, auth, term, K):
             cd.chart(ui.fig_stack(w, unit=unit), w, ten=f'{metric}_{_norm(name)}',
                      note_text='Kỳ gần nhất thường thấp giả: EconDB bổ sung cảng đích/hãng dần sau khi tàu rời.' if lag else None)
 
+    # ---- tham chiếu Cục Hàng hải (vimawa, biểu 28-T): số toàn quốc, phạm vi rộng hơn VPA nhưng ra sớm hơn 1 tháng
+    if level == 'toan-quoc' and m is not None:
+        vm = vimawa_teu(vimawa_stamp())
+        if len(vm):
+            with ui.card('Tham chiếu Cục Hàng hải (vimawa)', unit='TEU / tháng', key=f'{K}_vimawa', periods=ED_PER, default='2Y', end=LAST,
+                         help='Biểu 28-T sản lượng container qua cảng biển của Cục Hàng hải & Đường thủy VN (vimawa.gov.vn/vi/thong-ke). '
+                              'Từ T4/2025 gộp cả cảng thủy nội địa nên cao hơn VPA; quy về phạm vi VPA bằng tỷ lệ VPA / Cục HH 6 tháng gần nhất.') as cd:
+                w, ratio = vimawa_compare(m['d'], vm)
+                w = cd.cut(w)
+                cd.chart(ui.fig_line(w, unit='TEU', zero=False, hover_nd=0, markers=True, dash={'Cục HH ước (cột tháng báo cáo)': 'dot', 'Cục HH quy về phạm vi VPA': 'dash'}),
+                         w.iloc[::-1].round(0), ten='tham_chieu_cuc_hang_hai',
+                         note_text=(f'Tỷ lệ VPA / Cục HH 6 tháng gần nhất = {ratio:.1%}. ' if ratio else '')
+                                   + 'Cục HH thực tế tháng m = lũy kế tháng trước của báo cáo tháng m+1 − của báo cáo tháng m; cột tháng báo cáo của biểu chỉ là ước (lập ngày 15).')
     # ---- thẻ chi tiết
     if level == 'toan-quoc':
         rows = []

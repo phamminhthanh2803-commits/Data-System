@@ -30,6 +30,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, 'data')
 TARGETS = os.path.join(os.path.dirname(HERE), 'port-tracker', 'nowcast_targets.csv')
 COLS = ['year_prev', 'cum_prev', 'cum_cur', 'teu', 'nhap_ngoai', 'xuat_ngoai', 'nhap_noi', 'xuat_noi', 'trung_chuyen', 'teu20', 'rong', 'lanh', 'sa_lan']
+CANG_VU = '__CANG_VU__'           # dòng tổng cảng vụ trong nowcast_targets (cộng các cảng VPA của cảng vụ)
 REGIONS = ('MIỀN BẮC', 'BẮC TRUNG BỘ', 'NAM TRUNG BỘ', 'ĐÔNG NAM BỘ', 'CÁI MÉP', 'ĐỒNG BẰNG', 'TỔNG CỘNG')
 
 # tên cảng VPA (đã chuẩn hoá: bỏ dấu, (*), khoảng trắng) -> (cảng vụ, bến trong app Port Tracker)
@@ -72,7 +73,11 @@ def read_file(path):
             if name is None or not str(name).strip(): continue
             name = re.sub(r'\s+', ' ', str(name)).strip()
             up = _norm(name)
-            if up.startswith('TONG CONG'): break
+            if up.startswith('TONG CONG'):                     # dòng toàn quốc: lấy rồi dừng (dưới là ghi chú)
+                vals = [_num(x) for x in row[1:14]]
+                out.append({'sheet': ws.title, 'year': yr, 'mon': mon, 'region': 'TOÀN QUỐC', 'kind': 'total', 'port': 'TỔNG CỘNG', 'key': 'TONG CONG',
+                            **dict(zip(COLS, vals))})
+                break
             if any(up.startswith(_norm(r)) for r in REGIONS):
                 region = name.split('(')[0].strip(); kind = 'region'
             else:
@@ -120,8 +125,14 @@ def to_targets(long):
     """các cảng có trong PORT_MAP -> dòng nowcast_targets (auth, terminal, month YYYY-MM, actual_teu)"""
     p = long[long['kind'] == 'port'].copy(); p['map'] = p['key'].map(PORT_MAP)
     p = p[p['map'].notna()]
-    return pd.DataFrame({'auth': p['map'].str[0], 'terminal': p['map'].str[1], 'month': p['month'].dt.strftime('%Y-%m'), 'actual_teu': p['teu'].round(1),
-                         'fill_only': (p['nguon'] == 'luy_ke_cung_ky').values})
+    t = pd.DataFrame({'auth': p['map'].str[0], 'terminal': p['map'].str[1], 'month': p['month'].dt.strftime('%Y-%m'), 'actual_teu': p['teu'].round(1),
+                      'fill_only': (p['nguon'] == 'luy_ke_cung_ky').values})
+    # tổng: toàn quốc = dòng TỔNG CỘNG của VPA (auth 'VN'); cảng vụ = cộng mọi cảng VPA map vào cảng vụ đó (terminal '__CANG_VU__')
+    tot = long[long['kind'] == 'total']
+    vn = pd.DataFrame({'auth': 'VN', 'terminal': 'TOÀN QUỐC', 'month': tot['month'].dt.strftime('%Y-%m'), 'actual_teu': tot['teu'].round(1),
+                       'fill_only': (tot['nguon'] == 'luy_ke_cung_ky').values})
+    cv = t.groupby(['auth', 'month'], as_index=False).agg(actual_teu=('actual_teu', 'sum'), fill_only=('fill_only', 'max')).assign(terminal=CANG_VU)
+    return pd.concat([t, vn, cv[t.columns]], ignore_index=True)
 
 
 def main(argv=None):

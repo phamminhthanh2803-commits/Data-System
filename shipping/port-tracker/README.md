@@ -112,3 +112,21 @@ Mô hình chỉ có số tới 09/2025 (sông) / 03/2026 (nước sâu) dự bá
   (0 bến hệ số = 0); khoảng ± phân vị 80% trùm 42/68 tháng.
 - Bến có 7–8 tháng trùng (Cái Mép, cảng vụ HCM từ 07/2025) vẫn tự hồi quy (`own_min_train`); tháng đầu chuỗi bắt đầu sau ngày 5 bị bỏ.
 
+### Toàn quốc / cảng vụ theo VPA (16/10/2026)
+- Toàn quốc: thực tế = dòng TỔNG CỘNG của VPA (mọi cảng cả nước, gồm rỗng; nowcast_targets auth 'VN' / 'TOÀN QUỐC'); cảng vụ: cộng các
+  cảng VPA map vào cảng vụ (terminal '__CANG_VU__'). Ước/dự báo = hồi quy 2 biến trên MỌI lượt tàu container của phạm vi, kéo về
+  `self_prior` (trung bình 2 cách tính đơn biến). Không có số VPA -> giữ cách cũ (EconDB, hồi quy từng cảng EconDB).
+- `PUB_COVER_FROM`: toàn quốc + HCM chỉ học từ 08/2025 (cảng vụ HCM có Cái Mép từ 08/2025, số VPA trước đó đã gồm Cái Mép).
+
+### Nghiên cứu chỉ số utilization EconDB (16/10/2026) – KHÔNG cải thiện, chưa đưa vào mô hình
+Kiểm định ngoài mẫu 83 tháng × 11 bến HP (số cũ dự báo số VPA mới), NNLS 12 tháng:
+| Biến | Sai TB | Trung vị |
+|---|---|---|
+| giờ bến + sức chở (cảng vụ, đang dùng) | 11,5% | 8,3% |
+| + throughput terminal EconDB | 15,0% | 11,2% |
+| throughput EconDB × tỷ lệ VPA/EconDB 6 tháng | 31,1% | 29,4% |
+| chỉ throughput EconDB | 31,5% | 26,9% |
+- Throughput terminal EconDB (AIS) phân bổ sai giữa các bến (HICT: VPA/EconDB 1,43 → 1,77) nên kém dữ liệu cảng vụ; chỉ Đình Vũ tốt hơn.
+- Số cẩu STS (ảnh vệ tinh): đứng yên ở hầu hết bến (HICT 6, VIP 3, Đình Vũ 2) hoặc tăng dần từ 0 (HTIT, HHIT) -> giờ-cẩu làm xấu hơn.
+- Tồn bãi (containers-in-terminal) chỉ có năm hiện tại + khoảng min–max, không có lịch sử tháng; ngày nằm bãi nhiễu (HICT nhập 0,27 ngày).
+

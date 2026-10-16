@@ -989,13 +989,44 @@ def parts_note(res):
                                           for k, p in ps.items()) + ' → cộng lại.'
 
 
+# cảng vụ HCM chỉ có Cái Mép từ 08/2025 (số VPA trước đó đã gồm Cái Mép) -> tổng HCM và toàn quốc chỉ học từ 08/2025
+PUB_COVER_FROM = {'VN': '2025-08-31', 'HCM': '2025-08-31'}
+
+
+def nc_published_total(auth, name):
+    """tổng có SỐ CÔNG BỐ (VPA): auth 'VN'/'TOÀN QUỐC' = cả nước, auth X/'__CANG_VU__' = cảng vụ X. Biến = mọi lượt tàu container
+    của phạm vi (12 cảng vụ / cảng vụ X); hồi quy 2 biến kéo về điểm tựa của chính chuỗi (self_prior). None nếu < 7 tháng trùng."""
+    T = nw.load_targets(); pub = nw.target_series(T, auth, name)
+    cut = PUB_COVER_FROM.get(auth)                                 # chỉ học từ tháng dữ liệu cảng vụ đã phủ đủ phạm vi VPA
+    if cut: pub = pub[pub.index >= pd.Timestamp(cut)]
+    if len(pub) < 7: return None
+    key = ('nc_pub', auth, name, KEY, os.path.getmtime(nw.TARGETS) if os.path.exists(nw.TARGETS) else 0)
+    cache = st.session_state.setdefault('_nc', {})
+    if key not in cache:
+        v = nc_visits(); f = nw.features(v if auth == 'VN' else v[v['auth'] == auth], LAST)
+        mt = nw.own_min_train(f, pub)
+        r = nw.run(f, pub, min_train=mt, prior=nw.self_prior(f, pub)) if mt else None
+        cache[key] = None if r is None else {
+            'd': r['data'], 'res': r,
+            'src': ('VPA TỔNG CỘNG (mọi cảng container cả nước, gồm rỗng)' if auth == 'VN' else 'VPA, cộng các cảng thuộc cảng vụ')
+                   + f' {pub.index.min():%m/%Y}–{pub.index.max():%m/%Y}',
+            'note': f'Ước/dự báo: hồi quy 2 biến trên mọi lượt tàu container {"12 cảng vụ" if auth == "VN" else "của cảng vụ"} '
+                    f'(TEU = ' + ' + '.join(f'{x:,.2f} × {"giờ bến" if c == "hours" else "sức chở"}' for c, x in r['coef'].items()) + ').'}
+    return cache[key]
+
+
 def vol_model(level, auth, term, E):
     """dict(d = bảng tháng actual/est/lo/hi/kind/backtest, res = kết quả hồi quy hoặc None, src, note)"""
     if level == 'toan-quoc':
+        rv = nc_published_total('VN', 'TOÀN QUỐC')                 # VPA TỔNG CỘNG (mọi cảng cả nước, gồm container rỗng)
+        if rv: return rv
         r = vn_total(E)
         if r is None: return None
         return {'d': r['data'], 'res': r, 'src': 'tổng container full EconDB của ' + ', '.join(tl.AUTH_LABEL[a] for a in ed.AUTH_LOCODES),
                 'note': parts_note(r)}
+    if level == 'cang-vu':
+        rv = nc_published_total(auth, '__CANG_VU__')               # cộng các cảng VPA thuộc cảng vụ
+        if rv: return rv
     ra = nc_auth(auth, E)
     if level == 'cang-vu':
         if ra is None: return None

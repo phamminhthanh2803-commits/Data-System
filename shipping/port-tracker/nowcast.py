@@ -239,6 +239,14 @@ def load_targets():
     return t.dropna(subset=['month', 'actual_teu'])
 
 
+def self_prior(feat, actual, cols=('hours', 'teu')):
+    """điểm tựa từ chính chuỗi (khi không có nhóm bến để mượn, vd tổng toàn quốc / cảng vụ): trung bình 2 cách tính đơn biến,
+    mỗi cách 1/2 -> cả 2 hệ số dương; run(prior=...) kéo hồi quy 2 biến về đây"""
+    t = feat[~feat['partial'] & (feat['teu'] > 0)].join(actual.rename('_y'), how='inner').dropna(subset=['_y'])
+    if len(t) < 3: return None
+    return {c: 0.5 * float(t[c] @ t['_y']) / float(t[c] @ t[c]) for c in cols if float(t[c] @ t[c]) > 0}
+
+
 def own_min_train(feat, actual):
     """min_train cho bến TỰ hồi quy: đủ MIN_TRAIN_TERM+3 tháng trùng (biến × số công bố) -> MIN_TRAIN_TERM; 7–8 tháng (vd Cái Mép:
     cảng vụ HCM mới có từ 07/2025) -> trùng - 3 (backtest 3 điểm, kém chắc chắn); < 7 -> None (dùng hệ số nhóm)"""

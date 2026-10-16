@@ -58,7 +58,7 @@ CONTAINER_TERMINALS = {'HICT', 'HHIT', 'HTIT', 'LACH HUYEN 1', 'LACH HUYEN 2', '
 MASTER_FIELDS = ['ship_key', 'ship', 'imo', 'mmsi', 'bs_type', 'vf_type', 'vessel_class', 'class_src', 'built', 'flag',
                  'gt', 'dwt', 'loa', 'owner', 'manager', 'operator', 'operator_src', 'teu', 'teu_src', 'teu_checked',
                  'service', 'service_src', 'lookup_as_of', 'lookup_note', 'bs_checked', 'calls_total', 'calls_12m',
-                 'first_seen', 'last_seen', 'top_berth', 'top_agent', 'top_cargo', 'is_sb']
+                 'first_seen', 'last_seen', 'top_berth', 'top_agent', 'top_cargo', 'is_sb', 'econdb_operator', 'econdb_owner', 'econdb_match', 'service_id', 'service_route', 'service_operator']
 VF_TYPE = {'container ship': 'container', 'bulk carrier': 'bulk', 'general cargo ship': 'general', 'general cargo': 'general',
            'oil products tanker': 'tanker', 'crude oil tanker': 'tanker', 'chemical/oil products tanker': 'tanker',
            'oil/chemical tanker': 'tanker', 'lpg tanker': 'gas', 'lng tanker': 'gas', 'vehicles carrier': 'roro',
@@ -281,6 +281,82 @@ def run_teu(master, limit, since, sleep):
 
 
 # ---------------------------------------------------------------- 2. phân loại + hãng theo luật
+# ---------------------------------------------------------------- EconDB (16/10/2026): hãng khai thác + tuyến dịch vụ
+PT_DIR = os.path.join(os.path.dirname(ROOT), 'port-tracker')
+ECONDB_DIR = os.path.join(PT_DIR, 'store', 'econdb')
+
+
+def load_econdb():
+    """(vessels, portcalls) EconDB: đọc kho port-tracker/store/econdb (bước econdb), thiếu/cũ > 3 ngày thì gọi thẳng API /v1/vessels/"""
+    import pandas as pd
+    fv = os.path.join(ECONDB_DIR, 'vessels.parquet'); fp = os.path.join(ECONDB_DIR, 'vessel_portcalls.parquet')
+    v = pd.read_parquet(fv) if os.path.exists(fv) and time.time() - os.path.getmtime(fv) < 3 * 86400 else None
+    if v is None:
+        tok = os.environ.get('ECONDB_TOKEN', '').strip()
+        if not tok and os.name == 'nt':
+            try:
+                import winreg
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, 'Environment') as k: tok = str(winreg.QueryValueEx(k, 'ECONDB_TOKEN')[0]).strip()
+            except OSError: tok = ''
+        if tok:
+            try:
+                r = requests.get('https://api.econdb.com/v1/vessels/', headers={'Authorization': f'Token {tok}'}, timeout=180); r.raise_for_status()
+                v = pd.DataFrame(r.json())
+            except Exception as e:  # noqa: BLE001
+                log(f'econdb vessels: lỗi {str(e)[:120]}')
+        if v is None and os.path.exists(fv): v = pd.read_parquet(fv)
+    pc = pd.read_parquet(fp) if os.path.exists(fp) else None
+    return v, pc
+
+
+def econdb_layer(master, v):
+    """ghép từng tàu với danh sách tàu container EconDB (IMO > MMSI > tên duy nhất + DWT): hãng, chủ tàu, IMO/MMSI còn trống;
+    tàu khớp mà lớp chưa rõ -> container (EconDB chỉ liệt kê tàu container)"""
+    sys.path.insert(0, PT_DIR)
+    import services as sv
+    idx = sv.vessel_index(v); n = Counter()
+    for m in master.values():
+        if m.get('vessel_class') in ('tanker', 'gas', 'bulk', 'roro', 'sb', 'other'): continue
+        r, how = sv.match_vessel(idx, m.get('imo'), m.get('mmsi'), m.get('ship'), m.get('dwt'))
+        if r is None: m['econdb_match'] = ''; continue
+        n[how] += 1; m['econdb_match'] = how
+        op, src = sv.op_canon(r.get('operator_name'), r.get('owner'))
+        m['econdb_operator'] = op if src == 'econdb' else ''
+        m['econdb_owner'] = (r.get('owner') or '') if str(r.get('owner') or '') != 'nan' else ''
+        if not m.get('imo') and r.get('imo') == r.get('imo') and r.get('imo'): m['imo'] = str(int(r['imo']))
+        if not m.get('mmsi') and r.get('mmsi'): m['mmsi'] = str(int(r['mmsi']))
+        if m.get('vessel_class') in ('', 'unknown', 'container?', None): m['vessel_class'], m['class_src'] = 'container', 'econdb'
+    log(f'econdb: khớp {sum(n.values())} tàu ({dict(n)}), {sum(1 for m in master.values() if m.get("econdb_operator"))} có hãng EconDB')
+
+
+def service_layer(master, pc):
+    """vòng tuyến + dịch vụ từ lượt ghé toàn cầu EconDB; tàu còn chưa rõ hãng -> hãng đa số của dịch vụ"""
+    if pc is None or pc.empty: return
+    sys.path.insert(0, PT_DIR)
+    import services as sv
+    rot = sv.rotations(pc)
+    if rot.empty: return
+    ops = {int(float(m['imo'])): m['operator'] for m in master.values() if m.get('imo') and m.get('operator')}
+    svc, rot = sv.cluster(rot, ops)
+    inf = sv.infer_operator(svc, rot)
+    by_imo = {}
+    for m in master.values():
+        try: by_imo.setdefault(int(float(m['imo'])), []).append(m)
+        except (TypeError, ValueError, KeyError): pass
+    route = dict(zip(svc['service_id'], svc['route']))
+    for r in rot.itertuples():
+        if pd_notna(r.imo):
+            for m in by_imo.get(int(r.imo), []):
+                m['service_id'] = r.service_id; m['service_route'] = route.get(r.service_id, r.route)
+                m['service_operator'] = inf.get(int(r.imo), ('', ''))[0]
+    svc.to_csv(os.path.join(DATA, 'econdb_services.csv'), index=False, encoding='utf-8-sig')
+    log(f'dịch vụ: {len(svc)} dịch vụ từ {len(rot)} tàu; suy hãng theo dịch vụ cho {len(inf)} tàu chưa rõ -> {os.path.join(DATA, "econdb_services.csv")}')
+
+
+def pd_notna(x):
+    return x is not None and x == x
+
+
 def load_carriers():
     rules = {'name': [], 'owner': [], 'agent': []}
     for r in read_csv(CARRIERS_CSV):
@@ -290,7 +366,7 @@ def load_carriers():
 
 def classify(m, rules):
     # loại tàu: lookup > flexport > balticshipping > vesselfinder > suy đoán
-    if m.get('class_src') in ('lookup', 'flexport') and m.get('vessel_class'): pass
+    if m.get('class_src') in ('lookup', 'flexport', 'econdb') and m.get('vessel_class'): pass
     else:
         t = m.get('bs_type'); vt = (m.get('vf_type') or '').lower()
         if t and int(float(t)) in BS_TYPE:
@@ -311,11 +387,20 @@ def classify(m, rules):
     if m.get('operator_src') == 'lookup' and m.get('operator'): return
     if m.get('vessel_class') in ('tanker', 'gas', 'bulk', 'roro', 'sb', 'other'):
         m['operator'] = ''; m['operator_src'] = ''; return
+    if m.get('econdb_operator'):                                     # hãng khai thác EconDB (theo IMO/MMSI) - đúng cả tàu thuê
+        m['operator'] = m['econdb_operator']; m['operator_src'] = 'econdb'; return
     for kind, field in (('name', 'ship'), ('owner', 'owner'), ('owner', 'manager'), ('agent', 'top_agent')):
         v = m.get(field) or ''
         for rx, op in rules[kind]:
             if rx.search(v):
                 m['operator'] = op; m['operator_src'] = f'rule:{kind}'; return
+    if m.get('econdb_owner'):                                        # chủ tàu EconDB tự khai thác (THILOGI, VIMC, GLS...)
+        sys.path.insert(0, PT_DIR)
+        import services as sv
+        op, src = sv.op_canon(None, m['econdb_owner'])
+        if op: m['operator'] = op; m['operator_src'] = src; return
+    if m.get('service_operator'):                                    # suy theo dịch vụ (đa số tàu cùng vòng tuyến)
+        m['operator'] = m['service_operator']; m['operator_src'] = 'econdb:service'; return
     if not m.get('operator_src', '').startswith('lookup'):
         m['operator'] = m.get('operator') if m.get('operator_src') == 'lookup' else ''
         m['operator_src'] = ''
@@ -438,6 +523,11 @@ def main():
     log(f'master: {len(master)} tau ({sum(1 for m in master.values() if m.get("imo"))} co IMO, '
         f'{sum(1 for m in master.values() if m.get("teu"))} co TEU)')
     if a.particulars: run_particulars(master, a.limit, a.since, a.min_dwt, a.sleep)
+    ev_v, ev_pc = load_econdb()
+    if ev_v is not None and len(ev_v): econdb_layer(master, ev_v)
+    for m in master.values(): m['service_operator'] = ''
+    for m in master.values(): classify(m, rules)
+    service_layer(master, ev_pc)                                     # cần hãng đã gán để lấy đa số theo dịch vụ
     for m in master.values(): classify(m, rules)
     if a.teu: run_teu(master, a.limit, a.since, a.sleep)
     for m in master.values(): classify(m, rules)

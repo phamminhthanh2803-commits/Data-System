@@ -27,6 +27,7 @@ import livedata as ld   # noqa: E402
 import ui_genea as ui   # noqa: E402
 import econdb as ed     # noqa: E402
 import nowcast as nw    # noqa: E402
+import services as svm   # noqa: E402
 
 
 def _fresh(mod):
@@ -111,6 +112,21 @@ def get_lanes(auths, lo, hi, ver, mstamp):
 
 @st.cache_data(max_entries=2)
 def get_master(ver, mstamp): return tl.master_live()
+
+
+@st.cache_data(show_spinner=False, max_entries=2)
+def get_services(estamp, mstamp):
+    """vòng tuyến + dịch vụ từ lượt ghé toàn cầu EconDB (store/econdb/vessel_portcalls.parquet); hãng đã biết lấy từ vessel_master"""
+    E = ed.load(); pc = E.get('vessel_portcalls')
+    if pc is None or pc.empty: return pd.DataFrame(), pd.DataFrame(), E.get('vessels', pd.DataFrame())
+    m = tl.load_master()
+    ops = {}
+    for imo, op in zip(m.get('imo', pd.Series(dtype=str)), m.get('operator', pd.Series(dtype=str))):
+        try:
+            if op and str(op) != 'nan': ops[int(float(imo))] = op
+        except (TypeError, ValueError): pass
+    svc, rot = svm.cluster(svm.rotations(pc), ops)
+    return svc, rot, E.get('vessels', pd.DataFrame())
 
 
 def live_pull(auths, d0, d1, ttl, max_pages, label, auto=False):
@@ -468,6 +484,18 @@ def ship_detail(key, name, K):
                   ('DWT', fmt_int(m.get('dwt')), '', 0), ('Năm đóng', str(m.get('built') or '–')[:4], '', 0)])
     if len(prow): ui.note(f"Vòng tuyến hay chạy: <b>{prow.iloc[0]['route_pattern']}</b> · cảng ghé: {prow.iloc[0]['ports_called']}")
     if m.get('service'): ui.note(f"Tuyến dịch vụ (tra cứu): {m['service']}")
+    svc, rot, ves = get_services(ed.stamp(), MST)
+    ev, _ = svm.match_vessel(svm.vessel_index(ves), m.get('imo'), m.get('mmsi'), name, m.get('dwt')) if len(ves) else (None, None)
+    if ev is not None:
+        bits = [f"hãng khai thác <b>{svm.op_canon(ev.get('operator_name'))[0] or '–'}</b>", f"chủ tàu {ev.get('owner') or '–'}"]
+        if len(rot) and pd.notna(ev.get('mmsi')) and (rot['mmsi'] == ev['mmsi']).any():
+            rr = rot[rot['mmsi'] == ev['mmsi']].iloc[0]; sv_ = svc[svc['service_id'] == rr['service_id']]
+            bits.append(f"dịch vụ <b>{rr['service_id']}</b>: {sv_['route'].iloc[0] if len(sv_) else rr['route']}"
+                        + (f" ({int(sv_['n_vessels'].iloc[0])} tàu; {sv_['operators'].iloc[0]})" if len(sv_) and sv_['operators'].iloc[0] else ''))
+        if ev.get('last_signal'):
+            bits.append(f"AIS {str(ev.get('last_signal'))[:16]}: {ev.get('last_speed') or 0:.1f} hl/h → {ev.get('destination') or '–'}"
+                        + (f", ETA {str(ev.get('last_eta'))[:10]}" if ev.get('last_eta') else ''))
+        ui.note('EconDB: ' + ' · '.join(bits))
     b1, b2, _ = st.columns([1.3, 1.6, 4])
     if b1.button('🔎 Tra thông số tàu trực tuyến', key=f'{K}_lookup', help='IMO từ BalticShipping / VesselFinder, TEU và loại tàu từ Flexport Atlas'):
         with st.spinner('Đang tra…'):
@@ -705,6 +733,23 @@ def page_lanes(level, auth, term, K):
         one = st.selectbox('Chặng', order, key=f'{K}_lane')
         o = L[(L['lane'] == one) & (L['month'] >= pd.Timestamp(cd.d0)) & (L['month'] <= pd.Timestamp(cd.d1))].groupby('operator')[[mcol, 'ships']].sum().sort_values(mcol, ascending=False)
         cd.chart(ui.fig_hbar(o[mcol].head(12), unit=mlab, sign=False, nd=0), o.rename(columns={mcol: mlab, 'ships': 'Số tàu'}), last=LAST, ten=f'hang_tren_chang')
+    svc, rot, _ = get_services(ed.stamp(), MST)
+    if len(svc):
+        sv = svc.copy()
+        if level != 'toan-quoc':                                   # dịch vụ có tàu đã ghé phạm vi này
+            mst = get_master(VER, MST); ks = set(scoped(level, auth, term)[1]['ship_key'])
+            imos = pd.to_numeric(mst.loc[mst['ship_key'].isin(ks), 'imo'], errors='coerce').dropna()
+            keep = set(rot.loc[pd.to_numeric(rot['imo'], errors='coerce').isin(imos), 'service_id'])
+            sv = sv[sv['service_id'].isin(keep)]
+        sv = sv[sv['vn_ports'] != '']
+        with ui.card('Tuyến dịch vụ (EconDB)', unit=f'{len(sv)} dịch vụ ghé VN', key=f'{K}_svc', controls=False,
+                     help='Gom tàu có cùng vòng cảng (cảng ghé lặp lại trong 120 ngày, lượt ghé toàn cầu EconDB). '
+                          'Hãng = đa số các tàu đã biết hãng; nhiều hãng = dịch vụ chia tàu (VSA/liên minh).') as cd:
+            t = sv[['service_id', 'route', 'vn_ports', 'n_vessels', 'operator', 'operators', 'vessels', 'last_call']].rename(columns={
+                'service_id': 'Mã', 'route': 'Vòng cảng', 'vn_ports': 'Cảng VN', 'n_vessels': 'Số tàu', 'operator': 'Hãng chính',
+                'operators': 'Các hãng (số tàu)', 'vessels': 'Tàu', 'last_call': 'Lượt ghé cuối'})
+            t['Lượt ghé cuối'] = pd.to_datetime(t['Lượt ghé cuối']).dt.strftime('%d/%m/%Y')
+            cd.table(t.reset_index(drop=True), ten='tuyen_dich_vu_econdb', height=420)
     with ui.card('Vòng tuyến hay chạy của từng tàu', unit=f'{len(patterns)} tàu', key=f'{K}_pat', controls=False) as cd:
         cd.table(patterns.drop(columns=['ship_key']).reset_index(drop=True), ten='vong_tuyen_tau', height=400)
 

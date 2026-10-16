@@ -18,9 +18,13 @@ Kéo về kho chia sẻ store/econdb/ (cùng thư mục store/ của app -> đ�
     calls.parquet    : lượt tàu container ghé (API chỉ giữ ~4 tháng -> TÍCH LUỸ, khoá locode+ship_imo+start)
     schedule.parquet : lịch tàu ~3 tuần tới (ảnh chụp lần kéo gần nhất)
     ports.parquet    : danh mục top 400 cảng
+    vessels.parquet  : (16/10/2026) ~7.600 tàu container EconDB: imo, mmsi, tên, chủ tàu (owner), HÃNG KHAI THÁC (operator_name), AIS mới nhất
+    vessel_portcalls.parquet : lượt ghé TOÀN CẦU của các tàu từng ghé VN (/vessels/{mmsi}/portcalls/, cộng dồn, khoá ship_imo+locode+start)
+                       -> vòng tuyến từng tàu + gom dịch vụ (services.py)
 
     python econdb.py                 # kéo tất cả
     python econdb.py --only traffic,calls
+    python econdb.py --only vessels,portcalls --portcalls-max 300
 Locode của EconDB CÓ DẤU CÁCH ('VN HPH').
 """
 import argparse
@@ -222,8 +226,79 @@ def pull(only=None, log=print):
             for k in ('start_date', 'end_date'): s[k] = pd.to_datetime(s[k], errors='coerce', utc=True).dt.tz_convert('Asia/Ho_Chi_Minh').dt.tz_localize(None)
             s['fetched'] = pd.Timestamp.now().floor('min')
             s.to_parquet(os.path.join(DIR, 'schedule.parquet'), index=False); log(f'schedule: {len(s)} chuyen sap toi')
+    if on('vessels') or on('portcalls'):
+        try:
+            v = pull_vessels(c, log) if on('vessels') else _read('vessels.parquet')
+            if on('portcalls') and len(v):
+                master = os.path.join(os.path.dirname(APP), 'cangvu-haiphong', 'data', 'vessel_master.csv')
+                extra = []
+                if os.path.exists(master):                     # thêm tàu container cảng vụ có IMO, ghé 12 tháng
+                    mv = pd.read_csv(master, dtype=str, usecols=lambda x: x in ('imo', 'vessel_class', 'calls_12m'))
+                    mv = mv[mv['vessel_class'].fillna('').str.startswith('container') & (pd.to_numeric(mv['calls_12m'], errors='coerce') > 0)]
+                    extra = mv['imo'].dropna().tolist()
+                n_err = pull_portcalls(c, v, max_n=PORTCALLS_MAX, extra_imos=extra, log=log)
+                if n_err: errs.append(f'portcalls: {n_err} tàu lỗi')
+        except Exception as e:  # noqa: BLE001
+            errs.append(f'vessels/portcalls: {str(e)[:150]}')
     for e in errs: log('  LOI ' + e)
     return c.n, errs
+
+
+PORTCALLS_MAX = 1500
+PORTCALLS_DAYS = 365          # lần đầu kéo 12 tháng lượt ghé của mỗi tàu
+
+
+def pull_vessels(c, log=print):
+    """danh sách tàu container EconDB (1 request) -> vessels.parquet"""
+    v = pd.DataFrame(c.get('vessels') or [])
+    if v.empty: return v
+    v['fetched'] = pd.Timestamp.now().floor('min')
+    v.to_parquet(os.path.join(DIR, 'vessels.parquet'), index=False)
+    log(f'vessels: {len(v)} tàu, {v["operator_name"].notna().sum()} có hãng khai thác')
+    return v
+
+
+def vn_vessel_mmsi(v, extra_imos=()):
+    """mmsi các tàu từng ghé VN: lượt ghé EconDB tại cảng VN (calls.parquet) + lịch tàu + IMO thêm (vd vessel_master cảng vụ),
+    sắp theo lượt VN gần nhất"""
+    calls, sch = _read('calls.parquet'), _read('schedule.parquet')
+    last = {}
+    for d, col in ((calls, 'start'), (sch, 'start_date')):
+        if len(d):
+            for imo, t in d.groupby('ship_imo')[col].max().items():
+                if pd.notna(imo): last[int(imo)] = max(last.get(int(imo), t), t)
+    for imo in extra_imos:
+        try: last.setdefault(int(float(imo)), pd.Timestamp('2000-01-01'))
+        except (TypeError, ValueError): pass
+    m = v.dropna(subset=['imo', 'mmsi']).assign(imo=lambda d: d['imo'].astype('int64')).drop_duplicates('imo').set_index('imo')['mmsi']
+    out = [(last[i], int(m[i])) for i in last if i in m.index]
+    return [mm for _, mm in sorted(out, reverse=True)]
+
+
+def pull_portcalls(c, v, max_n=1500, extra_imos=(), log=print):
+    """lượt ghé toàn cầu của các tàu ghé VN, cộng dồn: mỗi tàu kéo từ (lượt cuối đã có − 14 ngày) hoặc 12 tháng trước"""
+    f = os.path.join(DIR, 'vessel_portcalls.parquet')
+    old = pd.read_parquet(f) if os.path.exists(f) else pd.DataFrame()
+    have = old.groupby('mmsi')['start'].max() if len(old) else pd.Series(dtype='datetime64[ns]')
+    todo = vn_vessel_mmsi(v, extra_imos)[:max_n]; rows, errs = [], 0; t0 = time.time()
+    for i, mm in enumerate(todo):
+        d0 = (have[mm] - pd.Timedelta(days=14)) if mm in have.index else pd.Timestamp.now() - pd.Timedelta(days=PORTCALLS_DAYS)
+        try:
+            for r in c.get(f'vessels/{mm}/portcalls', date_from=d0.strftime('%Y-%m-%d')) or []:
+                r['mmsi'] = mm; rows.append(r)
+        except Exception:  # noqa: BLE001
+            errs += 1
+        if (i + 1) % 200 == 0: log(f'  portcalls {i + 1}/{len(todo)} tàu, {len(rows)} lượt, {time.time() - t0:.0f}s')
+    new = pd.DataFrame(rows)
+    if len(new):
+        for k in ('start', 'end'): new[k] = pd.to_datetime(new[k], errors='coerce', utc=True).dt.tz_convert('Asia/Ho_Chi_Minh').dt.tz_localize(None)
+        new = new[new['start'].notna() & (new['start'] <= pd.Timestamp.now() + pd.Timedelta(days=2))]
+    out = pd.concat([old, new], ignore_index=True) if len(old) else new
+    if len(out):
+        out = out.drop_duplicates(['ship_imo', 'locode', 'start'], keep='last').sort_values(['mmsi', 'start'])
+        out.to_parquet(f, index=False)
+    log(f'portcalls: {len(todo)} tàu, {len(new)} lượt kéo về ({errs} lỗi), kho {len(out)} lượt / {out["mmsi"].nunique() if len(out) else 0} tàu')
+    return errs
 
 
 def merge_series(blocks):
@@ -260,7 +335,7 @@ def _read(name):
 
 def load():
     """dict các bảng + chữ ký mtime (để app làm khoá cache)."""
-    return {k: _read(f'{k}.parquet') for k in ('series', 'calls', 'schedule', 'ports')}
+    return {k: _read(f'{k}.parquet') for k in ('series', 'calls', 'schedule', 'ports', 'vessels', 'vessel_portcalls')}
 
 
 def stamp():
@@ -269,8 +344,12 @@ def stamp():
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--only', default='', help='ports,traffic,dwell,capacity,partner,terminals,peers,p2p,global,calls,schedule')
+    ap.add_argument('--only', default='', help='ports,traffic,dwell,capacity,partner,terminals,peers,p2p,global,calls,schedule,vessels,portcalls')
+    ap.add_argument('--portcalls-max', type=int, default=None,
+                    help='số tàu tối đa kéo lượt ghé (~0,8 s/tàu); mặc định 500 (ghé VN gần nhất trước), thứ Hai 2500')
     a = ap.parse_args(argv)
+    global PORTCALLS_MAX
+    PORTCALLS_MAX = a.portcalls_max or (2500 if time.localtime().tm_wday == 0 else 500)
     t0 = time.time()
     r = pull([x.strip() for x in a.only.split(',') if x.strip()])
     if r is None:

@@ -66,6 +66,7 @@ MODELS = {
 }
 NAIVE = 'Naive: tháng trước'
 RECENT_BT = 6               # chọn mô hình theo điểm = TB(MAPE cả lịch sử, MAPE 6 tháng backtest gần nhất)
+BAND_Q = 0.8                # khoảng ước/dự báo = ± sai số backtest phân vị 80%
 TARGETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'nowcast_targets.csv')   # số CÔNG BỐ theo bến (auth, terminal, month, actual_teu)
 
 
@@ -194,7 +195,8 @@ def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None):
     cols, window = MODELS[best]
     rows = train if window is None else train.iloc[-window:]
     coef = _fit(rows[cols], rows['actual'])
-    err = mape[best] / 100
+    # khoảng = ± sai số PHÂN VỊ 80% của backtest (16/10/2026: ± MAPE chỉ trùm 33/68 tháng công bố mới = 49%)
+    err = float(np.quantile(np.abs(bt[best] / bt['actual'] - 1), BAND_Q))
 
     data, seas = _assemble(feat, actual, cols, coef, err, seasonal_ref, bt[best])
     return {'data': data, 'mape': mape, 'mape_recent': mape_recent, 'fit_err': fit_err, 'fits': fits, 'auto': auto, 'best': best, 'cols': cols,

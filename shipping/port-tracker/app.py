@@ -942,41 +942,23 @@ def nc_term(auth, term, E, ra):
 
 
 def fig_nowcast(d, bt_name, blocks=None):
+    """PV2 16/10/2026: chart chỉ gồm số thực, nowcast, dự phóng (có khoảng) và mô hình fit - không đánh dấu riêng phân bổ / khối / backtest"""
     fig = go.Figure()
     a = d['actual']; W = 22 * 86400000                  # độ rộng cột cố định (ms): trace 1 điểm thì Plotly vẽ cột mảnh gần như vô hình
-    pb = d['kind'].astype(str).str.contains('phân bổ') if 'kind' in d else pd.Series(False, index=d.index)
-    fig.add_trace(go.Bar(x=d.index[~pb], y=a[~pb], name='Thực tế', marker_color=TOK['gray'], width=W, hovertemplate='%{y:,.0f}<extra>Thực tế</extra>'))
-    if pb.any():
-        fig.add_trace(go.Bar(x=d.index[pb], y=a[pb], name='Thực tế (gồm phân bổ)', marker=dict(color=TOK['gray'], pattern=dict(shape='/', fgcolor='#ffffff')),
-                             width=W, customdata=d.loc[pb, 'kind'], hovertemplate='%{y:,.0f}<br>%{customdata}<extra>Thực tế</extra>'))
-    for kind, col in [('nowcast', TOK['orange']), ('nowcast (tháng đang chạy)', TOK['orange_light']),
-                      ('dự báo tháng tới', TOK['tan']), ('dự báo', TOK['tan'])]:
+    fig.add_trace(go.Bar(x=d.index, y=a, name='Thực tế', marker_color=TOK['gray'], width=W, hovertemplate='%{y:,.0f}<extra>Thực tế</extra>'))
+    for kind, lab, col in [('nowcast', 'Nowcast', TOK['orange']), ('nowcast (tháng đang chạy)', 'Nowcast (tháng đang chạy)', TOK['orange_light']),
+                           ('dự báo tháng tới', 'Dự phóng', TOK['tan']), ('dự báo', 'Dự phóng', TOK['tan'])]:
         x = d[d['kind'] == kind]
         if x.empty: continue
-        fig.add_trace(go.Bar(x=x.index, y=x['est'], name=kind[0].upper() + kind[1:], marker_color=col, width=W,
-                             marker_opacity=0.55 if kind == 'dự báo' else 1,
+        fig.add_trace(go.Bar(x=x.index, y=x['est'], name=lab, legendgroup=lab, showlegend=kind != 'dự báo' or not (d['kind'] == 'dự báo tháng tới').any(),
+                             marker_color=col, width=W,
                              error_y=dict(type='data', symmetric=False, array=(x['hi'] - x['est']).values, arrayminus=(x['est'] - x['lo']).values,
                                           color=TOK['ink3'], thickness=1.2, width=4),
-                             hovertemplate='%{y:,.0f}<extra>' + kind + '</extra>'))
+                             hovertemplate='%{y:,.0f}<extra>' + lab + '</extra>'))
     if 'modeled' in d:                                     # model fit (hệ số cuối) suốt lịch sử, như biểu đồ "Model Fit" của PV2
         f = d.loc[d['kind'] != 'nowcast (tháng đang chạy)', 'modeled'].dropna()      # tháng đang chạy mới vài ngày -> fit quy đổi nhiễu, không vẽ
         fig.add_trace(go.Scatter(x=f.index, y=f.values, name=f'Mô hình fit ({bt_name.split(":")[0]})' if bt_name else 'Mô hình fit', mode='lines+markers',
                                  line=dict(color=TOK['down'], width=2, dash='dash'), marker=dict(size=5), hovertemplate='%{y:,.0f}<extra>Mô hình fit</extra>'))
-    b = d['backtest'].dropna() if bt_name else pd.Series(dtype=float)
-    if len(b) and 'modeled' in d and b.equals(d['modeled'].reindex(b.index)): b = b.iloc[0:0]      # hệ số chung: backtest = fit -> không vẽ trùng
-    if len(b):
-        fig.add_trace(go.Scatter(x=b.index, y=b.values, name='Backtest ngoài mẫu', mode='markers', marker=dict(size=6, color=TOK['brown'], symbol='diamond'),
-                                 hovertemplate='%{y:,.0f}<extra>Backtest ngoài mẫu</extra>'))
-    for i, b in enumerate(blocks or []):                    # số công bố chỉ biết TỔNG nhiều tháng: đoạn ngang = TB tháng, không vẽ cột từng tháng
-        ms = pd.DatetimeIndex(b['months']); k = len(ms); lab = f'{ms.min():%m/%Y}–{ms.max():%m/%Y}'
-        x = [ms.min() - pd.Timedelta(days=14), ms.max() + pd.Timedelta(days=1)]
-        fig.add_trace(go.Scatter(x=x, y=[b['total'] / k] * 2, mode='lines', line=dict(color=TOK['ink'], width=3),
-                                 name='Số công bố gộp (TB tháng)', legendgroup='blk', showlegend=i == 0,
-                                 hovertemplate=f'Tổng {lab}: {b["total"]:,.0f} TEU ({k} tháng)<br>TB %{{y:,.0f}}/tháng<extra>Số công bố gộp</extra>'))
-        if b.get('modeled'):
-            fig.add_trace(go.Scatter(x=x, y=[b['modeled'] / k] * 2, mode='lines', line=dict(color=TOK['down'], width=2, dash='dot'),
-                                     name='Mô hình trên khối (TB tháng)', legendgroup='blkm', showlegend=i == 0,
-                                     hovertemplate=f'Mô hình {lab}: {b["modeled"]:,.0f} TEU<extra>Mô hình trên khối</extra>'))
     fig.update_layout(height=380, barmode='overlay', bargap=0.25, yaxis=dict(title='TEU / tháng', rangemode='tozero'))
     return fig
 
@@ -1187,7 +1169,7 @@ def add_term_alloc(m, auth, term, grp=None):
     if not rng: return m
     d = d.sort_index(); d.index.name = 'Tháng'
     m = dict(m); m['d'] = d
-    m['note'] = (m.get('note') or '') + (f' Cột gạch chéo {", ".join(rng)}: VPA chỉ công bố tổng các tháng này, chia theo {" / ".join(sorted(how_all))}; '
+    m['note'] = (m.get('note') or '') + (f' Tháng {", ".join(rng)}: VPA chỉ công bố tổng các tháng này, chia theo {" / ".join(sorted(how_all))}; '
                                          'mô hình học khối (tổng), không học từng tháng phân bổ.')
     return m
 
@@ -1203,7 +1185,11 @@ def mark_alloc(m, auth, name):
     d = m['d'].copy(); d.loc[g.index, 'kind'] = 'thực tế (' + g.astype(str) + ')'
     pct = g.astype(str).str.extract(r'(\d+)%')[0].astype(float)
     m = dict(m); m['d'] = d
-    m['note'] = (m.get('note') or '') + (f' Tháng {g.index.min():%m/%Y}–{g.index.max():%m/%Y} (cột gạch chéo): tổng tháng gồm {pct.min():.0f}–{pct.max():.0f}% '
+    if pct.isna().all():                                           # bến: cả tháng là số phân bổ từ tổng VPA
+        m['note'] = (m.get('note') or '') + (f' Tháng {", ".join(f"{x:%m/%Y}" for x in g.index)}: VPA chỉ công bố tổng nhiều tháng, '
+                                             'chia theo throughput terminal EconDB (không có thì lịch tàu cảng vụ); mô hình dùng như số thật.')
+        return m
+    m['note'] = (m.get('note') or '') + (f' Tháng {g.index.min():%m/%Y}–{g.index.max():%m/%Y} : tổng tháng gồm {pct.min():.0f}–{pct.max():.0f}% '
                                          'phân bổ — bến VPA chỉ có tổng nhiều tháng được chia theo throughput terminal EconDB (không có thì lịch tàu cảng vụ); cộng các tháng vẫn đúng tổng VPA.')
     return m
 
@@ -1246,7 +1232,7 @@ def vol_model(level, auth, term, E):
     if not tt: return None
     if tt.get('res') is not None:
         m = {'d': tt['res']['data'], 'res': tt['res'], 'src': tt['src'], 'econ': tt.get('econ')}
-        return add_term_alloc(with_pub_history(m, auth, term), auth, term, tt.get('group')) if str(tt['src']).startswith('số công bố') else m
+        return mark_alloc(add_term_alloc(with_pub_history(m, auth, term), auth, term, tt.get('group')), auth, tt.get('group') or term)             if str(tt['src']).startswith('số công bố') else m
     if tt.get('view') is None or tt['act'].empty: return None
     return {'d': tt['view'], 'res': None, 'src': tt['src'], 'share': tt['share'],
             'note': f'Bến chưa có chuỗi terminal EconDB đủ dài → ước/dự báo = ước/dự báo cảng vụ × tỷ trọng TB 3 tháng '
@@ -1371,12 +1357,8 @@ def page_volume(level, auth, term, K):
                 note += f' Chỉ {r["n_bt"]} tháng backtest chung → sai số chưa đáng tin.'
             fig = fig_nowcast(dd, m['res']['best'] if m['res'] else '', blocks=(m['res'] or {}).get('blocks'))
             econ = m.get('econ')
-            if econ is not None and len(econ):            # bến dùng số công bố: vẽ thêm EconDB (full) để đối chiếu
-                e = econ[econ.index >= cd.d0]
-                fig.add_trace(go.Scatter(x=e.index, y=e.values, name='EconDB (full)', mode='lines', line=dict(color=TOK['ink3'], width=1.5, dash='dot'),
-                                         hovertemplate='%{y:,.0f}<extra>EconDB full</extra>'))
-                dd = dd.join(e.rename('econdb_full'))
-                note += ' Đường chấm xám = EconDB chỉ đếm container có hàng nên thấp hơn số công bố.'
+            if econ is not None and len(econ):            # EconDB (full) chỉ để trong bảng tải về, không vẽ (PV2 16/10)
+                dd = dd.join(econ[econ.index >= cd.d0].rename('econdb_full'))
             cd.chart(fig, dd[[c for c in ['actual', 'backtest', 'est', 'lo', 'hi', 'kind', 'econdb_full'] if c in dd]].round(0),
                      ten=f'san_luong_{_norm(name)}', note_text=note, last=LAST)
         elif ch == 'Theo quý':

@@ -289,7 +289,7 @@ def totals_from_ports(long, months):
 
 
 # bến ít số mà PV2 đã xác nhận cách đọc "lũy kế + các tháng cuối" (16/10/2026 Gemalink: 7M 1.076.996 · 10M 1.585.050 · T11 175.956 · T12 170.041)
-TRAILING_OK = {'GEMALINK'}
+TRAILING_OK = {'GEMALINK'}                 # HTIT: PV2 gửi đủ số tháng -> input/so_xac_nhan.csv
 MIN_TERMS_MONTHLY = 5      # công thức cột Năm >= 5 số mới tách tháng (11–12 số khớp 100% số tháng đã biết; 7 số An Giang khớp)
 
 
@@ -359,15 +359,15 @@ def to_targets(long, blocks):
     pm = pa.assign(map=pa['key'].map(PORT_MAP)).dropna(subset=['map']); pm['auth'] = pm['map'].str[0]
     pct_cv = (pm.groupby(['auth', 'month'])['pb'].sum() / pm.groupby(['auth', 'month'])['teu'].sum() * 100)
     pct_cv.index = pct_cv.index.set_levels(pct_cv.index.levels[1].strftime('%Y-%m'), level=1)
-    t = t[~t['phan_bo']]                                     # bến: tháng phân bổ không thành số tháng (dùng khối)
+    # 16/10/2026 PV2: số phân bổ coi như số thật -> bến cũng ghi số tháng (ghi_chu cho biết nguồn), không còn khối
     vn['ghi_chu'] = [f'gồm {pct_vn.get(m, 0):.0f}% phân bổ' if pb else '' for m, pb in zip(vn['month'], vn['phan_bo'])]
     cv['ghi_chu'] = [f'gồm {pct_cv.get((a, m), 0):.0f}% phân bổ' if pb else '' for a, m, pb in zip(cv['auth'], cv['month'], cv['phan_bo'])]
-    t['ghi_chu'] = ''
+    t['ghi_chu'] = np.where(t['phan_bo'], 'phân bổ từ tổng VPA', '')
     months = pd.concat([t, vn, cv[t.columns]], ignore_index=True).drop(columns='phan_bo')
     bl = []
     if len(blocks):
         b = blocks[blocks['key'] != 'TONG CONG'].copy(); b['map'] = b['key'].map(PORT_MAP); b = b[b['map'].notna()]
-        bl += [{'auth': m[0], 'terminal': m[1], 'months': _ym(ms), 'total_teu': round(v, 1)} for m, ms, v in zip(b['map'], b['months'], b['teu'])]
+        bl += []   # PV2 16/10: khối đã chia thành số tháng (coi như số thật) -> không ghi khối cho bến
         p2 = long.copy(); p2['map'] = p2['key'].map(PORT_MAP); p2 = p2[(p2['kind'] == 'port') & p2['map'].notna()]; p2['auth'] = p2['map'].str[0]
         bk = blocks.copy(); bk['map'] = bk['key'].map(PORT_MAP); bk = bk[bk['map'].notna()]
         # tổng cảng vụ / toàn quốc đã có số tháng (thật + phân bổ, ghi % trong ghi_chu) -> không cần khối

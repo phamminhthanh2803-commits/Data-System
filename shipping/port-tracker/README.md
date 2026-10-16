@@ -102,3 +102,13 @@ Altair, bảng màu 8 sắc cố định đã kiểm định cho người mù m�
 
 ### Kiểm định ngoài mẫu 16/10/2026 (số công bố HP mới tới 07/2026)
 Mô hình chỉ có số tới 09/2025 (sông) / 03/2026 (nước sâu) dự báo 68 tháng → sai TB 15,1%: tốt Nam Đình Vũ 4,1%, Chùa Vẽ+Tân Vũ 5,7%, HICT 6,4%, HTIT 7,2%; kém VIP Green 31,9% (dự báo cao), HHIT 29,6%, PTSC 24,2%, Đình Vũ 19,9% (dự báo thấp liên tục). Khoảng ± MAPE chỉ trùm 49% → đổi sang ± sai số backtest phân vị 80% (`BAND_Q`), trùm 65%. Số mới đã nạp (187 → 255 dòng; HHIT T1/T2-2026 đảo so với ảnh trước, dùng ảnh mới).
+
+### Mô hình luôn 2 biến (16/10/2026, PV2: "phải dùng cả sức chở và giờ nằm bến")
+- Chỉ còn 3 mô hình A / E / H = giờ bến + sức chở, cửa sổ toàn bộ / 12 / 6 tháng (bỏ 8 mô hình đơn biến B–D, F, G, I–K).
+- Hệ số >= 0 (NNLS); hệ số của bến kéo về **hệ số nhóm cùng loại** (`_fit_prior`, `PRIOR_K` = 6 tháng tương đương, tự tăng nếu còn âm)
+  -> chuỗi ngắn / 2 biến đồng biến vẫn giữ cả hai biến.
+- Hệ số nhóm (pooled) bị dồn vào 1 biến (nước sâu: tàu lớn nằm lâu) -> trung bình 2 cách tính đơn biến, mỗi cách 1/2.
+- Kiểm định ngoài mẫu (số HP mới tới 07/2026): 11 mô hình 15,1% -> chỉ 2 biến 13,6% (5 bến 1 hệ số = 0) -> 2 biến + điểm tựa 12,6%
+  (0 bến hệ số = 0); khoảng ± phân vị 80% trùm 42/68 tháng.
+- Bến có 7–8 tháng trùng (Cái Mép, cảng vụ HCM từ 07/2025) vẫn tự hồi quy (`own_min_train`); tháng đầu chuỗi bắt đầu sau ngày 5 bị bỏ.
+

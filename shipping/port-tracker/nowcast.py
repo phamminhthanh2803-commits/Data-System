@@ -52,17 +52,10 @@ MIN_DAYS_PARTIAL = 5        # tháng đang chạy: từ 5 ngày dữ liệu mớ
 LAG_DAYS = 2                # bỏ 2 ngày cuối: tàu vào chưa rời nên chưa có giờ nằm bến
 # tên: (biến, cửa sổ tháng; None = toàn bộ quá khứ)
 MODELS = {
-    'A: giờ + sức chở':          (['hours', 'teu'], None),
-    'B: chỉ sức chở':            (['teu'], None),
-    'C: chỉ giờ bến':            (['hours'], None),
-    'D: chỉ giờ bến, 12 tháng':  (['hours'], 12),
+    # 16/10/2026 PV2: mô hình LUÔN dùng cả 2 biến (giờ nằm bến + sức chở); chỉ khác cửa sổ huấn luyện. Hệ số ràng buộc >= 0 (_fit).
+    'A: giờ + sức chở':           (['hours', 'teu'], None),
     'E: giờ + sức chở, 12 tháng': (['hours', 'teu'], 12),
-    'F: chỉ sức chở, 12 tháng':  (['teu'], 12),
-    'G: chỉ giờ bến, 6 tháng':   (['hours'], 6),          # cửa sổ ngắn: bám khi năng suất TEU/giờ đổi (HICT 2026)
-    'H: giờ + sức chở, 6 tháng': (['hours', 'teu'], 6),
-    'I: chỉ sức chở, 6 tháng':   (['teu'], 6),
-    'J: chỉ giờ bến, 3 tháng':   (['hours'], 3),
-    'K: chỉ sức chở, 3 tháng':   (['teu'], 3),
+    'H: giờ + sức chở, 6 tháng':  (['hours', 'teu'], 6),
 }
 NAIVE = 'Naive: tháng trước'
 RECENT_BT = 6               # chọn mô hình theo điểm = TB(MAPE cả lịch sử, MAPE 6 tháng backtest gần nhất)
@@ -161,12 +154,43 @@ def terminal_actual(port_monthly, matched, terminal, ec_calls):
 
 
 # ================================================================ mô hình
-def _fit(X, y):
-    coef, *_ = np.linalg.lstsq(np.asarray(X, float), np.asarray(y, float), rcond=None)
-    return coef
+PRIOR_K = 6.0               # độ kéo về hệ số nhóm (tương đương K tháng dữ liệu); kiểm định ngoài mẫu 16/10/2026: k=0 13,6%, 1 14,0%, 3 12,6%, 6 12,2%, 12 12,0%
 
 
-def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None):
+def _fit_prior(X, y, prior, k=None):
+    """hồi quy kéo về hệ số nhóm (prior, cả 2 biến > 0): beta = prior + delta, delta = (X'X + L)^-1 X'(y - X prior),
+    L = k × TB(x_j^2) trên đường chéo (k tháng tương đương) -> chuỗi ngắn/đồng biến vẫn giữ CẢ HAI biến, dữ liệu nhiều thì kéo ít"""
+    X = np.asarray(X, float); y = np.asarray(y, float); b0 = np.asarray(prior, float); k = PRIOR_K if k is None else k
+    for _ in range(8):                              # còn hệ số âm -> tăng gấp đôi độ kéo (vd TCIT), tối đa 8 lần
+        L = np.diag(k * (X ** 2).mean(axis=0))
+        b = b0 + np.linalg.solve(X.T @ X + L, X.T @ (y - X @ b0))
+        if (b > 0).all(): return b
+        k *= 2
+    return b0
+
+
+def _fit(X, y, prior=None):
+    """OLS không chặn, hệ số >= 0 (NNLS chính xác cho <= 2 biến): OLS ra hệ số âm (vd VIP Green -90 × giờ bến) thì nghiệm ràng buộc
+    nằm trên biên -> thử từng biến đơn (biến kia = 0), lấy SSE nhỏ nhất"""
+    if prior is not None: return _fit_prior(X, y, prior)
+    X = np.asarray(X, float); y = np.asarray(y, float)
+    coef, *_ = np.linalg.lstsq(X, y, rcond=None)
+    if (coef >= 0).all() or X.shape[1] == 1: return np.clip(coef, 0, None)
+    best, sse = np.zeros(X.shape[1]), float((y ** 2).sum())
+    for j in range(X.shape[1]):
+        xj = X[:, j]; d = float(xj @ xj)
+        if d <= 0: continue
+        c = max(float(xj @ y) / d, 0.0); e = float(((y - c * xj) ** 2).sum())
+        if e < sse: best, sse = np.eye(X.shape[1])[j] * c, e
+    return best
+
+
+def _pv(prior, cols):
+    """prior (dict hệ số nhóm) -> vector theo cols, None nếu thiếu"""
+    return [prior[c] for c in cols] if prior and all(c in prior and prior[c] > 0 for c in cols) else None
+
+
+def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=None):
     """feat: features(); actual: Series tháng -> TEU thực tế. Trả về dict hoặc None nếu không đủ dữ liệu.
     data: bảng tháng (actual, modeled, backtest, nowcast, forecast, lo, hi, kind) ; mape: {mô hình: %}; best, coef, cols."""
     if feat.empty or actual is None or actual.empty: return None
@@ -180,7 +204,7 @@ def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None):
         for i in range(min_train, len(train)):
             lo = 0 if window is None else max(0, i - window)
             tr = train.iloc[lo:i]
-            preds.append(float(train[cols].iloc[i].values @ _fit(tr[cols], tr['actual'])))
+            preds.append(float(train[cols].iloc[i].values @ _fit(tr[cols], tr['actual'], _pv(prior, cols))))
         bt[name] = preds
     bt[NAIVE] = train['actual'].shift(1).iloc[min_train:].values
     mape = {c: float(np.mean(np.abs(bt[c] / bt['actual'] - 1)) * 100) for c in list(MODELS) + [NAIVE]}
@@ -193,11 +217,11 @@ def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None):
     fits = pd.DataFrame(index=feat.index)
     for name, (cols_m, win_m) in MODELS.items():
         rows_m = train if win_m is None else train.iloc[-win_m:]
-        fits[name] = feat[cols_m].mul(scale_all, axis=0).values @ _fit(rows_m[cols_m], rows_m['actual'])
+        fits[name] = feat[cols_m].mul(scale_all, axis=0).values @ _fit(rows_m[cols_m], rows_m['actual'], _pv(prior, cols_m))
     fit_err = {c: float(np.mean(np.abs(fits.loc[train.index, c] / train['actual'] - 1)) * 100) for c in MODELS}
     cols, window = MODELS[best]
     rows = train if window is None else train.iloc[-window:]
-    coef = _fit(rows[cols], rows['actual'])
+    coef = _fit(rows[cols], rows['actual'], _pv(prior, cols))
     # khoảng = ± sai số PHÂN VỊ 80% của backtest (16/10/2026: ± MAPE chỉ trùm 33/68 tháng công bố mới = 49%)
     err = float(np.quantile(np.abs(bt[best] / bt['actual'] - 1), BAND_Q))
 
@@ -311,9 +335,12 @@ def pooled_coef(pairs, window=POOL_WINDOW, label='chung'):
         if len(t) >= 3: rows.append(t.iloc[-window:])
     if len(rows) < 2: return None
     tr = pd.concat(rows); best = None
-    for cols in (['hours', 'teu'], ['hours'], ['teu']):
+    for cols in (['hours', 'teu'],):                       # 16/10/2026: luôn 2 biến (PV2)
         coef = _fit(tr[cols], tr['actual'])
-        if (coef < 0).any(): continue
+        if (coef <= 0).any():
+            # 2 biến đồng biến (bến nước sâu: tàu lớn nằm lâu) -> NNLS dồn hết vào 1 biến; lấy TRUNG BÌNH 2 cách tính đơn biến,
+            # mỗi cách 1/2 trọng số -> cả 2 hệ số dương, mỗi biến góp 1/2
+            coef = np.array([0.5 * float(tr[c] @ tr['actual']) / float(tr[c] @ tr[c]) for c in cols])
         err = float(np.mean(np.abs(tr[cols].values @ coef / tr['actual'] - 1)))
         if best is None or err < best['err']:
             best = {'coef': dict(zip(cols, coef)), 'cols': cols, 'err': err, 'n_terms': len(rows), 'n_months': len(tr), 'label': label}

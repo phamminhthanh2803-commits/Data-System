@@ -1151,6 +1151,46 @@ def nc_split_cm(v, pub, cut, auth=None, name=None):
     return r
 
 
+def alloc_block(auth, term, W, tot):
+    """chia 1 khối VPA (chỉ biết tổng) của bến ra từng tháng: tỷ lệ throughput terminal EconDB, không có thì lịch tàu cảng vụ của bến"""
+    W = pd.DatetimeIndex(W)
+    lcs = ed.AUTH_LOCODES.get(auth)
+    if lcs:
+        parts = [nw.terminal_series(get_econdb(ed.stamp())['series'], lcs, ed.TERMINAL_MAP, x.strip(), TODAY) for x in term.split('+')]
+        if all(len(p_) for p_ in parts):
+            e = pd.concat(parts, axis=1).sum(axis=1, min_count=len(parts)).reindex(W)
+            if e.notna().all() and (e > 0).all(): return tot * e / e.sum(), 'throughput terminal EconDB'
+    v = nc_visits(); members = [nw.nfc(x.strip()) for x in term.split('+')]
+    g = nw.features(v[(v['auth'] == auth) & v['terminal'].map(nw.nfc).isin(members)], LAST).reindex(W)[['hours', 'teu']]
+    if g.notna().all().all() and (g > 0).all().all():
+        return tot * (0.5 * g['hours'] / g['hours'].sum() + 0.5 * g['teu'] / g['teu'].sum()), 'lịch tàu cảng vụ'
+    return None, None
+
+
+def add_term_alloc(m, auth, term, grp=None):
+    """bến có khối VPA: thêm cột ước từng tháng (phân bổ từ tổng VPA) vào bảng mô hình - chỉ hiển thị, hồi quy vẫn học khối"""
+    if not m or m.get('d') is None or m.get('res') is None: return m
+    name = grp or term; T = nw.load_targets(); pub = nw.target_series(T, auth, name)
+    d = m['d'].copy(); fits = m['res'].get('fits'); best = m['res'].get('best'); how_all = set(); rng = []
+    fit = fits[best] if isinstance(fits, pd.DataFrame) and best in fits else None
+    for W, tot in nw.block_list(nw.load_blocks(), auth, name, pub):
+        a, how = alloc_block(auth, name, W, tot)
+        if a is None: continue
+        for mth, x in a.items():
+            row = {'actual': x, 'kind': 'thực tế (phân bổ từ tổng VPA)'}
+            if fit is not None and mth in fit.index: row['modeled'] = float(fit.loc[mth])
+            if mth in d.index:
+                for k_, v_ in row.items(): d.loc[mth, k_] = v_
+            else: d = pd.concat([d, pd.DataFrame([row], index=pd.DatetimeIndex([mth]))])
+        how_all.add(how); rng.append(f'{pd.DatetimeIndex(W).min():%m/%Y}–{pd.DatetimeIndex(W).max():%m/%Y} (tổng {tot:,.0f})')
+    if not rng: return m
+    d = d.sort_index(); d.index.name = 'Tháng'
+    m = dict(m); m['d'] = d
+    m['note'] = (m.get('note') or '') + (f' Cột gạch chéo {", ".join(rng)}: VPA chỉ công bố tổng các tháng này, chia theo {" / ".join(sorted(how_all))}; '
+                                         'mô hình học khối (tổng), không học từng tháng phân bổ.')
+    return m
+
+
 def mark_alloc(m, auth, name):
     """tháng số công bố có phần PHÂN BỔ (dòng tổng: bến chỉ có tổng năm chia theo lịch tàu) -> kind 'thực tế (gồm X% phân bổ)' + ghi chú"""
     if not m or m.get('d') is None: return m
@@ -1205,7 +1245,7 @@ def vol_model(level, auth, term, E):
     if not tt: return None
     if tt.get('res') is not None:
         m = {'d': tt['res']['data'], 'res': tt['res'], 'src': tt['src'], 'econ': tt.get('econ')}
-        return with_pub_history(m, auth, term) if str(tt['src']).startswith('số công bố') else m
+        return add_term_alloc(with_pub_history(m, auth, term), auth, term, tt.get('group')) if str(tt['src']).startswith('số công bố') else m
     if tt.get('view') is None or tt['act'].empty: return None
     return {'d': tt['view'], 'res': None, 'src': tt['src'], 'share': tt['share'],
             'note': f'Bến chưa có chuỗi terminal EconDB đủ dài → ước/dự báo = ước/dự báo cảng vụ × tỷ trọng TB 3 tháng '

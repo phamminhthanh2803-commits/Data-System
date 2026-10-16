@@ -997,8 +997,9 @@ def nc_published_total(auth, name):
     """tổng có SỐ CÔNG BỐ (VPA): auth 'VN'/'TOÀN QUỐC' = cả nước, auth X/'__CANG_VU__' = cảng vụ X. Biến = mọi lượt tàu container
     của phạm vi (12 cảng vụ / cảng vụ X); hồi quy 2 biến kéo về điểm tựa của chính chuỗi (self_prior). None nếu < 7 tháng trùng."""
     T = nw.load_targets(); pub = nw.target_series(T, auth, name)
+    if pub.empty: return None                                      # file số công bố chưa có dòng tổng (vd bản online chưa kéo file mới)
     cut = PUB_COVER_FROM.get(auth)                                 # chỉ học từ tháng dữ liệu cảng vụ đã phủ đủ phạm vi VPA
-    if cut: pub = pub[pub.index >= pd.Timestamp(cut)]
+    if cut: pub = pub[pd.DatetimeIndex(pub.index) >= pd.Timestamp(cut)]
     if len(pub) < 7: return None
     key = ('nc_pub', auth, name, KEY, os.path.getmtime(nw.TARGETS) if os.path.exists(nw.TARGETS) else 0)
     cache = st.session_state.setdefault('_nc', {})

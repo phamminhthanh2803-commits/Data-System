@@ -333,7 +333,7 @@ def build_lanes(calls, classes=('container', 'container?')):
     """Chặng + vòng tuyến tính TRONG APP từ chuyến vừa ghép (không đọc file itinerary)."""
     vi = itinerary_module(); geo = vi.Geo(); dist = vi.Dist()
     c = calls[calls['vessel_class'].isin(classes) & calls['date'].notna()].copy()
-    if c.empty: return pd.DataFrame(), pd.DataFrame()
+    if c.empty: return lanes_from_legs(pd.DataFrame()), pd.DataFrame(), pd.DataFrame()   # app nhận 3 bảng
     c['arrival'] = c['arrival'].dt.strftime('%Y-%m-%d %H:%M').fillna(''); c['departure'] = c['departure'].dt.strftime('%Y-%m-%d %H:%M').fillna('')
     keep = ['auth', 'ship', 'ship_key', 'arrival', 'departure', 'origin', 'destination', 'berths', 'first_berth', 'status', 'operator', 'teu']
     legs = []; pats = []
@@ -350,7 +350,7 @@ def build_lanes(calls, classes=('container', 'container?')):
         pats.append({'ship_key': key, 'ship': name, 'operator': op, 'teu': teu, 'route_pattern': pat, 'ports_called': ports, 'n_stops': len(stops)})
     dist.save()
     L = pd.DataFrame(legs, columns=['month', 'from', 'to', 'operator', 'ship_key', 'teu'])
-    if L.empty: return L, pd.DataFrame(pats), L
+    if L.empty: return lanes_from_legs(L), pd.DataFrame(pats), L
     return lanes_from_legs(L), pd.DataFrame(pats).sort_values('n_stops', ascending=False), L
 
 

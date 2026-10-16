@@ -266,7 +266,7 @@ def target_group(t, auth, terminal):
 def target_series(t, auth, terminal):
     """chuỗi số công bố của bến (hoặc của nhóm chứa bến, vd Chùa Vẽ + Tân Vũ công bố chung)"""
     g = target_group(t, auth, terminal)
-    if g is None: return pd.Series(dtype=float)
+    if g is None: return pd.Series(dtype=float, index=pd.DatetimeIndex([]))   # index ngày cả khi rỗng (so sánh với mốc ngày không lỗi)
     s = t[(t['auth'] == auth) & (t['terminal'] == g)].set_index('month')['actual_teu'].sort_index()
     return s[~s.index.duplicated(keep='last')]
 

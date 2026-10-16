@@ -258,7 +258,9 @@ class Dist:
         k = (a['port'], b['port'])
         if k in self.cache: return self.cache[k]
         if self.sr is None:
-            import searoute as sr; self.sr = sr
+            try: import searoute as sr; self.sr = sr
+            except ImportError: self.sr = False            # máy không cài searoute (bản online) -> chặng mới không có hải lý, không sập
+        if self.sr is False: return None
         try:
             f = self.sr.searoute((a['lon'], a['lat']), (b['lon'], b['lat']), units='naut')
             v = round(float(f['properties'].get('length', 0.0)), 0)

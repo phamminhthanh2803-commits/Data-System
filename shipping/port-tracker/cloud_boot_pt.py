@@ -34,6 +34,9 @@ PULL = [('port-tracker', ['/store/**', '/nowcast_targets.csv', '/nowcast_blocks.
         ('vessel-itinerary', ['/data/vessel_route_pattern.csv', '/data/lane_monthly.csv', '/data/itinerary_legs.csv',
                        '/data/port_pairs_nm.csv']),
         ('vimawa-sanluong', ['/data/vimawa_sanluong.csv'])]                   # biểu 28-T Cục Hàng hải: tham chiếu trang Sản lượng     # cache hải lý: thiếu -> trang Tuyến phải gọi searoute cho mọi cặp cảng
+# file nhỏ do PV2 sửa tay (số công bố VPA, khối, Cục HH) -> kéo ngay khi app chạy code mới + mỗi FAST_SEC giây
+FAST = [('port-tracker', ['/nowcast_targets.csv', '/nowcast_blocks.csv']), ('vimawa-sanluong', ['/data/vimawa_sanluong.csv'])]
+FAST_SEC = int(os.environ.get('CLOUD_FAST_SEC', '300'))
 STATE = {'error': None, 'last': None, 'mb': None}
 
 
@@ -72,6 +75,15 @@ def _conf():
     os.chmod(CONF, 0o600)
 
 
+def pull_items(items):
+    """kéo nhanh vài file (không ghi marker)"""
+    exe = _rclone()
+    for folder, inc in items:
+        subprocess.run([exe, 'copy', f'{REMOTE}/{folder}', os.path.join(HUB, folder), '--retries', '2']
+                       + sum([['--include', x] for x in inc], []), capture_output=True, text=True, timeout=300)
+    STATE['fast'] = time.strftime('%d/%m/%Y %H:%M')
+
+
 def pull(progress=None):
     exe = _rclone(); t0 = time.time()
     for i, (folder, inc) in enumerate(PULL):
@@ -93,10 +105,16 @@ def pull(progress=None):
 
 
 def _loop():
+    """16/10/2026: luồng v2 (tên mới -> chạy code mới cả khi luồng cũ còn sống sau khi cập nhật code): file nhỏ ngay + mỗi FAST_SEC,
+    toàn bộ PULL mỗi REFRESH_SEC"""
+    last_full = time.time()
     while True:
-        time.sleep(REFRESH_SEC)
-        try: pull()
+        try: pull_items(FAST)
         except Exception as e: STATE['error'] = str(e)[:300]  # noqa: E701,BLE001
+        if time.time() - last_full >= REFRESH_SEC:
+            try: pull(); last_full = time.time()
+            except Exception as e: STATE['error'] = str(e)[:300]  # noqa: E701,BLE001
+        time.sleep(FAST_SEC)
 
 
 def trim_memory():
@@ -122,6 +140,6 @@ def boot():
         with st.status('Lần đầu mở trên cloud: đang kéo dữ liệu từ Google Drive (≈ 1 phút)…', expanded=True) as s:
             pull(lambda i, n, f: s.write(f'{i + 1}/{n} · {f}'))
             s.update(label=f'Đã kéo {STATE["mb"]} MB trong {STATE.get("secs")} s', state='complete', expanded=False)
-    if not any(t.name == 'pt_refresh' for t in threading.enumerate()):
-        threading.Thread(target=_loop, name='pt_refresh', daemon=True).start()
+    if not any(t.name == 'pt_refresh_v2' for t in threading.enumerate()):
+        threading.Thread(target=_loop, name='pt_refresh_v2', daemon=True).start()
     return True

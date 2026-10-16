@@ -396,6 +396,23 @@ def _on_date(key):
     st.session_state[f"per_{key}"] = None
 
 
+def _period_d1(idx: pd.DatetimeIndex, d1: pd.Timestamp) -> pd.Timestamp:
+    """Chuoi gop theo tuan/thang/quy/nam dan nhan CUOI ky (PV2 15/10/2026: 31/10, 31/12...) -> ky DANG CHAY co nhan SAU d1.
+    Tra d1 noi rong toi nhan dau tien sau d1 neu ky cua nhan do chua d1 (nhan - buoc <= d1); chuoi ngay giu nguyen d1."""
+    try:
+        u = pd.DatetimeIndex(idx).dropna().normalize().unique().sort_values()
+        if len(u) < 2 or u[-1] <= d1:
+            return d1
+        step = pd.Series(u[1:] - u[:-1]).median()
+        if step <= pd.Timedelta(days=3):
+            return d1
+        after = u[u > d1]
+        nxt = after[0]
+        return nxt if nxt - step * 1.1 <= d1 else d1
+    except Exception:  # noqa: BLE001
+        return d1
+
+
 class Card:
     """Doi tuong tra ve trong `with card(...) as c:` - chua lua chon (chip, ky, toggle) va ham ve."""
 
@@ -413,6 +430,7 @@ class Card:
         d1 = self.d1
         if LIVE["active"] and "live" in getattr(df, "attrs", {}):      # hang LIVE hom nay luon nam trong khung
             d1 = max(d1, _today())
+        d1 = _period_d1(df.index, d1)                                    # 16/10/2026: giu ky dang chay (moc cuoi ky > d1)
         out = df[df.index <= d1] if keep_history else df[(df.index >= self.d0) & (df.index <= d1)]
         out.attrs = dict(df.attrs)
         return out
@@ -441,6 +459,8 @@ class Card:
         self.export(df_export if df_export is not None else df, ten, fig)
         if last is None and df is not None and len(df) and isinstance(df.index, pd.DatetimeIndex):
             last = df.index.max()
+            if pd.Timestamp(last).date() > DATA_END:              # 16/10/2026: nhan cuoi ky dang chay (31/10) -> ngay du lieu that
+                last = pd.Timestamp(DATA_END)
         txt = []
         if live:
             hist_end = live.get("hist_end")

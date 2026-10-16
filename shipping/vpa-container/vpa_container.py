@@ -121,10 +121,26 @@ def _me(y, m): return pd.Timestamp(y, m, 1) + pd.offsets.MonthEnd(0)
 
 
 class AllocWeights:
-    """nhịp tháng để chia 1 khối (chỉ biết tổng) ra từng tháng: (1) số tháng của bến đã có trong nowcast_targets (vd số ảnh) phủ đủ khối;
-    (2) lịch tàu container cảng vụ của chính bến (TB tỷ trọng giờ nằm bến và sức chở); (3) None -> nhịp chung"""
+    """nhịp tháng để chia 1 khối (chỉ biết tổng) ra từng tháng (16/10/2026 PV2: mọi số theo VPA, không dùng số ảnh):
+    (1) throughput terminal EconDB của bến (mọi tháng khối > 0); (2) lịch tàu container cảng vụ của chính bến
+    (TB tỷ trọng giờ nằm bến và sức chở); (3) None -> nhịp chung"""
     def __init__(self):
-        self.t = None; self.v = {}
+        self.t = None; self.v = {}; self.e = None
+
+    def _econdb(self, auth, term, ms):
+        try:
+            sys.path.insert(0, os.path.dirname(TARGETS))
+            import econdb as ed, nowcast as nw
+            if self.e is None: self.e = ed.load()['series']
+            lcs = ed.AUTH_LOCODES.get(auth)
+            if not lcs or self.e is None or not len(self.e): return None
+            parts = [nw.terminal_series(self.e, lcs, ed.TERMINAL_MAP, x.strip()) for x in term.split('+')]
+            if any(p_.empty for p_ in parts): return None
+            s = pd.concat(parts, axis=1).sum(axis=1, min_count=len(parts))
+            s = s.reindex(ms)
+            return s if s.notna().all() and (s > 0).all() else None
+        except Exception as e:  # noqa: BLE001
+            print(f'  ! EconDB terminal {term}: {e}'); return None
 
     def _targets(self):
         if self.t is None:
@@ -148,11 +164,9 @@ class AllocWeights:
     def __call__(self, key, months):
         m = PORT_MAP.get(key)
         if not m: return None, 'nhịp chung'
-        auth, term = m; ms = pd.DatetimeIndex(months); ym = ms.strftime('%Y-%m')
-        t = self._targets(); t = t[(t['auth'] == auth) & (t['terminal'] == term)]; t = pd.Series(t['actual_teu'].values, index=t['month'].str[:7].values)
-        if len(t) and pd.Index(ym).isin(t.index).all():
-            w = t.reindex(ym).astype(float).values
-            if w.sum() > 0: return pd.Series(w / w.sum(), index=ms), 'số tháng đã công bố của bến'
+        auth, term = m; ms = pd.DatetimeIndex(months)
+        e = self._econdb(auth, term, ms)
+        if e is not None: return e / e.sum(), 'throughput terminal EconDB'
         v = self._visits(auth, ms.min() - pd.offsets.MonthBegin(1), ms.max() + pd.Timedelta(days=1))
         if v is not None and len(v):
             members = [x.strip() for x in term.split('+')]
@@ -176,7 +190,7 @@ def year_months(form, long, weights=None, cum=None):
         if r.key not in meta.index: continue
         if r.key == 'TONG CONG': continue                                                         # tổng: khối riêng ở main()
         t, yr = r.terms, r.year
-        if len(t) <= MIN_TERMS_MONTHLY - 1: t = [sum(t)]     # 2–4 số: không rõ mỗi số là tháng nào (HTIT 49.476 ≠ T12 ảnh 63.729) -> chỉ tổng năm
+        if len(t) <= MIN_TERMS_MONTHLY - 1 and r.key not in TRAILING_OK: t = [sum(t)]     # 2–4 số: không rõ mỗi số là tháng nào (HTIT 49.476 ≠ T12 ảnh 63.729) -> chỉ tổng năm
         n = len(t); fe = 13 - n if n > 1 else 12                                                    # số đầu = T1..T(fe)
         for i, v in enumerate(t[1:] if n > 1 else [], start=fe + 1):
             rows.append({'key': r.key, 'month': _me(yr, i), 'teu': v, 'nguon': 'nam_truoc_cong_thuc'})
@@ -246,6 +260,8 @@ def totals_from_ports(long, months):
     return pd.concat([reg, tot], ignore_index=True).assign(canh_bao='')
 
 
+# bến ít số mà PV2 đã xác nhận cách đọc "lũy kế + các tháng cuối" (16/10/2026 Gemalink: 7M 1.076.996 · 10M 1.585.050 · T11 175.956 · T12 170.041)
+TRAILING_OK = {'GEMALINK'}
 MIN_TERMS_MONTHLY = 5      # công thức cột Năm >= 5 số mới tách tháng (11–12 số khớp 100% số tháng đã biết; 7 số An Giang khớp)
 
 
@@ -398,12 +414,15 @@ def main(argv=None):
         # vd Chùa Vẽ+Tân Vũ 1T2025 = 108.077 = số T1/2024)
         both = old.merge(new, on=['auth', 'terminal', 'month'], suffixes=('_cu', '_vpa'))
         diff = both[(both['actual_teu_cu'] - both['actual_teu_vpa']).abs() > 1]
-        keys = set(zip(old['auth'], old['terminal'], old['month']))
-        new = new[~(new['fill_only'] & [k in keys for k in zip(new['auth'], new['terminal'], new['month'])])].drop(columns='fill_only')
+        # 16/10/2026 PV2: MỌI số lấy theo VPA (kể cả suy từ lũy kế) thay số ảnh; tháng VPA chỉ biết tổng khối -> bỏ số ảnh, bến dùng khối
+        inblk = {(r.auth, r.terminal, m) for r in nb.itertuples() for m in str(r.months).split(';')}
+        drop = [(a, t_, m) in inblk for a, t_, m in zip(old['auth'], old['terminal'], old['month'])]
+        if any(drop): print(f'Bỏ {sum(drop)} số cũ (ảnh) nằm trong khối VPA:', sorted({t_ for (a, t_, m), d in zip(zip(old['auth'], old['terminal'], old['month']), drop) if d}))
+        old = old[[not d for d in drop]]
+        new = new.drop(columns='fill_only')
         out = pd.concat([old, new]).drop_duplicates(['auth', 'terminal', 'month'], keep='last').sort_values(['auth', 'terminal', 'month'])
         out.to_csv(TARGETS, index=False, encoding='utf-8')
-        print(f'nowcast_targets: {len(old)} -> {len(out)} dòng ({out["terminal"].nunique()} bến), {len(diff)} ô khác số cũ '
-              f'(số tháng ghi đè, số suy từ lũy kế cùng kỳ giữ số cũ)')
+        print(f'nowcast_targets: {len(old)} -> {len(out)} dòng ({out["terminal"].nunique()} bến), {len(diff)} ô khác số cũ (VPA ghi đè)')
         if len(diff): print(diff.to_string(index=False))
     print('DONE vpa-container')
     return 0

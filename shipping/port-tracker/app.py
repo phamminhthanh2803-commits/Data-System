@@ -1101,7 +1101,10 @@ def nc_split_cm(v, pub, cut, auth=None, name=None):
         ft = nw.features(v[(v['auth'] == 'HCM') & (v['terminal'].map(nw.nfc) == nw.nfc(t))], LAST)
         for W, tot in nw.block_list(B, 'HCM', t, s_t):
             W = pd.DatetimeIndex(W); g = ft.reindex(W)[['hours', 'teu']]
-            if g.notna().all().all() and (g > 0).all().all():
+            e = nw.terminal_series(get_econdb(ed.stamp())['series'], ed.AUTH_LOCODES['HCM'], ed.TERMINAL_MAP, t, TODAY).reindex(W)
+            if e.notna().all() and (e > 0).all():                  # PV2 16/10: chia theo tỷ lệ throughput terminal EconDB
+                s_t = s_t.combine_first(tot * e / e.sum())
+            elif g.notna().all().all() and (g > 0).all().all():    # không có EconDB -> lịch tàu cảng vụ của bến
                 w = 0.5 * g['hours'] / g['hours'].sum() + 0.5 * g['teu'] / g['teu'].sum()
                 s_t = s_t.combine_first(tot * w)
         ser[t] = s_t
@@ -1160,7 +1163,7 @@ def mark_alloc(m, auth, name):
     pct = g.astype(str).str.extract(r'(\d+)%')[0].astype(float)
     m = dict(m); m['d'] = d
     m['note'] = (m.get('note') or '') + (f' Tháng {g.index.min():%m/%Y}–{g.index.max():%m/%Y} (cột gạch chéo): tổng tháng gồm {pct.min():.0f}–{pct.max():.0f}% '
-                                         'phân bổ — bến chỉ có tổng cả năm (VPA) được chia theo lịch tàu cảng vụ của chính bến; cộng các tháng vẫn đúng tổng năm VPA.')
+                                         'phân bổ — bến VPA chỉ có tổng nhiều tháng được chia theo throughput terminal EconDB (không có thì lịch tàu cảng vụ); cộng các tháng vẫn đúng tổng VPA.')
     return m
 
 

@@ -1,0 +1,169 @@
+# -*- coding: utf-8 -*-
+r"""
+vpa_container.py - gom báo cáo SẢN LƯỢNG CONTAINER hằng tháng của Hiệp hội Cảng biển VN (VPA) thành 1 bảng dài (16/10/2026).
+
+Đầu vào: file Excel VPA, mỗi sheet "T<m>-<yyyy>" = 1 tháng, cột (từ cột A):
+  KHU VỰC / Cảng | Năm <yyyy-1> | <m>T<yyyy-1> (lũy kế cùng kỳ) | <m>T-<yyyy> (lũy kế) | THÁNG <m>: CỘNG | Nhập ngoại | Xuất ngoại |
+  Nhập nội | Xuất nội | Trung chuyển | 20' | Rỗng | Lạnh | GN qua sà lan | tỷ lệ
+Đầu ra (data/):
+  vpa_container_long.csv  : 1 dòng = cảng × tháng: region, port, month (cuối tháng), teu, nguon (thang | luy_ke_cung_ky | luy_ke),
+                            nhap_ngoai, xuat_ngoai, nhap_noi, xuat_noi, trung_chuyen, teu20, rong, lanh, sa_lan, canh_bao
+  vpa_container_wide.xlsx : cảng × tháng (TEU) + sheet Năm (cả năm năm trước theo báo cáo)
+Tháng năm trước (vd T1–T7/2025) suy từ chênh lệch cột lũy kế cùng kỳ giữa 2 sheet liền nhau.
+Tháng năm nay: cột CỘNG; nếu trống/0 mà lũy kế tăng thì lấy chênh lệch lũy kế (VPA đôi khi chỉ điền lũy kế, vd Nam Hải Đình Vũ T1/2026).
+Cảng trùng tên trong 1 sheet (vd Nam Hải Đình Vũ 2 dòng) -> giữ dòng có số lớn nhất.
+
+    python vpa_container.py <file.xlsx> [file2.xlsx ...]      # gộp nhiều file (tháng sau ghi đè tháng trước)
+    python vpa_container.py --targets                          # + cập nhật D:\shipping\port-tracker\nowcast_targets.csv
+"""
+import argparse
+import glob
+import os
+import re
+import sys
+import unicodedata
+
+import numpy as np
+import pandas as pd
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+DATA = os.path.join(HERE, 'data')
+TARGETS = os.path.join(os.path.dirname(HERE), 'port-tracker', 'nowcast_targets.csv')
+COLS = ['year_prev', 'cum_prev', 'cum_cur', 'teu', 'nhap_ngoai', 'xuat_ngoai', 'nhap_noi', 'xuat_noi', 'trung_chuyen', 'teu20', 'rong', 'lanh', 'sa_lan']
+REGIONS = ('MIỀN BẮC', 'BẮC TRUNG BỘ', 'NAM TRUNG BỘ', 'ĐÔNG NAM BỘ', 'CÁI MÉP', 'ĐỒNG BẰNG', 'TỔNG CỘNG')
+
+# tên cảng VPA (đã chuẩn hoá: bỏ dấu, (*), khoảng trắng) -> (cảng vụ, bến trong app Port Tracker)
+PORT_MAP = {
+    'HAI PHONG CHUA VE+TAN VU': ('HP', 'CHUA VE+TAN VU'), 'HTIT': ('HP', 'HTIT'), 'HICT LACH HUYEN, HP': ('HP', 'HICT'),
+    'DOAN XA': ('HP', 'DOAN XA'), 'DINH VU': ('HP', 'DINH VU'), 'NAM HAI DINH VU': ('HP', 'NAM HAI DINH VU'), 'NAM DINH VU': ('HP', 'NAM DINH VU'),
+    'TAN CANG 128 HAI PHONG': ('HP', 'CANG 128'), 'VIMC DINH VU': ('HP', 'VIMC'), 'VIP GREEN PORT': ('HP', 'VIP GREEN PORT'),
+    'GREEN PORT': ('HP', 'GREEN PORT'), 'MIPEC': ('HP', 'MPC PORT'), 'HAI AN': ('HP', 'HAI AN'), 'TC 189 HAI PHONG': ('HP', 'TAN CANG 189'),
+    'NAM HAI': ('HP', 'NAM HAI'), 'HHIT': ('HP', 'HHIT'), 'PTSC DINH VU': ('HP', 'PTSC DINH VU'),
+    'DA NANG': ('DNG', 'BẾN CẢNG TIÊN SA'), 'PHUOC AN': ('DNI', 'BẾN CẢNG PHƯỚC AN'),
+    'CANG SAI GON': ('HCM', 'SAI GON'), 'BEN NGHE': ('HCM', 'BEN NGHE'), 'TAN CANG - HIEP PHUOC': ('HCM', 'TAN CANG HIEP PHUOC'),
+    'TAN CANG - CAT LAI': ('HCM', 'CAT LAI'), 'VICT': ('HCM', 'VICT'), 'SPCT': ('HCM', 'SPCT'), 'SP-ITC': ('HCM', 'SP-ITC'),
+    'SP-PSA': ('HCM', 'SP-PSA'), 'TAN CANG - TCIT': ('HCM', 'TCIT'), 'TAN CANG - TCTT': ('HCM', 'TCTT'), 'CMIT': ('HCM', 'CMIT'),
+    'SSIT': ('HCM', 'SSIT'), 'SITV': ('HCM', 'SITV'), 'GEMALINK': ('HCM', 'GEMALINK'),
+}
+
+
+def _norm(s):
+    s = unicodedata.normalize('NFD', str(s)); s = ''.join(c for c in s if unicodedata.category(c) != 'Mn').replace('đ', 'd').replace('Đ', 'D')
+    s = re.sub(r'\(\*\)', '', s); s = s.replace('(', ' ').replace(')', ' ')
+    return re.sub(r'\s+', ' ', s).strip().upper()
+
+
+def _num(x):
+    if x is None or (isinstance(x, str) and not re.search(r'\d', x)): return np.nan
+    try: return float(str(x).replace(',', ''))
+    except ValueError: return np.nan
+
+
+def read_file(path):
+    import openpyxl
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    out = []
+    for ws in wb.worksheets:
+        m = re.match(r'T(\d{1,2})-(\d{4})', ws.title.strip())
+        if not m: continue
+        mon, yr = int(m.group(1)), int(m.group(2)); region = ''
+        for row in ws.iter_rows(min_row=5, values_only=True):
+            name = row[0]
+            if name is None or not str(name).strip(): continue
+            name = re.sub(r'\s+', ' ', str(name)).strip()
+            up = _norm(name)
+            if up.startswith('TONG CONG'): break
+            if any(up.startswith(_norm(r)) for r in REGIONS):
+                region = name.split('(')[0].strip(); kind = 'region'
+            else:
+                kind = 'port'
+            vals = [_num(x) for x in row[1:14]]
+            if all(np.isnan(v) for v in vals[:4]): continue
+            out.append({'sheet': ws.title, 'year': yr, 'mon': mon, 'region': region, 'kind': kind, 'port': name, 'key': up, **dict(zip(COLS, vals))})
+    return pd.DataFrame(out)
+
+
+def build(raw):
+    raw = raw.copy()
+    raw['score'] = raw[['teu', 'cum_cur']].fillna(0).max(axis=1)
+    raw = raw.sort_values('score').drop_duplicates(['year', 'mon', 'key'], keep='last')         # cảng trùng tên trong sheet
+    raw['port'] = raw['key'].map(raw.groupby('key')['port'].agg(lambda s: s.mode().iloc[0]))   # tên hiển thị = cách viết hay gặp nhất (VPA có 'Dình Vũ')
+    rows = []
+    for (key, yr), g in raw.groupby(['key', 'year']):
+        g = g.set_index('mon').sort_index(); meta = g.iloc[-1]
+        prev_cum = prev_cum_p = 0.0; prev_m = 0
+        for mon, r in g.iterrows():
+            gap = mon != prev_m + 1                                  # thiếu sheet tháng trước -> không suy được chênh lệch lũy kế
+            d_cur = r['cum_cur'] - prev_cum if not gap and pd.notna(r['cum_cur']) else np.nan
+            d_prev = r['cum_prev'] - prev_cum_p if not gap and pd.notna(r['cum_prev']) else np.nan
+            teu, src, warn = r['teu'], 'thang', ''
+            if (pd.isna(teu) or teu == 0) and pd.notna(d_cur) and d_cur > 0: teu, src = d_cur, 'luy_ke'
+            elif pd.notna(d_cur) and pd.notna(teu) and teu > 0 and abs(teu - d_cur) > max(50, 0.02 * teu):
+                warn = f'tháng {teu:,.0f} ≠ chênh lũy kế {d_cur:,.0f}'
+            if pd.notna(teu) and teu > 0:
+                rows.append({'region': meta['region'], 'kind': meta['kind'], 'port': meta['port'], 'key': key,
+                             'month': pd.Timestamp(yr, mon, 1) + pd.offsets.MonthEnd(0), 'teu': teu, 'nguon': src, 'canh_bao': warn,
+                             **{c: r[c] for c in COLS[4:]}})
+            if pd.notna(d_prev) and d_prev > 0:
+                rows.append({'region': meta['region'], 'kind': meta['kind'], 'port': meta['port'], 'key': key,
+                             'month': pd.Timestamp(yr - 1, mon, 1) + pd.offsets.MonthEnd(0), 'teu': d_prev, 'nguon': 'luy_ke_cung_ky', 'canh_bao': ''})
+            prev_cum = r['cum_cur'] if pd.notna(r['cum_cur']) else prev_cum
+            prev_cum_p = r['cum_prev'] if pd.notna(r['cum_prev']) else prev_cum_p; prev_m = mon
+    long = pd.DataFrame(rows).sort_values(['key', 'month', 'nguon'])
+    long = long.drop_duplicates(['key', 'month'], keep='last')       # 'thang' (sheet đúng tháng) ưu tiên hơn suy từ lũy kế
+    year_prev = raw.sort_values(['year', 'mon']).groupby('key').agg(port=('port', 'last'), region=('region', 'last'), kind=('kind', 'last'),
+                                                                    year=('year', 'last'), year_prev=('year_prev', 'last'))
+    return long, year_prev
+
+
+def to_targets(long):
+    """các cảng có trong PORT_MAP -> dòng nowcast_targets (auth, terminal, month YYYY-MM, actual_teu)"""
+    p = long[long['kind'] == 'port'].copy(); p['map'] = p['key'].map(PORT_MAP)
+    p = p[p['map'].notna()]
+    return pd.DataFrame({'auth': p['map'].str[0], 'terminal': p['map'].str[1], 'month': p['month'].dt.strftime('%Y-%m'), 'actual_teu': p['teu'].round(1),
+                         'fill_only': (p['nguon'] == 'luy_ke_cung_ky').values})
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument('files', nargs='*', help='file Excel VPA (mặc định: mọi VPA-container*.xlsx trong input/)')
+    ap.add_argument('--targets', action='store_true', help='cập nhật nowcast_targets.csv của Port Tracker (VPA ghi đè trùng tháng)')
+    a = ap.parse_args(argv)
+    files = a.files or sorted(glob.glob(os.path.join(HERE, 'input', 'VPA-container*.xlsx')))
+    if not files: sys.exit('ERROR khong co file VPA')
+    raw = pd.concat([read_file(f) for f in files], ignore_index=True)
+    long, yp = build(raw)
+    os.makedirs(DATA, exist_ok=True)
+    long.drop(columns=['key']).to_csv(os.path.join(DATA, 'vpa_container_long.csv'), index=False, encoding='utf-8-sig')
+    w = long.pivot_table(index=['region', 'kind', 'port'], columns='month', values='teu', aggfunc='last')
+    w.columns = [c.strftime('%m/%Y') for c in w.columns]
+    with pd.ExcelWriter(os.path.join(DATA, 'vpa_container_wide.xlsx')) as xw:
+        w.reset_index().to_excel(xw, sheet_name='TEU theo thang', index=False)
+        yp.reset_index(drop=True).to_excel(xw, sheet_name='Ca nam truoc', index=False)
+        long[long['canh_bao'] != ''][['port', 'month', 'teu', 'canh_bao']].to_excel(xw, sheet_name='Canh bao', index=False)
+    n_warn = (long['canh_bao'] != '').sum()
+    print(f'{len(files)} file, {raw["sheet"].nunique()} sheet -> {long["key"].nunique()} cảng/vùng, {len(long)} dòng '
+          f'({long["month"].min():%m/%Y}–{long["month"].max():%m/%Y}), {n_warn} cảnh báo | {DATA}')
+    unm = sorted(set(long.loc[(long['kind'] == 'port'), 'port'][~long.loc[long['kind'] == 'port', 'key'].isin(PORT_MAP)]))
+    print('Cảng chưa map vào app:', ', '.join(unm))
+    if a.targets:
+        new = to_targets(long)
+        old = pd.read_csv(TARGETS, dtype={'month': str}) if os.path.exists(TARGETS) else pd.DataFrame(columns=new.columns)
+        old['month'] = old['month'].str[:7]
+        # số THÁNG (sheet đúng tháng) ghi đè; số năm trước SUY TỪ LŨY KẾ cùng kỳ chỉ điền ô trống (cột lũy kế VPA đôi khi chép nhầm năm,
+        # vd Chùa Vẽ+Tân Vũ 1T2025 = 108.077 = số T1/2024)
+        both = old.merge(new, on=['auth', 'terminal', 'month'], suffixes=('_cu', '_vpa'))
+        diff = both[(both['actual_teu_cu'] - both['actual_teu_vpa']).abs() > 1]
+        keys = set(zip(old['auth'], old['terminal'], old['month']))
+        new = new[~(new['fill_only'] & [k in keys for k in zip(new['auth'], new['terminal'], new['month'])])].drop(columns='fill_only')
+        out = pd.concat([old, new]).drop_duplicates(['auth', 'terminal', 'month'], keep='last').sort_values(['auth', 'terminal', 'month'])
+        out.to_csv(TARGETS, index=False, encoding='utf-8')
+        print(f'nowcast_targets: {len(old)} -> {len(out)} dòng ({out["terminal"].nunique()} bến), {len(diff)} ô khác số cũ '
+              f'(số tháng ghi đè, số suy từ lũy kế cùng kỳ giữ số cũ)')
+        if len(diff): print(diff.to_string(index=False))
+    print('DONE vpa-container')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

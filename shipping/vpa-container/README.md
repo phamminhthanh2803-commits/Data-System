@@ -16,6 +16,12 @@ trung chuyển, 20', rỗng, lạnh, sà lan, cảnh báo) · `vpa_container_wid
 - Tháng năm trước (T1–T7/2025 từ file 2026) suy từ chênh lệch cột lũy kế cùng kỳ giữa 2 sheet liền nhau.
 - Khi nạp `--targets`: số tháng ghi đè số cũ; số suy từ lũy kế cùng kỳ CHỈ điền ô trống — cột lũy kế VPA có khi chép nhầm năm
   (Chùa Vẽ + Tân Vũ 1T2025 = 108.077 = số T1/2024; HICT 6T2025 suy ra 128.061 vs báo cáo tháng 123.596).
+- **Cột "Năm <năm trước>" (cột B) là số cứng dạng =a+b+…** (16/10/2026): số cuối = T12, ngược dần; số đầu = cộng dồn các tháng còn lại.
+  ≥ 5 số → tách từng tháng (`nam_truoc_cong_thuc`, khớp 100% tháng đã biết, ưu tiên hơn số suy lũy kế: sửa HICT T5–T6/2025).
+  2–4 số hoặc ô số cứng → thứ tự không chắc (HTIT 49.476 ≠ T12 ảnh 63.729) → chỉ tin TỔNG 12 tháng → **khối** = năm − tháng đã biết
+  (`data/vpa_container_blocks.csv`, `port-tracker/nowcast_blocks.csv`). Toàn quốc: khối T8–T12 = ô TỔNG CỘNG năm − T1..T7.
+  Tháng phân bổ từ khối (`phan_bo_nam_truoc`, theo nhịp các cảng đủ 12 tháng) chỉ để xem, KHÔNG ghi làm số tháng; mô hình dùng khối làm
+  quan sát gộp (nowcast.run(blocks=)), bỏ khối nếu trừ số ảnh xong còn lại vô lý (HHIT, HTIT).
 - Cảng trùng tên trong 1 sheet (Nam Hải Đình Vũ 2 dòng, 1 dòng viết "Dình") → giữ dòng số lớn nhất.
 - Cảnh báo khi số tháng ≠ chênh lũy kế > 2% (16/10/2026: chỉ 3 dòng tổng vùng Miền Bắc T1–T2, Bắc Trung Bộ T4).
 - Ánh xạ cảng VPA → bến app: `PORT_MAP` (29 bến: HP 17, HCM 11 gồm Cái Mép, Đà Nẵng → Tiên Sa, Phước An). Chưa map: Bình Dương,

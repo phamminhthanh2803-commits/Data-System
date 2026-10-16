@@ -944,7 +944,11 @@ def nc_term(auth, term, E, ra):
 def fig_nowcast(d, bt_name, blocks=None):
     fig = go.Figure()
     a = d['actual']; W = 22 * 86400000                  # độ rộng cột cố định (ms): trace 1 điểm thì Plotly vẽ cột mảnh gần như vô hình
-    fig.add_trace(go.Bar(x=d.index, y=a, name='Thực tế', marker_color=TOK['gray'], width=W, hovertemplate='%{y:,.0f}<extra>Thực tế</extra>'))
+    pb = d['kind'].astype(str).str.contains('phân bổ') if 'kind' in d else pd.Series(False, index=d.index)
+    fig.add_trace(go.Bar(x=d.index[~pb], y=a[~pb], name='Thực tế', marker_color=TOK['gray'], width=W, hovertemplate='%{y:,.0f}<extra>Thực tế</extra>'))
+    if pb.any():
+        fig.add_trace(go.Bar(x=d.index[pb], y=a[pb], name='Thực tế (gồm phân bổ)', marker=dict(color=TOK['gray'], pattern=dict(shape='/', fgcolor='#ffffff')),
+                             width=W, customdata=d.loc[pb, 'kind'], hovertemplate='%{y:,.0f}<br>%{customdata}<extra>Thực tế</extra>'))
     for kind, col in [('nowcast', TOK['orange']), ('nowcast (tháng đang chạy)', TOK['orange_light']),
                       ('dự báo tháng tới', TOK['tan'])]:
         x = d[d['kind'] == kind]
@@ -1091,14 +1095,30 @@ def nc_split_cm(v, pub, cut, auth=None, name=None):
     T = nw.load_targets(); tp = ed.terminal_port('HCM')
     cm_terms = sorted({t for t in T.loc[T['auth'] == 'HCM', 'terminal'] if t != '__CANG_VU__' and tp(t) == CM_PORT})
     if not cm_terms: return None
-    cm_act = pd.concat([nw.target_series(T, 'HCM', t) for t in cm_terms], axis=1).sum(axis=1, min_count=len(cm_terms)).dropna()
+    B = nw.load_blocks(); ser = {}
+    for t in cm_terms:                                  # bến Cái Mép chỉ có TỔNG nhiều tháng (Gemalink T8–T12/2025) -> chia theo lịch tàu của chính bến
+        s_t = nw.target_series(T, 'HCM', t)
+        ft = nw.features(v[(v['auth'] == 'HCM') & (v['terminal'].map(nw.nfc) == nw.nfc(t))], LAST)
+        for W, tot in nw.block_list(B, 'HCM', t, s_t):
+            W = pd.DatetimeIndex(W); g = ft.reindex(W)[['hours', 'teu']]
+            if g.notna().all().all() and (g > 0).all().all():
+                w = 0.5 * g['hours'] / g['hours'].sum() + 0.5 * g['teu'] / g['teu'].sum()
+                s_t = s_t.combine_first(tot * w)
+        ser[t] = s_t
+    cm_act = pd.concat(list(ser.values()), axis=1).sum(axis=1, min_count=len(cm_terms)).dropna()
     rest_act = (pub - cm_act.reindex(pub.index)).dropna()
     is_cm = (v['auth'] == 'HCM') & (v['terminal'].map(tp) == CM_PORT)
     f_rest, f_cm = nw.features(v[~is_cm], LAST), nw.features(v[is_cm], LAST)
     cm_fit = cm_act[cm_act.index >= pd.Timestamp(cut)]
     mt_r, mt_c = nw.own_min_train(f_rest, rest_act), nw.own_min_train(f_cm, cm_fit)
     if not (mt_r and mt_c): return None
-    B = nw.load_blocks(); b_rest, b_cm = [], []
+    b_rest, b_cm = [], []
+    wins = [W for t in cm_terms for W, _ in nw.block_list(B, 'HCM', t, ser[t])]          # khối Cái Mép chưa chia được (thiếu lịch tàu)
+    for W in wins:                                                  # tổng có số tháng trên khoảng khối Cái Mép -> phần còn lại = tổng − Cái Mép
+        W = pd.DatetimeIndex(W)
+        if not W.isin(pub.index).all() or not (W >= pd.Timestamp(cut)).all(): continue
+        cm_w = _window_sum(T, B, 'HCM', cm_terms, W); tot = float(pub.reindex(W).sum())
+        if cm_w is not None and 0 < cm_w < tot: b_cm.append((W, cm_w)); b_rest.append((W, tot - cm_w))
     for W, tot in (nw.block_list(B, auth, name, pub) if auth else []):           # khối tổng (vd T8–T12/2025) -> chia 2 phần chính xác
         cm_w = _window_sum(T, B, 'HCM', cm_terms, W)
         if cm_w is not None and 0 < cm_w < tot: b_cm.append((W, cm_w)); b_rest.append((W, tot - cm_w))
@@ -1128,6 +1148,22 @@ def nc_split_cm(v, pub, cut, auth=None, name=None):
     return r
 
 
+def mark_alloc(m, auth, name):
+    """tháng số công bố có phần PHÂN BỔ (dòng tổng: bến chỉ có tổng năm chia theo lịch tàu) -> kind 'thực tế (gồm X% phân bổ)' + ghi chú"""
+    if not m or m.get('d') is None: return m
+    T = nw.load_targets()
+    if 'ghi_chu' not in T: return m
+    g = T[(T['auth'] == auth) & (T['terminal'] == name) & T['ghi_chu'].fillna('').astype(str).str.len().gt(0)].set_index('month')['ghi_chu']
+    g = g[g.index.isin(m['d'].index)]
+    if g.empty: return m
+    d = m['d'].copy(); d.loc[g.index, 'kind'] = 'thực tế (' + g.astype(str) + ')'
+    pct = g.astype(str).str.extract(r'(\d+)%')[0].astype(float)
+    m = dict(m); m['d'] = d
+    m['note'] = (m.get('note') or '') + (f' Tháng {g.index.min():%m/%Y}–{g.index.max():%m/%Y} (cột gạch chéo): tổng tháng gồm {pct.min():.0f}–{pct.max():.0f}% '
+                                         'phân bổ — bến chỉ có tổng cả năm (VPA) được chia theo lịch tàu cảng vụ của chính bến; cộng các tháng vẫn đúng tổng năm VPA.')
+    return m
+
+
 def with_pub_history(m, auth, name):
     """thêm các tháng SỐ CÔNG BỐ chưa có trong bảng mô hình (vd T1–T7/2025 VPA suy từ lũy kế cùng kỳ, trước khi cảng vụ phủ Cái Mép)
     thành dòng thực tế: hiện trên biểu đồ/bảng, không đưa vào hồi quy"""
@@ -1149,14 +1185,14 @@ def vol_model(level, auth, term, E):
     """dict(d = bảng tháng actual/est/lo/hi/kind/backtest, res = kết quả hồi quy hoặc None, src, note)"""
     if level == 'toan-quoc':
         rv = nc_published_total('VN', 'TOÀN QUỐC')                 # VPA TỔNG CỘNG (mọi cảng cả nước, gồm container rỗng)
-        if rv: return with_pub_history(rv, 'VN', 'TOÀN QUỐC')
+        if rv: return mark_alloc(with_pub_history(rv, 'VN', 'TOÀN QUỐC'), 'VN', 'TOÀN QUỐC')
         r = vn_total(E)
         if r is None: return None
         return {'d': r['data'], 'res': r, 'src': 'tổng container full EconDB của ' + ', '.join(tl.AUTH_LABEL[a] for a in ed.AUTH_LOCODES),
                 'note': parts_note(r)}
     if level == 'cang-vu':
         rv = nc_published_total(auth, '__CANG_VU__')               # cộng các cảng VPA thuộc cảng vụ
-        if rv: return with_pub_history(rv, auth, '__CANG_VU__')
+        if rv: return mark_alloc(with_pub_history(rv, auth, '__CANG_VU__'), auth, '__CANG_VU__')
     ra = nc_auth(auth, E)
     if level == 'cang-vu':
         if ra is None: return None

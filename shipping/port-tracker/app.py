@@ -1008,15 +1008,17 @@ def nc_published_total(auth, name):
     key = ('nc_pub', auth, name, KEY, os.path.getmtime(nw.TARGETS) if os.path.exists(nw.TARGETS) else 0)
     cache = st.session_state.setdefault('_nc', {})
     if key not in cache:
-        v = nc_visits(); f = nw.features(v if auth == 'VN' else v[v['auth'] == auth], LAST)
-        mt = nw.own_min_train(f, pub)
-        r = nw.run(f, pub, min_train=mt, seasonal_ref=pub_all, prior=nw.self_prior(f, pub)) if mt else None
+        v = nc_visits(); v = v if auth == 'VN' else v[v['auth'] == auth]
+        r = nc_split_cm(v, pub_all, cut) if cut else None          # tách Cái Mép: phần còn lại học + fit được cả trước mốc cắt
+        if r is None:
+            f = nw.features(v, LAST); mt = nw.own_min_train(f, pub)
+            r = nw.run(f, pub, min_train=mt, seasonal_ref=pub_all, prior=nw.self_prior(f, pub)) if mt else None
         cache[key] = None if r is None else {
             'd': r['data'], 'res': r,
             'src': ('VPA TỔNG CỘNG (mọi cảng container cả nước, gồm rỗng)' if auth == 'VN' else 'VPA, cộng các cảng thuộc cảng vụ')
                    + f' {pub_all.index.min():%m/%Y}–{pub_all.index.max():%m/%Y}',
-            'note': f'Ước/dự báo: hồi quy 2 biến trên mọi lượt tàu container {"12 cảng vụ" if auth == "VN" else "của cảng vụ"} '
-                    f'(TEU = ' + ' + '.join(f'{x:,.2f} × {"giờ bến" if c == "hours" else "sức chở"}' for c, x in r['coef'].items()) + ').'}
+            'note': r.get('split_note') or (f'Ước/dự báo: hồi quy 2 biến trên mọi lượt tàu container {"12 cảng vụ" if auth == "VN" else "của cảng vụ"} '
+                    f'(TEU = ' + ' + '.join(f'{x:,.2f} × {"giờ bến" if c == "hours" else "sức chở"}' for c, x in r['coef'].items()) + ').')}
     return cache[key]
 
 
@@ -1048,6 +1050,50 @@ def vimawa_compare(d, vm, n=6):
                       'Cục HH quy về phạm vi VPA': cuc_any * ratio if ratio else np.nan})
     w = w[w.index >= pd.Timestamp('2024-01-31')].dropna(how='all'); w.index.name = 'Tháng'
     return w, ratio
+
+
+CM_PORT = 'VN VUT'                                                 # Cái Mép - Thị Vải: lịch cảng vụ chỉ có từ 08/2025
+
+
+def _coef_txt(r):
+    return ' + '.join(f'{x:,.2f} × {"giờ bến" if c == "hours" else "sức chở"}' for c, x in r['coef'].items())
+
+
+def nc_split_cm(v, pub, cut):
+    """tổng có số công bố (toàn quốc / TP.HCM) = mô hình NGOÀI Cái Mép (lịch cảng vụ đủ từ đầu -> học + fit cả 2025)
+    + mô hình Cái Mép (học từ mốc cắt). Trước mốc cắt phần Cái Mép = số VPA thực tế (đã biết) để có đường fit tổng;
+    MAPE tổng chỉ tính trên tháng cả 2 phần đều có backtest thật. None nếu không tách được."""
+    T = nw.load_targets(); tp = ed.terminal_port('HCM')
+    cm_terms = sorted({t for t in T.loc[T['auth'] == 'HCM', 'terminal'] if t != '__CANG_VU__' and tp(t) == CM_PORT})
+    if not cm_terms: return None
+    cm_act = pd.concat([nw.target_series(T, 'HCM', t) for t in cm_terms], axis=1).sum(axis=1, min_count=len(cm_terms)).dropna()
+    rest_act = (pub - cm_act.reindex(pub.index)).dropna()
+    is_cm = (v['auth'] == 'HCM') & (v['terminal'].map(tp) == CM_PORT)
+    f_rest, f_cm = nw.features(v[~is_cm], LAST), nw.features(v[is_cm], LAST)
+    cm_fit = cm_act[cm_act.index >= pd.Timestamp(cut)]
+    mt_r, mt_c = nw.own_min_train(f_rest, rest_act), nw.own_min_train(f_cm, cm_fit)
+    if not (mt_r and mt_c): return None
+    r_rest = nw.run(f_rest, rest_act, min_train=mt_r, seasonal_ref=rest_act, prior=nw.self_prior(f_rest, rest_act))
+    r_cm = nw.run(f_cm, cm_fit, min_train=mt_c, seasonal_ref=cm_act, prior=nw.self_prior(f_cm, cm_fit))
+    if r_rest is None or r_cm is None: return None
+    # phần Cái Mép trước mốc cắt: thực tế VPA làm cả fit/backtest (chỉ để cộng ra đường tổng, không tính sai số)
+    pre = [m for m in r_rest['data'].index if m not in r_cm['data'].index and m in cm_act.index]
+    d_cm = r_cm['data']
+    if pre:
+        x = pd.DataFrame({c: cm_act.reindex(pre).values for c in ('actual', 'modeled', 'backtest')}, index=pd.DatetimeIndex(pre))
+        x['kind'] = 'thực tế'; x['w'] = np.nan
+        d_cm = pd.concat([x, d_cm]).sort_index()
+    r = nw.combine({'Ngoài Cái Mép': r_rest, 'Cái Mép': {**r_cm, 'data': d_cm}}, 'tổng 2 mô hình')
+    d = r['data']; ok = (d.index >= pd.Timestamp(cut)) & d['actual'].notna() & d['backtest'].notna()
+    m = d.loc[ok, ['actual', 'backtest']]; a = d['actual'].dropna(); naive = a.shift(1).reindex(m.index)
+    mm = lambda y, yh: float(np.mean(np.abs(yh / y - 1)) * 100) if len(y) else np.nan  # noqa: E731
+    r['mape'] = {r['best']: mm(m['actual'], m['backtest']), nw.NAIVE: mm(m['actual'], naive)}
+    mr = m.tail(nw.RECENT_BT); r['mape_recent'] = {r['best']: mm(mr['actual'], mr['backtest']), nw.NAIVE: mm(mr['actual'], naive.reindex(mr.index))}
+    r['n_bt'] = len(m)
+    r['split_note'] = (f'Ước/dự báo = 2 mô hình hồi quy 2 biến cộng lại: ngoài Cái Mép (TEU = {_coef_txt(r_rest)}, học từ {rest_act.index.min():%m/%Y}, '
+                       f'MAPE {r_rest["mape"][r_rest["best"]]:.1f}%) + Cái Mép (TEU = {_coef_txt(r_cm)}, học từ {cm_fit.index.min():%m/%Y} vì lịch cảng vụ '
+                       f'Cái Mép bắt đầu 08/2025). Trước đó đường fit tổng = fit ngoài Cái Mép + Cái Mép thực tế VPA; MAPE tổng chỉ tính từ {pd.Timestamp(cut):%m/%Y}.')
+    return r
 
 
 def with_pub_history(m, auth, name):

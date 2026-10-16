@@ -950,10 +950,11 @@ def fig_nowcast(d, bt_name, blocks=None):
         fig.add_trace(go.Bar(x=d.index[pb], y=a[pb], name='Thực tế (gồm phân bổ)', marker=dict(color=TOK['gray'], pattern=dict(shape='/', fgcolor='#ffffff')),
                              width=W, customdata=d.loc[pb, 'kind'], hovertemplate='%{y:,.0f}<br>%{customdata}<extra>Thực tế</extra>'))
     for kind, col in [('nowcast', TOK['orange']), ('nowcast (tháng đang chạy)', TOK['orange_light']),
-                      ('dự báo tháng tới', TOK['tan'])]:
+                      ('dự báo tháng tới', TOK['tan']), ('dự báo', TOK['tan'])]:
         x = d[d['kind'] == kind]
         if x.empty: continue
         fig.add_trace(go.Bar(x=x.index, y=x['est'], name=kind[0].upper() + kind[1:], marker_color=col, width=W,
+                             marker_opacity=0.55 if kind == 'dự báo' else 1,
                              error_y=dict(type='data', symmetric=False, array=(x['hi'] - x['est']).values, arrayminus=(x['est'] - x['lo']).values,
                                           color=TOK['ink3'], thickness=1.2, width=4),
                              hovertemplate='%{y:,.0f}<extra>' + kind + '</extra>'))
@@ -1252,6 +1253,40 @@ def vol_model(level, auth, term, E):
                     f'(ghép được {tt["match_rate"] * 100:.0f}% lượt tàu EconDB).'}
 
 
+def quarter_table(d):
+    """bảng tháng -> quý: thực tế + ước/dự báo cho tháng chưa có thực tế; chỉ giữ quý đủ 3 tháng (thực tế hoặc ước)"""
+    x = d[~d.index.duplicated(keep='last')].copy()
+    x['uoc'] = x['est'].where(x['actual'].isna()); x['lo_u'] = x['lo'].where(x['actual'].isna()); x['hi_u'] = x['hi'].where(x['actual'].isna())
+    x = x[x['actual'].notna() | x['uoc'].notna()]
+    if x.empty: return pd.DataFrame()
+    x['q'] = pd.DatetimeIndex(x.index).to_period('Q')
+    q = x.groupby('q').agg(thuc_te=('actual', 'sum'), uoc=('uoc', 'sum'), lo_u=('lo_u', 'sum'), hi_u=('hi_u', 'sum'),
+                           n_tt=('actual', 'count'), n_uoc=('uoc', 'count'),
+                           pb=('kind', lambda k: int(k.astype(str).str.contains('phân bổ').sum())))
+    q = q[(q['n_tt'] + q['n_uoc']) == 3]
+    q['tong'] = q['thuc_te'] + q['uoc']; q['thap'] = q['thuc_te'] + q['lo_u']; q['cao'] = q['thuc_te'] + q['hi_u']
+    q['tinh_trang'] = [('đủ 3 tháng thực tế' if u == 0 else f'{t} tháng thực tế + {u} ước/dự báo') + (f' ({p_} tháng gồm phân bổ)' if p_ else '')
+                       for t, u, p_ in zip(q['n_tt'], q['n_uoc'], q['pb'])]
+    prev = q['tong'].copy(); prev.index = prev.index + 4
+    q['yoy'] = (q['tong'] / prev.reindex(q.index) - 1) * 100
+    q.index = [f'Q{p_.quarter}/{p_.year}' for p_ in q.index]
+    return q
+
+
+def fig_quarter(q):
+    fig = go.Figure()
+    fig.add_trace(go.Bar(x=q.index, y=q['thuc_te'], name='Thực tế', marker_color=TOK['gray'], hovertemplate='%{y:,.0f}<extra>Thực tế</extra>'))
+    u = q['uoc'].where(q['uoc'] > 0)
+    fig.add_trace(go.Bar(x=q.index, y=u, name='Ước / dự báo', marker_color=TOK['orange'], customdata=q['tinh_trang'],
+                         error_y=dict(type='data', symmetric=False, array=(q['cao'] - q['tong']).where(q['uoc'] > 0).values,
+                                      arrayminus=(q['tong'] - q['thap']).where(q['uoc'] > 0).values, color=TOK['ink3'], thickness=1.2, width=5),
+                         hovertemplate='%{y:,.0f}<br>%{customdata}<extra>Ước / dự báo</extra>'))
+    fig.add_trace(go.Scatter(x=q.index, y=q['tong'], mode='text', text=[f'{v / 1e6:,.2f}tr' if v >= 1e6 else f'{v / 1e3:,.0f}k' for v in q['tong']],
+                             textposition='top center', showlegend=False, hoverinfo='skip'))
+    fig.update_layout(height=380, barmode='stack', bargap=0.35, yaxis=dict(title='TEU / quý', rangemode='tozero'))
+    return fig
+
+
 def vol_kpis(m, s, scopes):
     d = m['d']; res = m['res']; a = d['actual'].dropna()
     rng = lambda r: f"{fmt_int(r['lo'])} – {fmt_int(r['hi'])}"  # noqa: E731
@@ -1263,10 +1298,19 @@ def vol_kpis(m, s, scopes):
     if len(a):
         y = yoy(a.index[-1], a.iloc[-1])
         items.append((f'Thực tế T{a.index[-1]:%m/%Y}', fmt_int(a.iloc[-1]), f'{fmt_pct(y) or "–"} cùng kỳ', 0 if y is None else (1 if y >= 0 else -1)))
-    for k, r in d[d['actual'].isna()].iloc[-2:].iterrows():
+    pick = d[d['kind'].isin(['nowcast (tháng đang chạy)'])]
+    if pick.empty: pick = d[d['actual'].isna()].iloc[:1]
+    for k, r in pick.iterrows():
         y = yoy(k, r['est'])
         items.append((f'{"Dự báo" if r["kind"] == "dự báo tháng tới" else "Ước"} T{k:%m/%Y}', fmt_int(r['est']),
                       rng(r) + (f' · {fmt_pct(y)} cùng kỳ' if y is not None else ''), 0 if y is None else (1 if y >= 0 else -1)))
+    qt = quarter_table(d)
+    if len(qt):
+        for qi, r in qt[qt['n_uoc'] > 0].tail(2).iterrows():          # quý chưa chốt (tối đa 2: quý trước còn ước + quý đang mở có dự báo)
+            yq = r['yoy']; lab = 'Ước' if r['n_tt'] > 0 or qi != qt.index[-1] else 'Dự báo'
+            items.append((f'{lab} {qi} (cả quý)', fmt_int(r['tong']),
+                          f"{int(r['n_tt'])}T thực tế + {int(r['n_uoc'])}T ước/dự báo" + (f' · {fmt_pct(yq / 100)} cùng kỳ' if pd.notna(yq) else ''),
+                          0 if pd.isna(yq) else (1 if yq >= 0 else -1)))
     if res:
         mm = res['mape']; b = res['best']
         mr = res.get('mape_recent') or {}; nv = mm.get(nw.NAIVE)
@@ -1284,9 +1328,9 @@ def vol_kpis(m, s, scopes):
     ui.kpi_strip(items)
 
 
-VOL_CHIPS = {'toan-quoc': ['Thực tế & dự báo', 'Theo chiều', 'Theo cảng', 'XK theo nước', 'NK theo nước', 'So khu vực'],
-             'cang-vu': ['Thực tế & dự báo', 'Theo chiều', 'Theo terminal', 'Theo hãng', 'XK theo đối tác', 'NK theo đối tác'],
-             'cang': ['Thực tế & dự báo', 'Tỷ trọng trong cảng vụ']}
+VOL_CHIPS = {'toan-quoc': ['Thực tế & dự báo', 'Theo quý', 'Theo chiều', 'Theo cảng', 'XK theo nước', 'NK theo nước', 'So khu vực'],
+             'cang-vu': ['Thực tế & dự báo', 'Theo quý', 'Theo chiều', 'Theo terminal', 'Theo hãng', 'XK theo đối tác', 'NK theo đối tác'],
+             'cang': ['Thực tế & dự báo', 'Theo quý', 'Tỷ trọng trong cảng vụ']}
 # chip -> (chỉ tiêu EconDB, cột tách, giữ top n, kỳ gần nhất thấp giả)
 VOL_SPLIT = {'Theo chiều': ('traffic', 'series', None, False), 'Theo cảng': ('traffic', 'scope', None, False),
              'Theo terminal': ('term_throughput', 'series', 8, False), 'Theo hãng': ('cap_throughput', 'series', 7, False),
@@ -1334,7 +1378,18 @@ def page_volume(level, auth, term, K):
                 dd = dd.join(e.rename('econdb_full'))
                 note += ' Đường chấm xám = EconDB chỉ đếm container có hàng nên thấp hơn số công bố.'
             cd.chart(fig, dd[[c for c in ['actual', 'backtest', 'est', 'lo', 'hi', 'kind', 'econdb_full'] if c in dd]].round(0),
-                     ten=f'san_luong_{_norm(name)}', note_text=note)
+                     ten=f'san_luong_{_norm(name)}', note_text=note, last=LAST)
+        elif ch == 'Theo quý':
+            q = quarter_table(m['d'])
+            q = q[[pd.Period(f"{i.split('/')[1]}Q{i[1]}").end_time >= pd.Timestamp(cd.d0) for i in q.index]] if len(q) else q
+            if q.empty: cd.empty('Chưa đủ tháng để gom quý')
+            else:
+                t = q[['tong', 'thuc_te', 'uoc', 'thap', 'cao', 'yoy', 'tinh_trang']].rename(columns={
+                    'tong': 'Tổng quý', 'thuc_te': 'Thực tế', 'uoc': 'Ước/dự báo', 'thap': 'Thấp', 'cao': 'Cao', 'yoy': 'So cùng kỳ (%)', 'tinh_trang': 'Tình trạng'})
+                t.index.name = 'Quý'
+                cd.chart(fig_quarter(q), t.iloc[::-1].round(1), ten=f'san_luong_quy_{_norm(name)}', last=LAST,
+                         note_text='Quý = 3 tháng. Tháng chưa có thực tế lấy ước (nowcast) / dự báo của mô hình; dự báo luôn kéo tới hết quý đang mở. '
+                                   'Khoảng thấp–cao chỉ cộng sai số của các tháng ước/dự báo. Quý thiếu tháng (không thực tế, không ước) không hiện.')
         elif ch == 'Tỷ trọng trong cảng vụ':
             v = nc_visits(); va = v[v['auth'] == auth]
             ft = nw.features(va[va['terminal'].map(nw.nfc) == nw.nfc(term)], LAST); fa = nw.features(va, LAST)

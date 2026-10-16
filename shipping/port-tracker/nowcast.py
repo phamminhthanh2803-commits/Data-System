@@ -368,10 +368,17 @@ def _assemble(feat, actual, cols, coef, err, seasonal_ref=None, bt_series=None):
         w = float(dobs / dmon) if dobs >= MIN_DAYS_PARTIAL else 0.0
         data.loc[cur, ['forecast', 'w', 'nowcast', 'kind']] = [f, w, w * data.loc[cur, 'modeled'] + (1 - w) * f, 'nowcast (tháng đang chạy)']
     data = data[data['kind'] != '']
-    nxt = me(cur + pd.Timedelta(days=1)); f, seas = forecast(nxt)      # cuối tháng kế tiếp
-    data = pd.concat([data, pd.DataFrame({'forecast': [f], 'actual': [np.nan], 'kind': ['dự báo tháng tới'], 'w': [0.0]}, index=[nxt])])
+    # 16/10/2026: dự báo tới HẾT QUÝ của tháng kế tiếp -> quý đang mở luôn đủ 3 tháng (T10 -> T11, T12; T12 -> T1..T3)
+    nxt = me(cur + pd.Timedelta(days=1)); qend = me(nxt + pd.offsets.QuarterEnd(0))
+    fc_rows = []
+    for h, tm in enumerate(pd.date_range(nxt, qend, freq='ME'), start=1):
+        f, s_ = forecast(tm)
+        if h == 1: seas = s_
+        fc_rows.append({'Tháng': tm, 'forecast': f, 'actual': np.nan, 'kind': 'dự báo tháng tới' if h == 1 else 'dự báo', 'w': 0.0, 'h': h})
+    data = pd.concat([data, pd.DataFrame(fc_rows).set_index('Tháng')])
     data['est'] = data['nowcast'].fillna(data['forecast'])
     band = err * (1.5 - 0.5 * data['w'].fillna(0))                  # biến càng đủ (w -> 1) khoảng càng hẹp (±MAPE), dự báo thuần ±1,5×MAPE
+    band = band * (1 + 0.25 * (data['h'].fillna(1) - 1))           # dự báo xa thêm mỗi tháng: khoảng rộng thêm 25%
     data['lo'] = data['est'] * (1 - band); data['hi'] = data['est'] * (1 + band)
     data.index.name = 'Tháng'
     return data, seas

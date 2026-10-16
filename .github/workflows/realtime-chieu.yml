@@ -12,7 +12,7 @@ name: Realtime CHIEU
 
 on:
   schedule:
-    - cron: "50 5 * * 1-5"           # 12:50 gio VN, T2-T6 (GitHub co the tre 5-30 phut; --until 15:15 co dinh)
+    - cron: "5 5 * * 1-5"            # 12:05 gio VN, T2-T6 (16/10/2026: lich 12:50 bi GitHub tre toi 13:13 -> live dung dau phien chieu)
   workflow_dispatch:
     inputs:
       only_ssi:
@@ -50,7 +50,7 @@ env:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 160             # 12:50 -> 15:15 = 145 phut + cai dat + tre cron
+    timeout-minutes: 215             # 12:05 -> 15:15 = 190 phut + cai dat + tre cron
     steps:
       - name: Lay code
         uses: actions/checkout@v4

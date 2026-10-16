@@ -11,7 +11,7 @@ name: Realtime SANG
 
 on:
   schedule:
-    - cron: "25 1 * * 1-5"           # 08:25 gio VN, T2-T6 (GitHub co the tre 5-30 phut; --until 11:40 co dinh)
+    - cron: "55 0 * * 1-5"           # 07:55 gio VN, T2-T6 (16/10/2026: GitHub tre toi 25 phut -> khoi dong som, --until 11:40 co dinh)
   workflow_dispatch:
     inputs:
       only_ssi:
@@ -49,7 +49,7 @@ env:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 215             # 08:25 -> 11:40 = 195 phut + cai dat + tre cron
+    timeout-minutes: 250             # 07:55 -> 11:40 = 225 phut + cai dat + tre cron
     steps:
       - name: Lay code
         uses: actions/checkout@v4

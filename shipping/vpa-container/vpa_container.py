@@ -177,6 +177,32 @@ class AllocWeights:
         return None, 'nhịp chung'
 
 
+XAC_NHAN = os.path.join(HERE, 'input', 'so_xac_nhan.csv')
+
+
+def apply_confirmed(long):
+    """input/so_xac_nhan.csv (port, month YYYY-MM, teu): số PV2 xác nhận -> ưu tiên cao nhất (nguon xac_nhan). Dòng vùng + TỔNG CỘNG
+    của tháng đó cộng thêm chênh lệch (số xác nhận − số VPA cũ) để tổng vẫn khớp. -> (long, bảng chênh)"""
+    if not os.path.exists(XAC_NHAN): return long, pd.DataFrame()
+    x = pd.read_csv(XAC_NHAN, dtype={'port': str, 'month': str})
+    x['key'] = x['port'].map(_norm); x['month'] = pd.to_datetime(x['month'].str[:7] + '-01') + pd.offsets.MonthEnd(0)
+    meta = long.drop_duplicates('key', keep='last').set_index('key')[['region', 'kind', 'port']]
+    miss = sorted(set(x['key']) - set(meta.index))
+    if miss: print('  ! số xác nhận: không thấy cảng', miss)
+    x = x[x['key'].isin(meta.index)]
+    old = long.set_index(['key', 'month'])['teu']
+    x['cu'] = [old.get((k, m), np.nan) for k, m in zip(x['key'], x['month'])]
+    rows = x[['key', 'month', 'teu']].assign(nguon='xac_nhan', canh_bao='').join(meta, on='key')
+    long = _dedup(pd.concat([long, rows], ignore_index=True))
+    d = x[x['cu'].notna() & ((x['teu'] - x['cu']).abs() > 0.5)].assign(chenh=lambda t: t['teu'] - t['cu'])
+    for r in d.itertuples():                                       # vùng + toàn quốc của tháng đó (nếu là số VPA, không phải phân bổ)
+        reg = meta.loc[r.key, 'region']
+        for k in ('TONG CONG',) + tuple(long.loc[(long['kind'] == 'region') & (long['region'] == reg), 'key'].unique()):
+            mk = (long['key'] == k) & (long['month'] == r.month) & (long['nguon'] != 'phan_bo_nam_truoc')
+            long.loc[mk, 'teu'] += r.chenh
+    return long, d
+
+
 def year_months(form, long, weights=None, cum=None):
     """-> (rows, blocks) năm trước từ công thức cột Năm.
     rows: tháng tách được (nguon nam_truoc_cong_thuc) + tháng PHÂN BỔ từ khối (phan_bo_nam_truoc, chỉ để hiển thị/cộng tổng tham khảo).
@@ -199,6 +225,8 @@ def year_months(form, long, weights=None, cum=None):
         unk = [m for m in span if m not in known]
         if not unk: continue
         tot = t[0] - sum(known.values())
+        if len(unk) == 1 and tot >= 0:                                     # khối 1 tháng = số tháng chính xác (vd Gemalink T10 = 10T − T1..T9)
+            rows.append({'key': r.key, 'month': unk[0], 'teu': tot, 'nguon': 'nam_truoc_cong_thuc'}); continue
         if tot < 0:
             print(f'  ! {meta.loc[r.key, "port"]}: số đầu {t[0]:,.0f} < các tháng đã biết {sum(known.values()):,.0f} -> bỏ khối'); continue
         # lũy kế cùng kỳ T1..TM năm trước (cột thứ 3 sheet tháng M mới nhất) tách khối thành phần <= M và phần > M;
@@ -265,7 +293,7 @@ TRAILING_OK = {'GEMALINK'}
 MIN_TERMS_MONTHLY = 5      # công thức cột Năm >= 5 số mới tách tháng (11–12 số khớp 100% số tháng đã biết; 7 số An Giang khớp)
 
 
-RANK = {'luy_ke_cung_ky': 0, 'phan_bo_nam_truoc': 1, 'nam_truoc_cong_thuc': 2, 'luy_ke': 3, 'thang': 4}   # trùng tháng: hạng cao thắng
+RANK = {'luy_ke_cung_ky': 0, 'phan_bo_nam_truoc': 1, 'nam_truoc_cong_thuc': 2, 'luy_ke': 3, 'thang': 4, 'xac_nhan': 5}   # trùng tháng: hạng cao thắng
 
 
 def _dedup(long):
@@ -355,6 +383,8 @@ def main(argv=None):
     if not files: sys.exit('ERROR khong co file VPA')
     raw = pd.concat([read_file(f) for f in files], ignore_index=True)
     long, yp = build(raw)
+    long, xn = apply_confirmed(long)
+    if len(xn): print(f'Số xác nhận (input/so_xac_nhan.csv): {len(xn)} ô khác VPA\n' + xn[['port', 'month', 'cu', 'teu']].to_string(index=False))
     # năm trước từ công thức cột "Năm" (số cứng cộng từng tháng) -> thêm T8–T12 + sửa tháng suy từ lũy kế sai
     form = pd.concat([read_year_formulas(f) for f in files], ignore_index=True)
     last = raw.sort_values(['year', 'mon']).groupby('key').tail(1)
@@ -363,7 +393,7 @@ def main(argv=None):
     ym, blocks = year_months(form.drop_duplicates('key', keep='last'), long, AllocWeights(), cum) if len(form) else (pd.DataFrame(), pd.DataFrame())
     if len(ym):
         have = set(long.loc[long['kind'] == 'total', 'month'])
-        tt = totals_from_ports(pd.concat([long, ym], ignore_index=True), sorted(set(ym['month']) - have))
+        tt = totals_from_ports(_dedup(pd.concat([long, ym], ignore_index=True)), sorted(set(ym['month']) - have))   # bỏ trùng TRƯỚC khi cộng (số xác nhận + công thức cùng tháng)
         fixed = ym.merge(long[long['nguon'] == 'luy_ke_cung_ky'][['key', 'month', 'teu']], on=['key', 'month'], suffixes=('', '_lk'))
         fixed = fixed[(fixed['teu'] - fixed['teu_lk']).abs() > 1]
         long = _dedup(pd.concat([long, ym, tt], ignore_index=True))

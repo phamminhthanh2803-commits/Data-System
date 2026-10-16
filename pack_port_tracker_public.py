@@ -28,7 +28,7 @@ TAKE = {
     'vessel-itinerary': ['*.py', '*.csv'],
 }
 SKIP_DIRS = {'data', 'store', 'cache', 'logs', '__pycache__', 'khao-sat', 'raw', 'downloads', 'out', 'png', 'maps'}
-SKIP_FILES = {'nowcast_targets.csv'}            # số công bố nội bộ PV2 -> kéo từ Drive lúc chạy, không public
+SKIP_FILES = {'nowcast_targets.csv', 'nowcast_blocks.csv'}            # số công bố nội bộ PV2 -> kéo từ Drive lúc chạy, không public
 MAX_CSV = 2_000_000
 REQ = """# Port & Vessel Tracker (Streamlit Community Cloud) - 15/10/2026
 streamlit==1.64.0

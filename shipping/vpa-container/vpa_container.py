@@ -88,6 +88,119 @@ def read_file(path):
     return pd.DataFrame(out)
 
 
+def read_year_formulas(path):
+    """cột "Năm <năm trước>" (cột B) của sheet tháng mới nhất: VPA gõ số cứng dạng =a+b+...+z. Số cuối = T12, ngược dần về trước;
+    số đầu = cộng dồn các tháng còn lại (11 số: T1+T2 rồi T3..T12; 3 số: T1..T10, T11, T12). Ô không công thức = chỉ có số cả năm."""
+    import openpyxl
+    wf = openpyxl.load_workbook(path, data_only=False); wv = openpyxl.load_workbook(path, data_only=True)
+    sh = []
+    for ws in wf.worksheets:
+        m = re.match(r'T(\d{1,2})-(\d{4})', ws.title.strip())
+        if m: sh.append((int(m.group(2)), int(m.group(1)), ws.title))
+    if not sh: return pd.DataFrame()
+    yr, _, title = max(sh); ws, vs = wf[title], wv[title]; out = []
+    for r in range(5, ws.max_row + 1):
+        name = ws.cell(r, 1).value
+        if name is None or not str(name).strip(): continue
+        up = _norm(re.sub(r'\s+', ' ', str(name)).strip())
+        if up.startswith('TONG CONG'):
+            v = _num(vs.cell(r, 2).value)
+            if pd.notna(v) and v > 0: out.append({'key': 'TONG CONG', 'year': yr - 1, 'terms': [v], 'annual': v})
+            break
+        if any(up.startswith(_norm(x)) for x in REGIONS): continue
+        f, v = ws.cell(r, 2).value, _num(vs.cell(r, 2).value)
+        terms = None
+        if isinstance(f, str) and re.fullmatch(r'=[\d.+\s]+', f.strip()):
+            terms = [float(x) for x in re.findall(r'\d+(?:\.\d+)?', f)]
+        if terms is None and (pd.isna(v) or v <= 0): continue
+        out.append({'key': up, 'year': yr - 1, 'terms': terms or [v], 'annual': sum(terms) if terms else v})
+    return pd.DataFrame(out)
+
+
+def _me(y, m): return pd.Timestamp(y, m, 1) + pd.offsets.MonthEnd(0)
+
+
+def year_months(form, long):
+    """-> (rows, blocks) năm trước từ công thức cột Năm.
+    rows: tháng tách được (nguon nam_truoc_cong_thuc) + tháng PHÂN BỔ từ khối (phan_bo_nam_truoc, chỉ để hiển thị/cộng tổng tham khảo).
+    blocks: khối nhiều tháng chỉ biết TỔNG (số đầu của công thức hoặc số cả năm − các tháng đã biết trong khoảng đó):
+    mô hình dùng làm 1 quan sát gộp, không làm số tháng."""
+    if form.empty: return pd.DataFrame(), pd.DataFrame()
+    meta = long.drop_duplicates('key', keep='last').set_index('key')[['region', 'kind', 'port']]
+    have = long[long['nguon'] != 'phan_bo_nam_truoc'].set_index(['key', 'month'])['teu']
+    rows, blocks = [], []
+    for r in form.itertuples(index=False):
+        if r.key not in meta.index: continue
+        if r.key == 'TONG CONG': continue                                                         # tổng: khối riêng ở main()
+        t, yr = r.terms, r.year
+        if len(t) <= MIN_TERMS_MONTHLY - 1: t = [sum(t)]     # 2–4 số: không rõ mỗi số là tháng nào (HTIT 49.476 ≠ T12 ảnh 63.729) -> chỉ tổng năm
+        n = len(t); fe = 13 - n if n > 1 else 12                                                    # số đầu = T1..T(fe)
+        for i, v in enumerate(t[1:] if n > 1 else [], start=fe + 1):
+            rows.append({'key': r.key, 'month': _me(yr, i), 'teu': v, 'nguon': 'nam_truoc_cong_thuc'})
+        span = [_me(yr, m) for m in range(1, fe + 1)]
+        known = {m: have[(r.key, m)] for m in span if (r.key, m) in have.index}
+        unk = [m for m in span if m not in known]
+        if not unk: continue
+        tot = t[0] - sum(known.values())
+        if tot < 0:
+            print(f'  ! {meta.loc[r.key, "port"]}: số đầu {t[0]:,.0f} < các tháng đã biết {sum(known.values()):,.0f} -> bỏ khối'); continue
+        blocks.append({'key': r.key, 'months': unk, 'teu': tot})
+    rows = pd.DataFrame(rows, columns=['key', 'month', 'teu', 'nguon'])
+    # phân bổ khối theo nhịp tháng của các cảng biết đủ 12 tháng (chỉ để hiển thị / tổng tham khảo)
+    allm = pd.concat([long[long['kind'] == 'port'][['key', 'month', 'teu']], rows[['key', 'month', 'teu']]])
+    yr0 = form['year'].iloc[0]; full_keys = [k for k, g in allm[allm['month'].dt.year == yr0].groupby('key') if g['month'].nunique() == 12]
+    prof = allm[allm['key'].isin(full_keys) & (allm['month'].dt.year == yr0)].groupby('month')['teu'].sum()
+    extra = []
+    for b in blocks:
+        w = prof.reindex(b['months']).fillna(0)
+        w = w / w.sum() if w.sum() > 0 else pd.Series(1 / len(w), index=w.index)
+        extra += [{'key': b['key'], 'month': m, 'teu': b['teu'] * x, 'nguon': 'phan_bo_nam_truoc'} for m, x in w.items()]
+    rows = pd.concat([rows, pd.DataFrame(extra, columns=rows.columns)], ignore_index=True)
+    rows = rows.join(meta, on='key'); rows['canh_bao'] = ''
+    blocks = pd.DataFrame(blocks)
+    if len(blocks): blocks = blocks.join(meta, on='key')
+    return rows, blocks
+
+
+def agg_blocks(long, blocks, group_cols):
+    """khối cho dòng gộp (vùng / toàn quốc / cảng vụ): khoảng = hợp các tháng phân bổ của thành viên; tổng = cộng mọi tháng ĐÃ BIẾT
+    của thành viên trong khoảng + tổng các khối thành viên (chính xác, không phân bổ)"""
+    out = []
+    p = long[long['kind'] == 'port']
+    for gk, g in p.groupby(group_cols):
+        ks = set(g['key']); bb = blocks[blocks['key'].isin(ks)] if len(blocks) else blocks
+        if bb is None or not len(bb): continue
+        months = sorted({m for ms in bb['months'] for m in ms})
+        exact = g[g['month'].isin(months) & (g['nguon'] != 'phan_bo_nam_truoc')]['teu'].sum()
+        out.append({**dict(zip(group_cols, gk if isinstance(gk, tuple) else (gk,))), 'months': months, 'teu': exact + bb['teu'].sum()})
+    return pd.DataFrame(out)
+
+
+def totals_from_ports(long, months):
+    """dòng vùng + TỔNG CỘNG cho các tháng chỉ có số cảng (năm trước tách từ công thức): cộng các cảng"""
+    p = long[(long['kind'] == 'port') & long['month'].isin(months)]
+    if p.empty: return pd.DataFrame()
+    def src(g): return 'phan_bo_nam_truoc' if (g == 'phan_bo_nam_truoc').any() else 'nam_truoc_cong_thuc'
+    reg = p.groupby(['region', 'month'], as_index=False).agg(teu=('teu', 'sum'), nguon=('nguon', src))
+    rk = long[long['kind'] == 'region'].drop_duplicates('region').set_index('region')
+    reg['kind'] = 'region'; reg['port'] = reg['region'].map(rk['port']).fillna(reg['region'])
+    reg['key'] = reg['region'].map(rk['key']).fillna(reg['region'].map(_norm))
+    tot = p.groupby('month', as_index=False).agg(teu=('teu', 'sum'), nguon=('nguon', src))
+    tot = tot.assign(region='TOÀN QUỐC', kind='total', port='TỔNG CỘNG', key='TONG CONG')
+    return pd.concat([reg, tot], ignore_index=True).assign(canh_bao='')
+
+
+MIN_TERMS_MONTHLY = 5      # công thức cột Năm >= 5 số mới tách tháng (11–12 số khớp 100% số tháng đã biết; 7 số An Giang khớp)
+
+
+RANK = {'luy_ke_cung_ky': 0, 'phan_bo_nam_truoc': 1, 'nam_truoc_cong_thuc': 2, 'luy_ke': 3, 'thang': 4}   # trùng tháng: hạng cao thắng
+
+
+def _dedup(long):
+    return (long.assign(_r=long['nguon'].map(RANK)).sort_values(['key', 'month', '_r'])
+            .drop_duplicates(['key', 'month'], keep='last').drop(columns='_r'))
+
+
 def build(raw):
     raw = raw.copy()
     raw['score'] = raw[['teu', 'cum_cur']].fillna(0).max(axis=1)
@@ -114,25 +227,40 @@ def build(raw):
                              'month': pd.Timestamp(yr - 1, mon, 1) + pd.offsets.MonthEnd(0), 'teu': d_prev, 'nguon': 'luy_ke_cung_ky', 'canh_bao': ''})
             prev_cum = r['cum_cur'] if pd.notna(r['cum_cur']) else prev_cum
             prev_cum_p = r['cum_prev'] if pd.notna(r['cum_prev']) else prev_cum_p; prev_m = mon
-    long = pd.DataFrame(rows).sort_values(['key', 'month', 'nguon'])
-    long = long.drop_duplicates(['key', 'month'], keep='last')       # 'thang' (sheet đúng tháng) ưu tiên hơn suy từ lũy kế
+    long = _dedup(pd.DataFrame(rows))                                # 'thang' (sheet đúng tháng) ưu tiên hơn suy từ lũy kế
     year_prev = raw.sort_values(['year', 'mon']).groupby('key').agg(port=('port', 'last'), region=('region', 'last'), kind=('kind', 'last'),
                                                                     year=('year', 'last'), year_prev=('year_prev', 'last'))
     return long, year_prev
 
 
-def to_targets(long):
-    """các cảng có trong PORT_MAP -> dòng nowcast_targets (auth, terminal, month YYYY-MM, actual_teu)"""
+def _ym(ms): return ';'.join(pd.Timestamp(m).strftime('%Y-%m') for m in ms)
+
+
+def to_targets(long, blocks):
+    """-> (tháng, khối). tháng: các cảng trong PORT_MAP + toàn quốc (TỔNG CỘNG, auth 'VN') + cảng vụ (cộng cảng map, '__CANG_VU__');
+    tháng có phần phân bổ thì KHÔNG ghi làm số tháng. khối: (auth, terminal, months 'YYYY-MM;...', total_teu) cho mô hình làm quan sát gộp."""
     p = long[long['kind'] == 'port'].copy(); p['map'] = p['key'].map(PORT_MAP)
     p = p[p['map'].notna()]
     t = pd.DataFrame({'auth': p['map'].str[0], 'terminal': p['map'].str[1], 'month': p['month'].dt.strftime('%Y-%m'), 'actual_teu': p['teu'].round(1),
-                      'fill_only': (p['nguon'] == 'luy_ke_cung_ky').values})
-    # tổng: toàn quốc = dòng TỔNG CỘNG của VPA (auth 'VN'); cảng vụ = cộng mọi cảng VPA map vào cảng vụ đó (terminal '__CANG_VU__')
+                      'fill_only': (p['nguon'] == 'luy_ke_cung_ky').values, 'phan_bo': (p['nguon'] == 'phan_bo_nam_truoc').values})
     tot = long[long['kind'] == 'total']
     vn = pd.DataFrame({'auth': 'VN', 'terminal': 'TOÀN QUỐC', 'month': tot['month'].dt.strftime('%Y-%m'), 'actual_teu': tot['teu'].round(1),
-                       'fill_only': (tot['nguon'] == 'luy_ke_cung_ky').values})
-    cv = t.groupby(['auth', 'month'], as_index=False).agg(actual_teu=('actual_teu', 'sum'), fill_only=('fill_only', 'max')).assign(terminal=CANG_VU)
-    return pd.concat([t, vn, cv[t.columns]], ignore_index=True)
+                       'fill_only': (tot['nguon'] == 'luy_ke_cung_ky').values, 'phan_bo': (tot['nguon'] == 'phan_bo_nam_truoc').values})
+    cv = t.groupby(['auth', 'month'], as_index=False).agg(actual_teu=('actual_teu', 'sum'), fill_only=('fill_only', 'max'),
+                                                          phan_bo=('phan_bo', 'max')).assign(terminal=CANG_VU)
+    months = pd.concat([t, vn, cv[t.columns]], ignore_index=True)
+    months = months[~months['phan_bo']].drop(columns='phan_bo')
+    bl = []
+    if len(blocks):
+        b = blocks[blocks['key'] != 'TONG CONG'].copy(); b['map'] = b['key'].map(PORT_MAP); b = b[b['map'].notna()]
+        bl += [{'auth': m[0], 'terminal': m[1], 'months': _ym(ms), 'total_teu': round(v, 1)} for m, ms, v in zip(b['map'], b['months'], b['teu'])]
+        p2 = long.copy(); p2['map'] = p2['key'].map(PORT_MAP); p2 = p2[(p2['kind'] == 'port') & p2['map'].notna()]; p2['auth'] = p2['map'].str[0]
+        bk = blocks.copy(); bk['map'] = bk['key'].map(PORT_MAP); bk = bk[bk['map'].notna()]
+        cvb = agg_blocks(p2, bk, ['auth'])
+        bl += [{'auth': r.auth, 'terminal': CANG_VU, 'months': _ym(r.months), 'total_teu': round(r.teu, 1)} for r in cvb.itertuples()]
+        vb = blocks[blocks['key'] == 'TONG CONG']
+        bl += [{'auth': 'VN', 'terminal': 'TOÀN QUỐC', 'months': _ym(r.months), 'total_teu': round(r.teu, 1)} for r in vb.itertuples()]
+    return months, pd.DataFrame(bl, columns=['auth', 'terminal', 'months', 'total_teu'])
 
 
 def main(argv=None):
@@ -144,6 +272,29 @@ def main(argv=None):
     if not files: sys.exit('ERROR khong co file VPA')
     raw = pd.concat([read_file(f) for f in files], ignore_index=True)
     long, yp = build(raw)
+    # năm trước từ công thức cột "Năm" (số cứng cộng từng tháng) -> thêm T8–T12 + sửa tháng suy từ lũy kế sai
+    form = pd.concat([read_year_formulas(f) for f in files], ignore_index=True)
+    ym, blocks = year_months(form.drop_duplicates('key', keep='last'), long) if len(form) else (pd.DataFrame(), pd.DataFrame())
+    if len(ym):
+        have = set(long.loc[long['kind'] == 'total', 'month'])
+        tt = totals_from_ports(pd.concat([long, ym], ignore_index=True), sorted(set(ym['month']) - have))
+        fixed = ym.merge(long[long['nguon'] == 'luy_ke_cung_ky'][['key', 'month', 'teu']], on=['key', 'month'], suffixes=('', '_lk'))
+        fixed = fixed[(fixed['teu'] - fixed['teu_lk']).abs() > 1]
+        long = _dedup(pd.concat([long, ym, tt], ignore_index=True))
+        print(f'Cột năm trước (công thức): {form["key"].nunique()} cảng -> {(ym["nguon"] == "nam_truoc_cong_thuc").sum()} tháng tách được, '
+              f'{len(blocks)} khối chỉ biết tổng ({(ym["nguon"] == "phan_bo_nam_truoc").sum()} tháng phân bổ để xem); tổng/vùng thêm {tt["month"].nunique() if len(tt) else 0} tháng; '
+              f'{len(fixed)} tháng sửa số suy từ lũy kế')
+        if len(fixed): print(fixed[['port', 'month', 'teu_lk', 'teu']].to_string(index=False))
+        tc = form[form['key'] == 'TONG CONG']
+        if len(tc):
+            yr0 = int(tc['year'].iloc[0]); kn = long[(long['key'] == 'TONG CONG') & (long['month'].dt.year == yr0) & (long['nguon'] != 'phan_bo_nam_truoc')]
+            unk = [_me(yr0, m) for m in range(1, 13) if _me(yr0, m) not in set(kn['month'])]
+            if unk:
+                blocks = pd.concat([blocks, pd.DataFrame([{'key': 'TONG CONG', 'months': unk, 'teu': float(tc['annual'].iloc[0]) - kn['teu'].sum(),
+                                                           'region': 'TOÀN QUỐC', 'kind': 'total', 'port': 'TỔNG CỘNG'}])], ignore_index=True)
+        if len(blocks):
+            bo = blocks.assign(months=blocks['months'].map(_ym))
+            bo[['region', 'port', 'months', 'teu']].to_csv(os.path.join(DATA, 'vpa_container_blocks.csv'), index=False, encoding='utf-8-sig')
     os.makedirs(DATA, exist_ok=True)
     long.drop(columns=['key']).to_csv(os.path.join(DATA, 'vpa_container_long.csv'), index=False, encoding='utf-8-sig')
     w = long.pivot_table(index=['region', 'kind', 'port'], columns='month', values='teu', aggfunc='last')
@@ -158,7 +309,10 @@ def main(argv=None):
     unm = sorted(set(long.loc[(long['kind'] == 'port'), 'port'][~long.loc[long['kind'] == 'port', 'key'].isin(PORT_MAP)]))
     print('Cảng chưa map vào app:', ', '.join(unm))
     if a.targets:
-        new = to_targets(long)
+        new, nb = to_targets(long, blocks)
+        bpath = os.path.join(os.path.dirname(TARGETS), 'nowcast_blocks.csv')
+        nb.to_csv(bpath, index=False, encoding='utf-8')
+        print(f'nowcast_blocks: {len(nb)} khối (bến + cảng vụ + toàn quốc) -> {bpath}')
         old = pd.read_csv(TARGETS, dtype={'month': str}) if os.path.exists(TARGETS) else pd.DataFrame(columns=new.columns)
         old['month'] = old['month'].str[:7]
         # số THÁNG (sheet đúng tháng) ghi đè; số năm trước SUY TỪ LŨY KẾ cùng kỳ chỉ điền ô trống (cột lũy kế VPA đôi khi chép nhầm năm,

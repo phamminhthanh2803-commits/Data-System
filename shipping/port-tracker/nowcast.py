@@ -190,7 +190,30 @@ def _pv(prior, cols):
     return [prior[c] for c in cols] if prior and all(c in prior and prior[c] > 0 for c in cols) else None
 
 
-def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=None):
+def _block_rows(feat, blocks):
+    """khối (tháng, tổng TEU) -> quan sát gộp: biến = TB các tháng trong khối, y = tổng / số tháng, trọng số sqrt(k) (TB k tháng ít nhiễu
+    hơn 1 tháng lẻ). Chỉ nhận khối mà mọi tháng đều có biến trọn tháng."""
+    out = []
+    full = feat[~feat['partial'] & (feat['teu'] > 0)]
+    for months, total in blocks or []:
+        ms = pd.DatetimeIndex(months)
+        if not len(ms) or not ms.isin(full.index).all() or total <= 0: continue
+        k = len(ms); x = full.loc[ms, ['hours', 'teu', 'calls']].mean() if 'calls' in full else full.loc[ms, ['hours', 'teu']].mean()
+        out.append({'end': ms.max(), 'start': ms.min(), 'k': k, 'y': total / k, 'w': np.sqrt(k), **x.to_dict(), 'months': ms, 'total': total})
+    return out
+
+
+def _with_blocks(tr, cols, B, upto=None, lo=None):
+    """X, y tháng + quan sát gộp có trọng số (khối kết thúc trước 'upto', bắt đầu từ 'lo' với mô hình cửa sổ)"""
+    X, y = tr[cols].values.astype(float), tr['actual'].values.astype(float)
+    sel = [b for b in B if (upto is None or b['end'] < upto) and (lo is None or b['start'] >= lo)]
+    if sel:
+        X = np.vstack([X, np.array([[b[c] * b['w'] for c in cols] for b in sel])])
+        y = np.concatenate([y, [b['y'] * b['w'] for b in sel]])
+    return X, y
+
+
+def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=None, blocks=None):
     """feat: features(); actual: Series tháng -> TEU thực tế. Trả về dict hoặc None nếu không đủ dữ liệu.
     data: bảng tháng (actual, modeled, backtest, nowcast, forecast, lo, hi, kind) ; mape: {mô hình: %}; best, coef, cols."""
     if feat.empty or actual is None or actual.empty: return None
@@ -198,13 +221,15 @@ def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=
     train = full.join(actual.rename('actual'), how='inner').dropna(subset=['actual'])
     train = train[(train['actual'] > 0) & (train['teu'] > 0)]
     if len(train) < min_train + 3: return None
+    B = _block_rows(feat, blocks)                                  # số công bố chỉ biết TỔNG nhiều tháng -> quan sát gộp khi học hệ số
     bt = pd.DataFrame({'actual': train['actual'].iloc[min_train:]})
     for name, (cols, window) in MODELS.items():
         preds = []
         for i in range(min_train, len(train)):
             lo = 0 if window is None else max(0, i - window)
             tr = train.iloc[lo:i]
-            preds.append(float(train[cols].iloc[i].values @ _fit(tr[cols], tr['actual'], _pv(prior, cols))))
+            Xb, yb = _with_blocks(tr, cols, B, upto=train.index[i], lo=None if window is None else tr.index[0])
+            preds.append(float(train[cols].iloc[i].values @ _fit(Xb, yb, _pv(prior, cols))))
         bt[name] = preds
     bt[NAIVE] = train['actual'].shift(1).iloc[min_train:].values
     mape = {c: float(np.mean(np.abs(bt[c] / bt['actual'] - 1)) * 100) for c in list(MODELS) + [NAIVE]}
@@ -217,18 +242,21 @@ def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=
     fits = pd.DataFrame(index=feat.index)
     for name, (cols_m, win_m) in MODELS.items():
         rows_m = train if win_m is None else train.iloc[-win_m:]
-        fits[name] = feat[cols_m].mul(scale_all, axis=0).values @ _fit(rows_m[cols_m], rows_m['actual'], _pv(prior, cols_m))
+        Xb, yb = _with_blocks(rows_m, cols_m, B, lo=None if win_m is None else rows_m.index[0])
+        fits[name] = feat[cols_m].mul(scale_all, axis=0).values @ _fit(Xb, yb, _pv(prior, cols_m))
     fit_err = {c: float(np.mean(np.abs(fits.loc[train.index, c] / train['actual'] - 1)) * 100) for c in MODELS}
     cols, window = MODELS[best]
     rows = train if window is None else train.iloc[-window:]
-    coef = _fit(rows[cols], rows['actual'], _pv(prior, cols))
+    Xb, yb = _with_blocks(rows, cols, B, lo=None if window is None else rows.index[0])
+    coef = _fit(Xb, yb, _pv(prior, cols))
     # khoảng = ± sai số PHÂN VỊ 80% của backtest (16/10/2026: ± MAPE chỉ trùm 33/68 tháng công bố mới = 49%)
     err = float(np.quantile(np.abs(bt[best] / bt['actual'] - 1), BAND_Q))
 
     data, seas = _assemble(feat, actual, cols, coef, err, seasonal_ref, bt[best])
     return {'data': data, 'mape': mape, 'mape_recent': mape_recent, 'fit_err': fit_err, 'fits': fits, 'auto': auto, 'best': best, 'cols': cols,
             'coef': dict(zip(cols, coef)), 'backtest': bt, 'n_bt': len(bt),
-            'n_train': len(train), 'seasonal': seas, 'dwt_per_teu': feat.attrs.get('dwt_per_teu')}
+            'n_train': len(train), 'seasonal': seas, 'dwt_per_teu': feat.attrs.get('dwt_per_teu'),
+            'blocks': [{'months': b['months'], 'total': b['total'], 'modeled': float(np.array([b[c] for c in cols]) @ coef) * b['k']} for b in B]}
 
 
 # ================================================================ số CÔNG BỐ theo bến (ưu tiên hơn EconDB khi có)
@@ -254,6 +282,36 @@ def own_min_train(feat, actual):
     n = len(feat[~feat['partial'] & (feat['teu'] > 0)].join(actual.rename('_y'), how='inner').dropna(subset=['_y']))
     if n >= MIN_TRAIN_TERM + 3: return MIN_TRAIN_TERM
     return n - 3 if n >= 7 else None
+
+
+BLOCKS = os.path.join(os.path.dirname(TARGETS), 'nowcast_blocks.csv')
+
+
+def load_blocks():
+    """số công bố chỉ biết TỔNG nhiều tháng (vd VPA cột Năm 2025: Gemalink T8–T12) -> auth, terminal, months (list cuối tháng), total"""
+    if not os.path.exists(BLOCKS): return pd.DataFrame(columns=['auth', 'terminal', 'months', 'total'])
+    b = pd.read_csv(BLOCKS, dtype={'auth': str, 'terminal': str, 'months': str})
+    b['months'] = b['months'].map(lambda x: list(me(pd.to_datetime([m + '-01' for m in str(x).split(';') if m]))))
+    return b.rename(columns={'total_teu': 'total'})
+
+
+def block_list(b, auth, terminal, actual=None):
+    """khối của bến (hoặc nhóm chứa bến) -> [(tháng, tổng)]. Tháng đã có số công bố tháng (vd số ảnh) thì trừ ra khỏi khối;
+    phần còn lại vô lý so với nhịp tháng của chuỗi (TB < 30% hoặc > 300% trung vị) -> bỏ khối (2 nguồn lệch nhau)"""
+    if b is None or b.empty: return []
+    g = target_group(b.rename(columns={}), auth, terminal) if 'terminal' in b else None
+    rows = b[(b['auth'] == auth) & (b['terminal'] == (g or terminal))]
+    out = []
+    med = float(actual.median()) if actual is not None and len(actual) else None
+    for r in rows.itertuples(index=False):
+        ms = pd.DatetimeIndex(r.months); tot = float(r.total)
+        if actual is not None and len(actual):
+            known = ms[ms.isin(actual.index)]
+            tot -= float(actual.reindex(known).sum()); ms = ms[~ms.isin(actual.index)]
+        if not len(ms) or tot <= 0: continue
+        if med and not (0.3 * med <= tot / len(ms) <= 3 * med): continue
+        out.append((ms, tot))
+    return out
 
 
 def target_group(t, auth, terminal):

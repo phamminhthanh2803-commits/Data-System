@@ -876,7 +876,8 @@ def nc_term(auth, term, E, ra):
     if not lcs: return None
     force = st.session_state.get(f'nc_force_{auth}_{nw.nfc(term)}')          # PV2 chọn tay mô hình cho bến (chip "So sánh mô hình")
     force = force if force in nw.MODELS else None
-    key = ('nc_term', auth, term, KEY, ed.stamp(), nw.MIN_TRAIN_TERM, os.path.getmtime(nw.TARGETS) if os.path.exists(nw.TARGETS) else 0, force)
+    key = ('nc_term', auth, term, KEY, ed.stamp(), nw.MIN_TRAIN_TERM, os.path.getmtime(nw.TARGETS) if os.path.exists(nw.TARGETS) else 0, force,
+           os.path.getmtime(nw.BLOCKS) if os.path.exists(nw.BLOCKS) else 0)
     cache = st.session_state.setdefault('_nc', {})
     if key in cache: return cache[key]
     v = nc_visits(); va = v[v['auth'] == auth]; ft = nw.features(va[va['terminal'].map(nw.nfc) == nw.nfc(term)], LAST)
@@ -890,7 +891,8 @@ def nc_term(auth, term, E, ra):
         members = [x.strip() for x in grp.split('+')]
         fg = ft if len(members) == 1 else nw.features(va[va['terminal'].map(nw.nfc).isin([nw.nfc(x) for x in members])], LAST)   # nhóm: biến gộp các bến
         mt = nw.own_min_train(fg, pub)                            # 7–8 tháng trùng (Cái Mép) vẫn tự hồi quy, backtest ít điểm
-        res = nw.run(fg, pub, min_train=mt, seasonal_ref=port, force=force, prior=prior) if mt else None
+        res = nw.run(fg, pub, min_train=mt, seasonal_ref=port, force=force, prior=prior,
+                     blocks=nw.block_list(nw.load_blocks(), auth, grp, pub)) if mt else None
         if res is not None:
             if len(members) > 1 and len(ts): ts = nw.terminal_series(E['series'], lcs, ed.TERMINAL_MAP, members[0], TODAY)
             for x in members[1:]: ts = ts.add(nw.terminal_series(E['series'], lcs, ed.TERMINAL_MAP, x, TODAY), fill_value=0) if len(members) > 1 else ts
@@ -939,7 +941,7 @@ def nc_term(auth, term, E, ra):
     return out
 
 
-def fig_nowcast(d, bt_name):
+def fig_nowcast(d, bt_name, blocks=None):
     fig = go.Figure()
     a = d['actual']; W = 22 * 86400000                  # độ rộng cột cố định (ms): trace 1 điểm thì Plotly vẽ cột mảnh gần như vô hình
     fig.add_trace(go.Bar(x=d.index, y=a, name='Thực tế', marker_color=TOK['gray'], width=W, hovertemplate='%{y:,.0f}<extra>Thực tế</extra>'))
@@ -960,6 +962,16 @@ def fig_nowcast(d, bt_name):
     if len(b):
         fig.add_trace(go.Scatter(x=b.index, y=b.values, name='Backtest ngoài mẫu', mode='markers', marker=dict(size=6, color=TOK['brown'], symbol='diamond'),
                                  hovertemplate='%{y:,.0f}<extra>Backtest ngoài mẫu</extra>'))
+    for i, b in enumerate(blocks or []):                    # số công bố chỉ biết TỔNG nhiều tháng: đoạn ngang = TB tháng, không vẽ cột từng tháng
+        ms = pd.DatetimeIndex(b['months']); k = len(ms); lab = f'{ms.min():%m/%Y}–{ms.max():%m/%Y}'
+        x = [ms.min() - pd.Timedelta(days=14), ms.max() + pd.Timedelta(days=1)]
+        fig.add_trace(go.Scatter(x=x, y=[b['total'] / k] * 2, mode='lines', line=dict(color=TOK['ink'], width=3),
+                                 name='Số công bố gộp (TB tháng)', legendgroup='blk', showlegend=i == 0,
+                                 hovertemplate=f'Tổng {lab}: {b["total"]:,.0f} TEU ({k} tháng)<br>TB %{{y:,.0f}}/tháng<extra>Số công bố gộp</extra>'))
+        if b.get('modeled'):
+            fig.add_trace(go.Scatter(x=x, y=[b['modeled'] / k] * 2, mode='lines', line=dict(color=TOK['down'], width=2, dash='dot'),
+                                     name='Mô hình trên khối (TB tháng)', legendgroup='blkm', showlegend=i == 0,
+                                     hovertemplate=f'Mô hình {lab}: {b["modeled"]:,.0f} TEU<extra>Mô hình trên khối</extra>'))
     fig.update_layout(height=380, barmode='overlay', bargap=0.25, yaxis=dict(title='TEU / tháng', rangemode='tozero'))
     return fig
 
@@ -1005,14 +1017,16 @@ def nc_published_total(auth, name):
     cut = PUB_COVER_FROM.get(auth)                                 # chỉ học từ tháng dữ liệu cảng vụ đã phủ đủ phạm vi VPA
     if cut: pub = pub[pd.DatetimeIndex(pub.index) >= pd.Timestamp(cut)]
     if len(pub) < 7: return None
-    key = ('nc_pub', auth, name, KEY, os.path.getmtime(nw.TARGETS) if os.path.exists(nw.TARGETS) else 0)
+    key = ('nc_pub', auth, name, KEY, os.path.getmtime(nw.TARGETS) if os.path.exists(nw.TARGETS) else 0,
+           os.path.getmtime(nw.BLOCKS) if os.path.exists(nw.BLOCKS) else 0)
     cache = st.session_state.setdefault('_nc', {})
     if key not in cache:
         v = nc_visits(); v = v if auth == 'VN' else v[v['auth'] == auth]
-        r = nc_split_cm(v, pub_all, cut) if cut else None          # tách Cái Mép: phần còn lại học + fit được cả trước mốc cắt
+        r = nc_split_cm(v, pub_all, cut, auth, name) if cut else None          # tách Cái Mép: phần còn lại học + fit được cả trước mốc cắt
         if r is None:
             f = nw.features(v, LAST); mt = nw.own_min_train(f, pub)
-            r = nw.run(f, pub, min_train=mt, seasonal_ref=pub_all, prior=nw.self_prior(f, pub)) if mt else None
+            r = nw.run(f, pub, min_train=mt, seasonal_ref=pub_all, prior=nw.self_prior(f, pub),
+                       blocks=nw.block_list(nw.load_blocks(), auth, name, pub_all)) if mt else None
         cache[key] = None if r is None else {
             'd': r['data'], 'res': r,
             'src': ('VPA TỔNG CỘNG (mọi cảng container cả nước, gồm rỗng)' if auth == 'VN' else 'VPA, cộng các cảng thuộc cảng vụ')
@@ -1059,7 +1073,18 @@ def _coef_txt(r):
     return ' + '.join(f'{x:,.2f} × {"giờ bến" if c == "hours" else "sức chở"}' for c, x in r['coef'].items())
 
 
-def nc_split_cm(v, pub, cut):
+def _window_sum(T, B, auth, terms, W):
+    """tổng chính xác của các bến 'terms' trên các tháng W (số tháng + khối nằm gọn trong W); None nếu có tháng không phủ"""
+    tot = 0.0; W = pd.DatetimeIndex(W)
+    for t in terms:
+        s = nw.target_series(T, auth, t); cov = set(s.index.intersection(W)); tot += float(s.reindex(sorted(cov)).sum())
+        for ms, x in nw.block_list(B, auth, t, s):
+            if pd.DatetimeIndex(ms).isin(W).all() and not cov & set(ms): tot += x; cov |= set(ms)
+        if cov != set(W): return None
+    return tot
+
+
+def nc_split_cm(v, pub, cut, auth=None, name=None):
     """tổng có số công bố (toàn quốc / TP.HCM) = mô hình NGOÀI Cái Mép (lịch cảng vụ đủ từ đầu -> học + fit cả 2025)
     + mô hình Cái Mép (học từ mốc cắt). Trước mốc cắt phần Cái Mép = số VPA thực tế (đã biết) để có đường fit tổng;
     MAPE tổng chỉ tính trên tháng cả 2 phần đều có backtest thật. None nếu không tách được."""
@@ -1073,8 +1098,12 @@ def nc_split_cm(v, pub, cut):
     cm_fit = cm_act[cm_act.index >= pd.Timestamp(cut)]
     mt_r, mt_c = nw.own_min_train(f_rest, rest_act), nw.own_min_train(f_cm, cm_fit)
     if not (mt_r and mt_c): return None
-    r_rest = nw.run(f_rest, rest_act, min_train=mt_r, seasonal_ref=rest_act, prior=nw.self_prior(f_rest, rest_act))
-    r_cm = nw.run(f_cm, cm_fit, min_train=mt_c, seasonal_ref=cm_act, prior=nw.self_prior(f_cm, cm_fit))
+    B = nw.load_blocks(); b_rest, b_cm = [], []
+    for W, tot in (nw.block_list(B, auth, name, pub) if auth else []):           # khối tổng (vd T8–T12/2025) -> chia 2 phần chính xác
+        cm_w = _window_sum(T, B, 'HCM', cm_terms, W)
+        if cm_w is not None and 0 < cm_w < tot: b_cm.append((W, cm_w)); b_rest.append((W, tot - cm_w))
+    r_rest = nw.run(f_rest, rest_act, min_train=mt_r, seasonal_ref=rest_act, prior=nw.self_prior(f_rest, rest_act), blocks=b_rest)
+    r_cm = nw.run(f_cm, cm_fit, min_train=mt_c, seasonal_ref=cm_act, prior=nw.self_prior(f_cm, cm_fit), blocks=b_cm)
     if r_rest is None or r_cm is None: return None
     # phần Cái Mép trước mốc cắt: thực tế VPA làm cả fit/backtest (chỉ để cộng ra đường tổng, không tính sai số)
     pre = [m for m in r_rest['data'].index if m not in r_cm['data'].index and m in cm_act.index]
@@ -1084,6 +1113,8 @@ def nc_split_cm(v, pub, cut):
         x['kind'] = 'thực tế'; x['w'] = np.nan
         d_cm = pd.concat([x, d_cm]).sort_index()
     r = nw.combine({'Ngoài Cái Mép': r_rest, 'Cái Mép': {**r_cm, 'data': d_cm}}, 'tổng 2 mô hình')
+    r['blocks'] = [{'months': W, 'total': tot, 'modeled': sum(b['modeled'] for rr in (r_rest, r_cm) for b in rr.get('blocks', [])
+                                                               if set(b['months']) == set(W))} for W, tot in (nw.block_list(B, auth, name, pub) if auth else [])]
     d = r['data']; ok = (d.index >= pd.Timestamp(cut)) & d['actual'].notna() & d['backtest'].notna()
     m = d.loc[ok, ['actual', 'backtest']]; a = d['actual'].dropna(); naive = a.shift(1).reindex(m.index)
     mm = lambda y, yh: float(np.mean(np.abs(yh / y - 1)) * 100) if len(y) else np.nan  # noqa: E731
@@ -1092,7 +1123,8 @@ def nc_split_cm(v, pub, cut):
     r['n_bt'] = len(m)
     r['split_note'] = (f'Ước/dự báo = 2 mô hình hồi quy 2 biến cộng lại: ngoài Cái Mép (TEU = {_coef_txt(r_rest)}, học từ {rest_act.index.min():%m/%Y}, '
                        f'MAPE {r_rest["mape"][r_rest["best"]]:.1f}%) + Cái Mép (TEU = {_coef_txt(r_cm)}, học từ {cm_fit.index.min():%m/%Y} vì lịch cảng vụ '
-                       f'Cái Mép bắt đầu 08/2025). Trước đó đường fit tổng = fit ngoài Cái Mép + Cái Mép thực tế VPA; MAPE tổng chỉ tính từ {pd.Timestamp(cut):%m/%Y}.')
+                       f'Cái Mép bắt đầu 08/2025). Trước đó đường fit tổng = fit ngoài Cái Mép + Cái Mép thực tế VPA; MAPE tổng chỉ tính từ {pd.Timestamp(cut):%m/%Y}.'
+                       + (f' Khối chỉ biết tổng ({len(b_rest)}) học làm quan sát gộp.' if b_rest else ''))
     return r
 
 
@@ -1214,7 +1246,7 @@ def page_volume(level, auth, term, K):
                 note += ' ⚠ Mô hình chưa tốt hơn "lấy tháng trước" → dùng số dự báo thận trọng.'
             elif r and not r.get('pooled') and r.get('n_bt', 99) < 6:
                 note += f' Chỉ {r["n_bt"]} tháng backtest chung → sai số chưa đáng tin.'
-            fig = fig_nowcast(dd, m['res']['best'] if m['res'] else '')
+            fig = fig_nowcast(dd, m['res']['best'] if m['res'] else '', blocks=(m['res'] or {}).get('blocks'))
             econ = m.get('econ')
             if econ is not None and len(econ):            # bến dùng số công bố: vẽ thêm EconDB (full) để đối chiếu
                 e = econ[econ.index >= cd.d0]

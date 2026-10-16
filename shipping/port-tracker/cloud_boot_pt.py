@@ -29,7 +29,7 @@ CONF = os.path.join(os.path.expanduser('~'), '.config', 'rclone', 'rclone.conf')
 MARKER = os.path.join(APP, '.cloud_boot.json')
 REFRESH_SEC = int(os.environ.get('CLOUD_REFRESH_SEC', '1800'))
 # (thư mục trên Drive dưới shipping/, include) -> kéo về HUB/<thư mục>
-PULL = [('port-tracker', ['/store/**', '/nowcast_targets.csv']),
+PULL = [('port-tracker', ['/store/**', '/nowcast_targets.csv', '/nowcast_blocks.csv']),
         ('cangvu-haiphong', ['/data/vessel_master.csv']),
         ('vessel-itinerary', ['/data/vessel_route_pattern.csv', '/data/lane_monthly.csv', '/data/itinerary_legs.csv',
                        '/data/port_pairs_nm.csv']),

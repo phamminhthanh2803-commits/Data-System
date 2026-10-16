@@ -99,3 +99,6 @@ Trang **Tàu** (chi tiết 1 tàu: thông số, nằm cảng từng chuyến the
 
 ## Biểu đồ
 Altair, bảng màu 8 sắc cố định đã kiểm định cho người mù màu; màu đi theo thực thể (xếp theo tổng 24 tháng), quá 7 nhóm thì gộp "Khác". Không dùng trục kép. Số theo kiểu Việt Nam.
+
+### Kiểm định ngoài mẫu 16/10/2026 (số công bố HP mới tới 07/2026)
+Mô hình chỉ có số tới 09/2025 (sông) / 03/2026 (nước sâu) dự báo 68 tháng → sai TB 15,1%: tốt Nam Đình Vũ 4,1%, Chùa Vẽ+Tân Vũ 5,7%, HICT 6,4%, HTIT 7,2%; kém VIP Green 31,9% (dự báo cao), HHIT 29,6%, PTSC 24,2%, Đình Vũ 19,9% (dự báo thấp liên tục). Khoảng ± MAPE chỉ trùm 49% → đổi sang ± sai số backtest phân vị 80% (`BAND_Q`), trùm 65%. Số mới đã nạp (187 → 255 dòng; HHIT T1/T2-2026 đảo so với ảnh trước, dùng ảnh mới).

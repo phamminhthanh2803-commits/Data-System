@@ -406,7 +406,12 @@ def fit_ports(v, series, locodes, term_port, last_day):
     parts = {}
     for lc in locodes:
         vv = v if len(locodes) == 1 else v[v['terminal'].map(term_port) == lc]
-        parts[lc] = run(features(vv, last_day), econdb_monthly(series, [lc]))
+        f, act = features(vv, last_day), econdb_monthly(series, [lc])
+        # 16/10/2026: ngưỡng thích ứng như cấp bến - Cái Mép (VN VUT) chỉ 14 tháng trùng sau khi bỏ tháng đầu thiếu 07/2025,
+        # ngưỡng cứng 15 làm VUT rơi khỏi tổng TP.HCM / toàn quốc
+        n = len(f[~f['partial'] & (f['teu'] > 0)].join(act.rename('_y'), how='inner').dropna(subset=['_y'])) if len(f) else 0
+        mt = MIN_TRAIN if n >= MIN_TRAIN + 3 else (n - 3 if n >= 9 else None)
+        parts[lc] = run(f, act, min_train=mt) if mt else None
     return combine(parts)
 
 

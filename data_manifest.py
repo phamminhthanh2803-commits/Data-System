@@ -109,10 +109,12 @@ FOLDERS: dict[str, Folder] = {f.key: f for f in [
            note="kho chia se store/ (parquet 1 cang vu x 1 thang, ~50 MB) cua app Port Tracker: cloud keo 11 cang vu, laptop keo TP.HCM"),
     Folder("shipping", "Alibra-scraper"),
     Folder("shipping", "BCTI-scraper"),
-    # ---------------- bat-dong-san (17/10/2026): kho store/ cua scraper batdongsan.com.vn - cloud la chu (bds-am.yml 07:30);
-    # laptop (D:\bat-dong-san\batdongsan-projects\store, app bds-tracker doc) chi nhan ban qua `sync_data.py app`
-    Folder("bat-dong-san", "batdongsan-projects/store", exclude=["*.tmp"],
-           note="du an BDS: projects/geo_projects/project_changes.parquet + listing_stats/<thang>.parquet + runs.csv (~10 MB)"),
+    # ---------------- bat-dong-san (17/10/2026): kho store/ cua scraper batdongsan.com.vn. Thu 17/10 22:19 tu GitHub Actions (IP My):
+    # 8/8 request bi Cloudflare chan (bds-am.yml run 39044473983) -> LAPTOP la chu, task "BDS AM" 07:30 chay tren D:\bat-dong-san goc;
+    # Drive chi co ban seed 17/10 (khong cap nhat), cloud (workflow_dispatch de thu lai) khong duoc ghi de. Khong nam trong APP_FOLDERS
+    # vi app bds-tracker doc thang kho goc (keo Drive ve se de ban cu len ban moi cua laptop).
+    Folder("bat-dong-san", "batdongsan-projects/store", owner="laptop", exclude=["*.tmp"],
+           note="du an BDS (laptop cao, IP VN): projects/geo_projects/project_changes.parquet + listing_stats/<thang>.parquet + runs.csv ~10 MB"),
     # ---------------- realtime (12/10/2026): thu muc Drive rieng realtime/<YYYY-MM-DD>/, cloud (dnse_stream --push-every) la chu
     Folder("realtime", "data", remote_path="realtime", seed=False, exclude=["*.duckdb", "*.duckdb.wal", "*.tmp"],
            note="8 parquet/ngay cua bo thu DNSE/SSI tren GitHub Actions; app keo ngay gan nhat (data_live.py 60 s / sync_data app)"),
@@ -185,7 +187,7 @@ APP_FOLDERS = [("market-data/market-valuation", None), ("market-data/index-fetch
                ("market-data/vsdc-accounts", None), ("shipping/VHBS-ConTex", None), ("hah", None),
                ("shipping/cangvu-haiphong", None), ("shipping/cangvu-hcm", None), ("shipping/cangvu-toanquoc", None),
                ("shipping/vessel-itinerary", None), ("shipping/Alibra-scraper", None), ("shipping/BCTI-scraper", None),
-               ("shipping/port-tracker", None), ("bctc/bctc-scan", None), ("bat-dong-san/batdongsan-projects/store", None)]
+               ("shipping/port-tracker", None), ("bctc/bctc-scan", None)]   # bat-dong-san: khong (laptop la chu, app doc kho goc)
 # realtime: khong nam trong APP_FOLDERS (khong copy ca thu muc) - sync_data.do_app chi keo APP_REALTIME_DAYS ngay gan nhat
 APP_REALTIME_DAYS = 1
 

@@ -31,7 +31,7 @@ laptop chạy `region.py --only JCI,LQ45,FBMKLCI`. Chi tiết ai ghi thư mục 
 | `data_manifest.py` | bản đồ dữ liệu: thư mục nào mỗi bước đọc/ghi, chủ (cloud/laptop), lên Drive hay không. `--size` = ước dung lượng. |
 | `sync_data.py` | `down`/`up` theo bước sẽ chạy hôm nay (cùng luật `--only`, `CLOUD_SKIP` với runner), `app` (kéo data cho app), `seed` (lần đầu). |
 | `seed_drive.ps1` | lần đầu: `D:\` → Drive (~1,9 GB, bỏ bond-pivot) + dựng `D:\pipeline-data` (cangvu-hcm raw + junction bond-pivot). |
-| `.github/workflows/*.yml` | 4 slot cron + `keepalive.yml` (commit rỗng ngày 1 và 16 hằng tháng để GitHub không tắt cron sau 60 ngày không commit) + `realtime-sang.yml` / `realtime-chieu.yml` (bộ thu DNSE/SSI, mục **Realtime**). |
+| `.github/workflows/*.yml` | 4 slot cron + `keepalive.yml` (commit rỗng ngày 1 và 16 hằng tháng để GitHub không tắt cron sau 60 ngày không commit) + `realtime-sang.yml` / `realtime-chieu.yml` (bộ thu DNSE/SSI, mục **Realtime**) + `bds-am.yml` (hub `D:\bat-dong-san`, 17/10/2026: **không cron** — runner GitHub bị batdongsan.com.vn chặn 8/8 request, bước `bds-projects` chạy ở laptop task "BDS AM" 07:30, xem `D:\bat-dong-san\README.md` mục 4; workflow giữ `workflow_dispatch` để thử lại). |
 | `local\Tat-realtime-laptop.ps1` | tắt task laptop "Realtime DNSE" khi chuyển bộ thu sang cloud (`-Enable` bật lại, `-Kill` dừng tiến trình đang chạy). |
 | `local\Run-Local-Mini.ps1` | 18:40: IDX/Bursa → nganh-ck → (thứ Hai) bonds → đẩy 2 file region lên Drive → kéo data cho app. Đợi cloud Market PM xong trước (tối đa 150'). |
 | `local\Run-Local-Cvhcm.ps1` | 8:30: cvhcm (+ cvhcm-berthmap thứ Hai) → đẩy `shipping/cangvu-hcm` lên Drive (trước cloud Shipping AM 9:00). |

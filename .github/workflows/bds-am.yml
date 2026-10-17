@@ -1,11 +1,13 @@
-# BDS AM — du an bat dong san (batdongsan.com.vn) buoi sang: buoc bds-projects (danh sach + chi tiet + tin rao -> store/ parquet)
-# Gio VN = UTC + 7. Chay tay: Actions -> BDS AM -> Run workflow -> `args` = "--master --pages 2" de thu nhanh (2 trang danh sach),
-# `only` de trong (slot chi co 1 buoc). Push sua file workflow nay -> tu chay thu nhanh (--master --pages 2) de kiem tra IP My co bi chan.
+# BDS AM — du an bat dong san (batdongsan.com.vn): buoc bds-projects (danh sach + chi tiet + tin rao -> store/ parquet)
+# 17/10/2026 22:19 thu tu runner GitHub (IP My) voi --master --pages 2: 8/8 request bi Cloudflare chan (run 39044473983,
+# status WARN) -> KHONG len lich cron; buoc nay chay o LAPTOP: task Task Scheduler "BDS AM" 07:30 (D:\bat-dong-san\README.md muc 4).
+# Giu workflow de THU LAI (Actions -> BDS AM -> Run workflow -> args="--master --pages 2"; push sua file nay cung tu chay thu).
+# Laptop la chu store/ (data_manifest.py): cloud chi keo Drive ve, KHONG day de len Drive (chi status-AM.txt).
 name: BDS AM
 
 on:
-  schedule:
-    - cron: "30 0 * * *"            # 07:30 gio VN
+  # schedule:                      # TAT 17/10/2026: IP My bi chan; bat lai (07:30 VN) khi co duong di IP VN
+  #   - cron: "30 0 * * *"
   workflow_dispatch:
     inputs:
       only:
@@ -43,7 +45,7 @@ env:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 150            # mac dinh ~45-60 phut (1 request/giay); retry 2 lan cach 5 phut
+    timeout-minutes: 150            # mac dinh ~45-60 phut (1 request/giay); retry 2 lan cach 5 phut (bi chan: ~11 phut)
     steps:
       - name: Lay code
         uses: actions/checkout@v4

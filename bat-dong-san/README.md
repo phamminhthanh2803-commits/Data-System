@@ -51,6 +51,44 @@ Bộ lọc chung: Loại hình, Trạng thái. Deep-link `?trang=<trang>/<phạm
 - **Trạng thái** 4 giá trị của batdongsan: Đang mở bán, Sắp mở bán, Đã bàn giao, Đang cập nhật. Chuỗi thay đổi chỉ có từ ngày seed (17/10/2026) trở đi.
 - Tên chủ đầu tư chưa chuẩn hoá (cùng tập đoàn nhiều pháp nhân); `investor_id` (ep) của batdongsan dùng để gộp sau.
 
-## 4. Lịch chạy
-Chưa đăng ký Task Scheduler. Đăng ký (PowerShell, 1 lần): `schtasks /create /tn "BDS AM" /sc daily /st 07:30 /tr "python D:\bat-dong-san\run_slot.py --slot AM" /f`.
-Đưa lên cloud như 3 hub kia: thêm hub `bat-dong-san` vào `D:\cloud-deploy\pack_code.py` + `data_manifest.py` (chỉ `batdongsan-projects/store` lên Drive, cloud là chủ) + 1 workflow cron.
+## 4. Lịch chạy (đăng ký 17/10/2026)
+**Chạy ở LAPTOP** — task Task Scheduler **"BDS AM"** hằng ngày **07:30** (đã đăng ký 17/10/2026, user `User`, lần chạy kế 18/10 07:30):
+```
+schtasks /Create /F /TN "BDS AM" /SC DAILY /ST 07:30 /TR "C:\Users\User\AppData\Local\Programs\Python\Python312\python.exe D:\bat-dong-san\run_slot.py --slot AM"
+```
+(dùng đường dẫn python đầy đủ vì Task Scheduler không chắc có `python` trong PATH). Kiểm tra / chạy tay / tắt:
+`schtasks /Query /TN "BDS AM" /V /FO LIST` · `schtasks /Run /TN "BDS AM"` · `schtasks /Change /TN "BDS AM" /DISABLE`.
+Máy phải bật lúc 07:30 (Task Scheduler → Properties → Settings → "Run task as soon as possible after a scheduled start is missed" nếu hay lỡ).
+Kết quả mỗi lần chạy: `status-AM.txt` (`OK | <giờ> | loi:` hoặc `WARN | ... | loi: bds-projects`), `logs\bds_AM_<stamp>.log`,
+1 dòng mới trong `batdongsan-projects\store\runs.csv`. Thử nhanh bằng tay (2 trang danh sách, ~1 phút): `set BDS_ARGS=--master --pages 2` rồi `python run_slot.py --slot AM`
+(env `BDS_ARGS` = tham số thêm cho `bds_scrape.py`, rỗng = mặc định hằng ngày).
+
+**Vì sao không chạy trên cloud (GitHub Actions, repo Data-System)**: hub đã được đưa lên repo như 3 hub kia (`pack_code.py` chép code vào
+`bat-dong-san/`, `data_manifest.py` khai `bat-dong-san/batdongsan-projects/store`, `sync_data.py --hub bat-dong-san`, workflow
+`.github/workflows/bds-am.yml`, `requirements.txt` riêng) và chạy thử 17/10/2026 22:19 từ runner GitHub (IP Mỹ) với `--master --pages 2`
+(run 39044473983): **8/8 request bị batdongsan.com.vn/Cloudflare chặn** (trả lời nhanh, không phải timeout; 2 lần thử × 171 s,
+`runs.csv` ghi `requests=8, http_err=8`, status `WARN | loi: bds-projects`). Vì vậy:
+- `bds-am.yml` **không có cron** (dòng `schedule` đã comment); giữ `workflow_dispatch` (Actions → BDS AM → Run workflow → `args` =
+  `--master --pages 2`) và push sửa file workflow → tự chạy thử, để thử lại khi có đường đi IP VN (proxy/VPS VN).
+- `data_manifest.py`: **laptop là chủ** `store/` (owner=laptop), cloud chỉ kéo Drive về, không đẩy đè; `store/` **không** nằm trong
+  `APP_FOLDERS` (app `bds-tracker` đọc thẳng kho gốc `D:\bat-dong-san\batdongsan-projects\store`; kéo Drive về sẽ đè bản cũ lên bản mới).
+- Google Drive `gdrive:pipeline-data/bat-dong-san/batdongsan-projects/store` chỉ có **bản seed 17/10/2026** (9,3 MB), không tự cập nhật.
+  Sao lưu tay: `rclone copy D:\bat-dong-san\batdongsan-projects\store gdrive:pipeline-data/bat-dong-san/batdongsan-projects/store`.
+- Khi cloud chạy được: bật lại cron trong `bds-am.yml`, đổi `owner="cloud"` + thêm lại `APP_FOLDERS` trong `data_manifest.py`,
+  tắt task laptop (`schtasks /Change /TN "BDS AM" /DISABLE`), seed lại Drive từ kho laptop trước lần chạy cloud đầu tiên.
+
+## 5. Dữ liệu LỊCH SỬ (khảo sát 17/10/2026)
+Kho tự dựng chỉ có lịch sử từ ngày seed (17/10/2026); trên batdongsan.com.vn không có API lịch sử công khai. Những gì có:
+| Nguồn | Có gì | Lịch sử | Cấp | Điều kiện |
+|---|---|---|---|---|
+| batdongsan.com.vn "Lịch sử giá" (widget trên trang tìm kiếm `/ban-can-ho-chung-cu-quan-7`…) | giá/m² theo quý, cao nhất/phổ biến/thấp nhất, % 1 năm, đỉnh | 1 / 2 / 5 năm | quận × loại hình × bán/thuê (không theo dự án) | miễn phí nhưng phải KYC (đăng nhập + OTP điện thoại); API `/Origins/CommonData/GetPricingHistory` bị Cloudflare chặn khi gọi ngoài trình duyệt. Dòng tóm tắt "Giá bán đã tăng x% trong 1 năm qua" và "thấp hơn đỉnh … vào Qx/yyyy" nằm sẵn trong HTML, không cần đăng nhập |
+| research.batdongsan.com.vn | 45 báo cáo thị trường PDF (Q2/2018 → T10/2024, hàng tháng/quý), 21 báo cáo tỉnh, 25 phân tích VRES 2018–2024 | 2018–2024 | toàn quốc / HN / HCM / tỉnh, có chỉ số giá & mức độ quan tâm | miễn phí tải PDF (`/images/report/bds/*.pdf`) |
+| Biggee.vn | giá đường/phường, giá dự án (5K+ dự án, 34 tỉnh), biến động theo THÁNG, Open API (API giá dự án theo mã, biến động giá theo tháng; thống kê tin đăng) | 5 năm (gói Xem giá) | đường / dự án / quận | Xem giá 300K/tháng; VIP 1 triệu/tháng, 2 triệu/quý, 5 triệu/năm (gói năm mới có API thử + xuất dữ liệu thô); liên hệ 0889441000 để mua API |
+| BDS24H.vn | giá TB/m² theo phường, xu hướng, bản đồ nhiệt, Export | 3 năm (Pro) / 3 tháng (free) | tỉnh/quận/phường, 63 tỉnh | Pro 299K/tháng, 3 lượt tra miễn phí/ngày |
+| OneHousing (One Mount) | công cụ phân tích thị trường ~1.000 dự án, lịch sử giá theo tháng từ giao dịch thực 10 năm (công bố 2022) | ~10 năm | dự án (HN là chính) | URL công cụ hiện chuyển về trang mua bán → cần hỏi OneHousing/đăng nhập |
+| WiGroup (WiChart/WiData/WiFeed API) | số liệu Bộ Xây dựng theo quý: giao dịch thành công, dự án/căn cấp phép, đủ điều kiện bán, NOXH, nghỉ dưỡng | từ Q3/2019 | 3 miền / toàn quốc | trả phí, hỏi giá tuvan@wigroup.vn |
+| Savills SPPI, CBRE, JLL, Cushman | chỉ số giá & giá sơ cấp/thứ cấp theo quý, nguồn cung, hấp thụ | SPPI từ 2012 | HN/HCM theo hạng, mẫu ~200 dự án | PDF quý miễn phí (đăng ký), bảng số liệu phải mua qua bộ phận nghiên cứu |
+| Global Property Guide | house price index HCMC theo quý (gốc CBRE/JLL/batdongsan) | nhiều năm | thành phố | dataset trả phí (trang chặn bot, xem giá trực tiếp) |
+| Mogi.vn giá nhà đất | giá TB theo quận/phường/đường/dự án + biểu đồ, từ 2 triệu tin Mogi + Muaban.net | không ghi rõ | đến dự án | có mục phí thành viên |
+| Tổng cục Thống kê RPPI | chỉ số giá nhà ở chính thức, IMF hỗ trợ, mục tiêu mẫu thử 4/2026 | — | thành phố lớn | chưa công bố |
+Không có nguồn nào bán lịch sử GIAO DỊCH theo từng dự án toàn quốc dạng dataset; gần nhất là Biggee (tin rao, theo tháng, có API) và OneHousing (giao dịch, ~1.000 dự án).

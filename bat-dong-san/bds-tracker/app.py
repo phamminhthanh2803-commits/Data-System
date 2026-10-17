@@ -330,8 +330,13 @@ def page_map(level, tinh, pid, K):
         zoom = 5 if level == 'toan-quoc' else (9 if level == 'tinh' else 13)
         fig = px.scatter_map(mm, lat='lat', lon='lng', color=col, size='sz', size_max=18, hover_name='name', zoom=zoom,
                              hover_data={'lat': False, 'lng': False, 'sz': False, 'Số căn': ':.0f', 'quan': True, 'Chủ đầu tư': True, col: True},
-                             color_discrete_sequence=ui.NGANH_PALETTE, category_orders={col: order}, map_style='open-street-map',
+                             color_discrete_sequence=ui.NGANH_PALETTE, category_orders={col: order}, map_style='carto-positron',
                              center={'lat': mm['lat'].median(), 'lon': mm['lng'].median()})
+        # 17/10/2026: nền OpenStreetMap (tile.openstreetmap.org) không phân giải DNS được từ mạng VN -> dùng CARTO Positron (vector);
+        # dự phòng raster CARTO light_all nếu vector lỗi (MAP_RASTER=1)
+        if os.environ.get('MAP_RASTER'):
+            fig.update_layout(map_style='white-bg', map_layers=[{'below': 'traces', 'sourcetype': 'raster', 'sourceattribution': '© OpenStreetMap, © CARTO',
+                                                                   'source': ['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', 'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png']}])
         fig.update_layout(height=640, margin=dict(l=0, r=0, t=30, b=0), legend=dict(orientation='h', y=1.02, x=0), hovermode='closest')
         cd.chart(fig, bl.project_table(mm).assign(lat=mm['lat'].values, lng=mm['lng'].values), ten='ban_do_du_an', height=640)
 

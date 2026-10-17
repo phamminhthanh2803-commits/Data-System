@@ -1085,17 +1085,25 @@ def vimawa_teu(stamp):
 
 
 def vimawa_compare(d, vm, n=6):
-    """bảng tháng: VPA thực tế, ước/dự báo app, Cục HH thực tế / ước / quy về phạm vi VPA (tỷ lệ trung vị n tháng trùng gần nhất)"""
-    vpa = d['actual']; cuc = vm['thuc_te']
+    """bảng tháng: VPA thực tế + app (dự báo quá khứ = backtest ngoài mẫu, ước/dự báo hiện tại) + Cục HH (thực tế, ước lập ngày 15
+    của MỌI kỳ, quy về phạm vi VPA). -> (bảng, tỷ lệ VPA/Cục HH, sai số từng nguồn trên tháng trùng)"""
+    vpa = d['actual']; cuc = vm['thuc_te']; uoc = vm['uoc']
     both = pd.concat([vpa, cuc], axis=1, keys=['v', 'c']).dropna()
     both = both[both.index >= pd.Timestamp('2025-04-30')]           # Cục HH đổi phạm vi từ T4/2025
     ratio = float((both['v'] / both['c']).tail(n).median()) if len(both) else None
-    cuc_any = cuc.fillna(vm['uoc'])
-    w = pd.DataFrame({'VPA thực tế': vpa, 'Ước/dự báo app': d['est'] if 'est' in d else np.nan,
-                      'Cục HH thực tế': cuc, 'Cục HH ước (cột tháng báo cáo)': vm['uoc'].where(cuc.isna()),
-                      'Cục HH quy về phạm vi VPA': cuc_any * ratio if ratio else np.nan})
+    bt = d['backtest'] if 'backtest' in d else pd.Series(dtype=float)
+    est = d['est'].where(d['actual'].isna()) if 'est' in d else pd.Series(dtype=float)
+    w = pd.DataFrame({'VPA thực tế': vpa, 'App: dự báo quá khứ (backtest)': bt, 'App: ước/dự báo hiện tại': est,
+                      'Cục HH thực tế': cuc, 'Cục HH ước (lập ngày 15)': uoc,
+                      'Cục HH quy về phạm vi VPA': cuc.fillna(uoc) * ratio if ratio else np.nan})
     w = w[w.index >= pd.Timestamp('2024-01-31')].dropna(how='all'); w.index.name = 'Tháng'
-    return w, ratio
+
+    def mape(a, b, since='2025-04-30'):
+        x = pd.concat([a, b], axis=1, keys=['a', 'b']).dropna(); x = x[x.index >= pd.Timestamp(since)]
+        return (float((x['b'] / x['a'] - 1).abs().mean() * 100), len(x)) if len(x) else (None, 0)
+    err = {'cuc_uoc': mape(cuc, uoc), 'app_bt': mape(vpa, bt, '2000-01-01'),
+           'cuc_uoc_vpa': mape(vpa, uoc * ratio) if ratio else (None, 0)}
+    return w, ratio, err
 
 
 CM_PORT = 'VN VUT'                                                 # Cái Mép - Thị Vải: lịch cảng vụ chỉ có từ 08/2025
@@ -1450,12 +1458,18 @@ def page_volume(level, auth, term, K):
             with ui.card('Tham chiếu Cục Hàng hải (vimawa)', unit='TEU / tháng', key=f'{K}_vimawa', periods=ED_PER, default='2Y', end=LAST,
                          help='Biểu 28-T sản lượng container qua cảng biển của Cục Hàng hải & Đường thủy VN (vimawa.gov.vn/vi/thong-ke). '
                               'Từ T4/2025 gộp cả cảng thủy nội địa nên cao hơn VPA; quy về phạm vi VPA bằng tỷ lệ VPA / Cục HH 6 tháng gần nhất.') as cd:
-                w, ratio = vimawa_compare(m['d'], vm)
+                w, ratio, err = vimawa_compare(m['d'], vm)
                 w = cd.cut(w)
-                cd.chart(ui.fig_line(w, unit='TEU', zero=False, hover_nd=0, markers=True, dash={'Cục HH ước (cột tháng báo cáo)': 'dot', 'Cục HH quy về phạm vi VPA': 'dash'}),
-                         w.iloc[::-1].round(0), ten='tham_chieu_cuc_hang_hai',
-                         note_text=(f'Tỷ lệ VPA / Cục HH 6 tháng gần nhất = {ratio:.1%}. ' if ratio else '')
-                                   + 'Cục HH thực tế tháng m = lũy kế tháng trước của báo cáo tháng m+1 − của báo cáo tháng m; cột tháng báo cáo của biểu chỉ là ước (lập ngày 15).')
+                fe = lambda k, lab: f'{lab} {err[k][0]:.1f}% ({err[k][1]} tháng)'.replace('.', ',') if err[k][0] is not None else ''  # noqa: E731
+                cd.chart(ui.fig_line(w, unit='TEU', zero=False, hover_nd=0, markers=True,
+                                     dash={'App: dự báo quá khứ (backtest)': 'dot', 'Cục HH ước (lập ngày 15)': 'dot', 'Cục HH quy về phạm vi VPA': 'dash'}),
+                         w.iloc[::-1].round(0), ten='tham_chieu_cuc_hang_hai', last=LAST,
+                         note_text=(f'Tỷ lệ VPA / Cục HH 6 tháng gần nhất = {ratio:.1%}. '.replace('.', ',', 1) if ratio else '')
+                                   + 'Sai số trung bình (MAPE): ' + ' · '.join(x for x in (
+                                       fe('app_bt', 'app dự báo quá khứ so VPA'), fe('cuc_uoc', 'Cục HH ước so Cục HH thực tế'),
+                                       fe('cuc_uoc_vpa', 'Cục HH ước quy đổi so VPA')) if x) + '. '
+                                   + 'App dự báo quá khứ = backtest ngoài mẫu (mỗi tháng chỉ học từ các tháng trước). '
+                                   'Cục HH thực tế tháng m = lũy kế tháng trước của báo cáo tháng m+1 − của báo cáo tháng m; số ước lập ngày 15 của tháng.')
     # ---- thẻ chi tiết
     if level == 'toan-quoc':
         rows = []

@@ -100,6 +100,7 @@ FOLDERS: dict[str, Folder] = {f.key: f for f in [
            note="laptop cao (IP VN); cloud chi ghi 3 file enriched tu vessel_enrich.py"),
     Folder("shipping", "cangvu-toanquoc", exclude=["khao-sat/**"]),
     Folder("shipping", "vessel-itinerary"),
+    Folder("shipping", "vimawa-sanluong", exclude=["downloads/**"], note="17/10/2026: data/ + raw/ (file goc + cache OCR ~38 MB)"),
     Folder("shipping", "port-tracker", exclude=["cache/**", "*.sqlite", "*.sqlite-wal", "*.sqlite-shm"],
            laptop_only=["store/events/HCM/**", "store/days/HCM.csv"],
            note="kho chia se store/ (parquet 1 cang vu x 1 thang, ~50 MB) cua app Port Tracker: cloud keo 11 cang vu, laptop keo TP.HCM"),
@@ -154,14 +155,14 @@ STEP_FOLDERS: dict[str, list] = {
                          ("shipping/cangvu-hcm", "r", None)],
     "cvhp-vessels":     [("shipping/cangvu-haiphong", "rw", None), ("shipping/cangvu-hcm", "rw", None),
                          ("shipping/cangvu-toanquoc", "r", None),
-                         ("shipping/port-tracker", "r", ["/store/econdb/vessels.parquet", "/store/econdb/vessel_portcalls.parquet"])],
+                         ("shipping/port-tracker", "r", ["store/econdb/vessels.parquet", "store/econdb/vessel_portcalls.parquet"])],
     "itinerary":        [("shipping/vessel-itinerary", "rw", None), ("shipping/cangvu-haiphong", "r", None),
                          ("shipping/cangvu-hcm", "r", None), ("shipping/cangvu-toanquoc", "r", None)],
     "vimawa":           [("shipping/vimawa-sanluong", "rw", None)],   # data/ + raw/ (file goc + cache OCR) 16/10/2026
     "alibra":           [("shipping/Alibra-scraper", "rw", None)],
     "port-tracker":     [("shipping/port-tracker", "rw", None)],
     "econdb":           [("shipping/port-tracker", "rw", None),   # store/econdb/ (14/10/2026, can secret ECONDB_TOKEN)
-                         ("shipping/cangvu-haiphong", "r", ["/data/vessel_master.csv"])],   # 16/10: IMO tau container -> keo luot ghe EconDB
+                         ("shipping/cangvu-haiphong", "r", ["data/vessel_master.csv"])],   # 16/10: IMO tau container -> keo luot ghe EconDB
     # shipping PM
     "bcti":             [("shipping/BCTI-scraper", "rw", None)],
     "port-tracker-pm":  [("shipping/port-tracker", "rw", None)],

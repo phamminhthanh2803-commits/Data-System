@@ -12,7 +12,8 @@ Chon thu muc theo DUNG cac buoc se chay hom nay (runlib.select_steps: slot, --on
                                                   #   + realtime/<ngay gan nhat> -> RT_ROOT/data/<ngay> (bo thu cloud, 12/10/2026)
     python sync_data.py seed [--skip-bond]        # lan dau: D:\\ (HUB_SRC) -> Drive (rclone copy)
     them --dry-run de xem lenh rclone; --remote gdrive:pipeline-data (hoac env RCLONE_REMOTE)
-Thu muc local = env MD_ROOT/SHIP_ROOT/HAH_DIR (cloud: $GITHUB_WORKSPACE/<hub>; laptop: D:\\pipeline-data\\<hub>).
+Thu muc local = env MD_ROOT/SHIP_ROOT/HAH_DIR/BDS_ROOT (cloud: $GITHUB_WORKSPACE/<hub>; laptop: D:\\pipeline-data\\<hub>;
+bat-dong-san: D:\\bat-dong-san goc, app bds-tracker doc thang).
 rclone: env RCLONE (duong dan) > PATH > ban winget (xem find_rclone).
 """
 from __future__ import annotations
@@ -49,7 +50,7 @@ def find_rclone() -> str:
 
 def load_steps(hub: str) -> list:
     """Doc STEPS tu <repo>/<hub>/run_slot.py (import runlib tu <repo>/market-data)."""
-    if hub not in ("market-data", "shipping"):
+    if hub not in ("market-data", "shipping", "bat-dong-san"):
         return []
     path = os.path.join(HERE, hub, "run_slot.py")
     spec = importlib.util.spec_from_file_location(f"run_slot_{hub.replace('-', '_')}", path)
@@ -215,7 +216,7 @@ def do_seed(rc, remote, skip_bond: bool, dry) -> int:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("action", choices=["down", "up", "app", "seed", "plan"])
-    ap.add_argument("--hub", default="market-data", choices=["market-data", "shipping"])
+    ap.add_argument("--hub", default="market-data", choices=["market-data", "shipping", "bat-dong-san"])
     ap.add_argument("--slot", default="", choices=["", "AM", "PM"])
     ap.add_argument("--only", default="")
     ap.add_argument("--job", default="cloud" if os.environ.get("CLOUD") == "1" or os.name != "nt" else "laptop",

@@ -2,6 +2,7 @@
 """pack_code.py — sao chep CODE (khong data) cua 3 hub + HAH vao repo cloud-deploy (07/10/2026).
 
     python pack_code.py            # D:\\market-data -> market-data/, D:\\shipping -> shipping/, D:\\bctc -> bctc/,
+                                   # D:\\bat-dong-san -> bat-dong-san/ (17/10/2026: hub BDS, scraper + app bds-tracker),
                                    # D:\\Database\\Logistics\\HAH\\haian_pull.py -> hah/, D:\\market-data\\cloud-probe -> cloud-probe/
     python pack_code.py --dry-run  # chi liet ke
     python pack_code.py --dest D:\\pipeline-data   # chep code vao cay du lieu local (Run-Local-*.ps1 dung)
@@ -27,6 +28,7 @@ MD_SRC = os.path.normpath(os.environ.get("MD_ROOT", "D:/market-data"))
 SHIP_SRC = os.path.normpath(os.environ.get("SHIP_ROOT", "D:/shipping"))
 BCTC_SRC = os.path.normpath(os.environ.get("BCTC_ROOT", "D:/bctc"))
 HAH_SRC = os.path.normpath(os.environ.get("HAH_DIR", "D:/Database/Logistics/HAH"))
+BDS_SRC = os.path.normpath(os.environ.get("BDS_ROOT", "D:/bat-dong-san"))
 
 # (nguon, dich tuong doi repo, loai tru rieng (thu muc tuong doi nguon, posix))
 HUBS = [
@@ -42,6 +44,8 @@ HUBS = [
                         "tcbs-pbi/output", "pdf-detector/markitdown-tool/tessdata", "fs-extractor/output_cap",
                         "fs-extractor/output_cap_adjust", "fs-extractor/output_liq", "tcbs-pbi", "bctc-scan/pdf"]),
     (os.path.join(MD_SRC, "cloud-probe"), "cloud-probe", []),
+    # 17/10/2026: hub bat dong san - code scraper + runner + app; kho store/ (parquet) len Drive, khong vao repo
+    (BDS_SRC, "bat-dong-san", ["batdongsan-projects/store", "batdongsan-projects/logs", "bds-tracker/cache", "bds-tracker/logs"]),
 ]
 HAH_FILES = ["haian_pull.py", "HUONG-DAN-SU-DUNG.md"]          # ps1/js goc giu o laptop, khong can tren cloud
 
@@ -157,7 +161,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dest", default=HERE, help="thu muc dich (mac dinh: thu muc repo nay)")
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--hub", default="", help="chi chep 1 hub: market-data|shipping|bctc|hah|cloud-probe")
+    ap.add_argument("--hub", default="", help="chi chep 1 hub: market-data|shipping|bctc|bat-dong-san|hah|cloud-probe")
     a = ap.parse_args()
     grand_n = grand_b = 0
     all_items = []

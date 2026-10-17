@@ -25,12 +25,15 @@ import os
 import sys
 from dataclasses import dataclass, field
 
-HUB_ENV = {"market-data": "MD_ROOT", "shipping": "SHIP_ROOT", "bctc": "BCTC_ROOT", "hah": "HAH_DIR", "realtime": "RT_ROOT"}
+HUB_ENV = {"market-data": "MD_ROOT", "shipping": "SHIP_ROOT", "bctc": "BCTC_ROOT", "hah": "HAH_DIR", "realtime": "RT_ROOT",
+           "bat-dong-san": "BDS_ROOT"}
 LAPTOP_DATA = {"market-data": "D:/pipeline-data/market-data", "shipping": "D:/pipeline-data/shipping", "bctc": "D:/bctc",
-               "hah": "D:/pipeline-data/hah", "realtime": "D:/market-data/realtime-lab"}   # cay du lieu laptop (mo hinh cloud);
+               "hah": "D:/pipeline-data/hah", "realtime": "D:/market-data/realtime-lab",
+               "bat-dong-san": "D:/bat-dong-san"}   # cay du lieu laptop (mo hinh cloud);
                # bctc van la goc (nganh-ck Excel); realtime = RT_ROOT cua app (data_live.py), app doc RT_ROOT/data/<ngay>
 HUB_SRC = {"market-data": "D:/market-data", "shipping": "D:/shipping", "bctc": "D:/bctc",
-           "hah": "D:/Database/Logistics/HAH", "realtime": "D:/market-data/realtime-lab"}   # nguon goc tren laptop (seed lan dau)
+           "hah": "D:/Database/Logistics/HAH", "realtime": "D:/market-data/realtime-lab",
+           "bat-dong-san": "D:/bat-dong-san"}   # nguon goc tren laptop (seed lan dau); bat-dong-san: app bds-tracker doc thang goc
 DRIVE_LIMIT_MB = 4000
 
 # loai tru CHUNG moi thu muc (code + log + tam): rclone filter, ap dung ca 2 chieu
@@ -106,6 +109,10 @@ FOLDERS: dict[str, Folder] = {f.key: f for f in [
            note="kho chia se store/ (parquet 1 cang vu x 1 thang, ~50 MB) cua app Port Tracker: cloud keo 11 cang vu, laptop keo TP.HCM"),
     Folder("shipping", "Alibra-scraper"),
     Folder("shipping", "BCTI-scraper"),
+    # ---------------- bat-dong-san (17/10/2026): kho store/ cua scraper batdongsan.com.vn - cloud la chu (bds-am.yml 07:30);
+    # laptop (D:\bat-dong-san\batdongsan-projects\store, app bds-tracker doc) chi nhan ban qua `sync_data.py app`
+    Folder("bat-dong-san", "batdongsan-projects/store", exclude=["*.tmp"],
+           note="du an BDS: projects/geo_projects/project_changes.parquet + listing_stats/<thang>.parquet + runs.csv (~10 MB)"),
     # ---------------- realtime (12/10/2026): thu muc Drive rieng realtime/<YYYY-MM-DD>/, cloud (dnse_stream --push-every) la chu
     Folder("realtime", "data", remote_path="realtime", seed=False, exclude=["*.duckdb", "*.duckdb.wal", "*.tmp"],
            note="8 parquet/ngay cua bo thu DNSE/SSI tren GitHub Actions; app keo ngay gan nhat (data_live.py 60 s / sync_data app)"),
@@ -163,6 +170,8 @@ STEP_FOLDERS: dict[str, list] = {
     "port-tracker":     [("shipping/port-tracker", "rw", None)],
     "econdb":           [("shipping/port-tracker", "rw", None),   # store/econdb/ (14/10/2026, can secret ECONDB_TOKEN)
                          ("shipping/cangvu-haiphong", "r", ["data/vessel_master.csv"])],   # 16/10: IMO tau container -> keo luot ghe EconDB
+    # bat-dong-san AM (17/10/2026)
+    "bds-projects":     [("bat-dong-san/batdongsan-projects/store", "rw", None)],
     # shipping PM
     "bcti":             [("shipping/BCTI-scraper", "rw", None)],
     "port-tracker-pm":  [("shipping/port-tracker", "rw", None)],
@@ -176,7 +185,7 @@ APP_FOLDERS = [("market-data/market-valuation", None), ("market-data/index-fetch
                ("market-data/vsdc-accounts", None), ("shipping/VHBS-ConTex", None), ("hah", None),
                ("shipping/cangvu-haiphong", None), ("shipping/cangvu-hcm", None), ("shipping/cangvu-toanquoc", None),
                ("shipping/vessel-itinerary", None), ("shipping/Alibra-scraper", None), ("shipping/BCTI-scraper", None),
-               ("shipping/port-tracker", None), ("bctc/bctc-scan", None)]
+               ("shipping/port-tracker", None), ("bctc/bctc-scan", None), ("bat-dong-san/batdongsan-projects/store", None)]
 # realtime: khong nam trong APP_FOLDERS (khong copy ca thu muc) - sync_data.do_app chi keo APP_REALTIME_DAYS ngay gan nhat
 APP_REALTIME_DAYS = 1
 

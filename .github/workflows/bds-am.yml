@@ -1,0 +1,111 @@
+# BDS AM — du an bat dong san (batdongsan.com.vn) buoi sang: buoc bds-projects (danh sach + chi tiet + tin rao -> store/ parquet)
+# Gio VN = UTC + 7. Chay tay: Actions -> BDS AM -> Run workflow -> `args` = "--master --pages 2" de thu nhanh (2 trang danh sach),
+# `only` de trong (slot chi co 1 buoc). Push sua file workflow nay -> tu chay thu nhanh (--master --pages 2) de kiem tra IP My co bi chan.
+name: BDS AM
+
+on:
+  schedule:
+    - cron: "30 0 * * *"            # 07:30 gio VN
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Chi chay cac buoc nay (de trong = ca slot; slot AM hien chi co bds-projects)"
+        required: false
+        default: ""
+        type: string
+      args:
+        description: "Tham so them cho bds_scrape.py (env BDS_ARGS). Vi du thu nhanh: --master --pages 2 ; de trong = mac dinh hang ngay"
+        required: false
+        default: ""
+        type: string
+  push:
+    branches: [main]
+    paths: [".github/workflows/bds-am.yml"]     # sua workflow -> chay thu nhanh --master --pages 2
+
+concurrency:
+  group: bds                    # khong chay de nhau (cung thu muc Drive); chay song song voi market / shipping
+  cancel-in-progress: false
+
+env:
+  TZ: Asia/Ho_Chi_Minh            # ngay/gio trong log + status + first_seen/last_seen theo gio VN
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+  CLOUD: "1"
+  MD_ROOT: ${{ github.workspace }}/market-data     # runlib.py (loi runner dung chung)
+  BDS_ROOT: ${{ github.workspace }}/bat-dong-san
+  RCLONE_REMOTE: gdrive:pipeline-data
+  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+  TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+  ONLY: ${{ inputs.only }}
+  # workflow_dispatch: input args; push (sua workflow): thu nhanh 2 trang; cron: rong = --geo --master --details 300 --listings 800
+  BDS_ARGS: ${{ inputs.args || (github.event_name == 'push' && '--master --pages 2') || '' }}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150            # mac dinh ~45-60 phut (1 request/giay); retry 2 lan cach 5 phut
+    steps:
+      - name: Lay code
+        uses: actions/checkout@v4
+
+      - name: Python 3.12 (cache pip)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: bat-dong-san/requirements.txt
+
+      - name: Cai thu vien Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r bat-dong-san/requirements.txt
+
+      - name: Cai rclone
+        run: |
+          bash ci/install_rclone.sh
+          rclone version
+
+      - name: Cau hinh rclone tu secret RCLONE_CONF (base64)
+        env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+        run: |
+          if [ -z "$RCLONE_CONF" ]; then echo "::error::Thieu secret RCLONE_CONF"; exit 1; fi
+          mkdir -p ~/.config/rclone
+          echo "$RCLONE_CONF" | base64 -d > ~/.config/rclone/rclone.conf
+          chmod 600 ~/.config/rclone/rclone.conf
+          rclone lsd "$RCLONE_REMOTE" > /dev/null
+
+      - name: Keo kho store/ tu Drive
+        id: down
+        run: python sync_data.py down --hub bat-dong-san --slot AM --only "$ONLY"
+
+      - name: Chay pipeline bat-dong-san AM
+        run: |
+          echo "BDS_ARGS=[$BDS_ARGS]"
+          python bat-dong-san/run_slot.py --slot AM --only "$ONLY"
+
+      - name: Day kho store/ len Drive (ke ca khi pipeline loi, NHUNG chi khi da keo xuong OK)
+        if: always() && steps.down.outcome == 'success'
+        run: python sync_data.py up --hub bat-dong-san --slot AM --only "$ONLY"
+
+      - name: Trang thai
+        if: always()
+        run: |
+          echo "## BDS AM (BDS_ARGS=[$BDS_ARGS])" >> "$GITHUB_STEP_SUMMARY"
+          cat bat-dong-san/status-AM.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo "(khong co status)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -n 40 bat-dong-san/logs/bds_AM_*.log >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "runs.csv (dong cuoi): $(tail -n 1 bat-dong-san/batdongsan-projects/store/runs.csv 2>/dev/null)" >> "$GITHUB_STEP_SUMMARY"
+          grep -E "FAIL|WARN" bat-dong-san/status-AM.txt && echo "::warning::BDS AM: $(cat bat-dong-san/status-AM.txt)" || true
+
+      - name: Luu log + status (artifact 30 ngay)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bds-AM-${{ github.run_id }}
+          path: |
+            bat-dong-san/logs/*.log
+            bat-dong-san/status-AM.txt
+          if-no-files-found: warn
+          retention-days: 30

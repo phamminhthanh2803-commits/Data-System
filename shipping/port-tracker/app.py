@@ -1093,7 +1093,8 @@ def vimawa_compare(d, vm, n=6):
     ratio = float((both['v'] / both['c']).tail(n).median()) if len(both) else None
     bt = d['backtest'] if 'backtest' in d else pd.Series(dtype=float)
     est = d['est'].where(d['actual'].isna()) if 'est' in d else pd.Series(dtype=float)
-    w = pd.DataFrame({'VPA thực tế': vpa, 'App: dự báo quá khứ (backtest)': bt, 'App: ước/dự báo hiện tại': est,
+    w = pd.DataFrame({'VPA thực tế → nowcast/dự báo app': vpa.combine_first(est),    # PV2 17/10: 1 đường liền
+                      'App: dự báo quá khứ (backtest)': bt,
                       'Cục HH thực tế': cuc, 'Cục HH ước (lập ngày 15)': uoc,
                       'Cục HH quy về phạm vi VPA': cuc.fillna(uoc) * ratio if ratio else np.nan})
     w = w[w.index >= pd.Timestamp('2024-01-31')].dropna(how='all'); w.index.name = 'Tháng'
@@ -1247,6 +1248,54 @@ def mark_alloc(m, auth, name):
     return m
 
 
+VN_PARTS = ['HP', 'HCM', 'DNG', 'DNI']                            # cảng vụ có số VPA (cộng các cảng thành viên VPA thuộc cảng vụ)
+
+
+def nc_vn_bottom_up():
+    """TOÀN QUỐC = cộng mô hình từng cảng vụ có số VPA (HP, TP.HCM [ngoài Cái Mép + Cái Mép], Đà Nẵng, Đồng Nai)
+    + 'cảng VPA khác' (TỔNG CỘNG − 4 cảng vụ: Bình Dương, Đồng Nai ICD, Quy Nhơn, Nghệ Tĩnh, miền Tây...) ước theo tỷ lệ so với tổng
+    4 cảng vụ (TB 3 tháng có số trước đó -> backtest vẫn ngoài mẫu). Fit / nowcast / dự báo / backtest đều cộng từ thành phần."""
+    T = nw.load_targets(); vn = nw.target_series(T, 'VN', 'TOÀN QUỐC')
+    if vn.empty: return None
+    parts = {a: nc_published_total(a, '__CANG_VU__') for a in VN_PARTS}
+    parts = {a: p_ for a, p_ in parts.items() if p_ and p_.get('res') is not None}
+    if len(parts) < 2: return None
+    idx = None
+    for p_ in parts.values(): idx = p_['res']['data'].index if idx is None else idx.intersection(p_['res']['data'].index)
+    cols = ['actual', 'modeled', 'backtest', 'est', 'lo', 'hi']
+    S = pd.DataFrame({c: pd.concat([p_['res']['data'].reindex(idx)[c] for p_ in parts.values()], axis=1).sum(axis=1, min_count=len(parts))
+                      for c in cols}, index=idx)
+    first = parts.get('HCM', next(iter(parts.values())))['res']['data'].reindex(idx)
+    vn_ = vn.reindex(idx)
+    r = ((vn_ - S['actual']) / S['actual']).where(S['actual'] > 0)          # tỷ lệ cảng VPA khác / tổng 4 cảng vụ
+    r_prior = r.shift(1).rolling(3, min_periods=1).mean()                   # chỉ dùng các tháng TRƯỚC
+    r_last = float(r.dropna().tail(3).mean()) if r.notna().any() else 0.0
+    r_all = float(r.dropna().mean()) if r.notna().any() else 0.0
+    d = pd.DataFrame(index=idx)
+    d['actual'] = vn_
+    d['modeled'] = S['modeled'] * (1 + r_all)
+    d['backtest'] = S['backtest'] * (1 + r_prior)
+    for c in ('est', 'lo', 'hi'): d[c] = S[c] * (1 + r_last)
+    d['kind'] = first['kind']; d['w'] = first['w'] if 'w' in first else np.nan
+    d.loc[d['actual'].notna(), 'kind'] = 'thực tế'
+    d = d[d['actual'].notna() | d['est'].notna()]; d.index.name = 'Tháng'
+    m = d[['actual', 'backtest']].dropna(); a = d['actual'].dropna(); naive = a.shift(1).reindex(m.index)
+    mm = lambda y, yh: float(np.mean(np.abs(yh / y - 1)) * 100) if len(y) else np.nan  # noqa: E731
+    lab = 'tổng các cảng vụ'
+    mr = m.tail(nw.RECENT_BT)
+    res = {'data': d, 'best': lab, 'mape': {lab: mm(m['actual'], m['backtest']), nw.NAIVE: mm(m['actual'], naive)},
+           'mape_recent': {lab: mm(mr['actual'], mr['backtest']), nw.NAIVE: mm(mr['actual'], naive.reindex(mr.index))},
+           'n_bt': len(m), 'n_train': min(p_['res'].get('n_train', 0) for p_ in parts.values()), 'cols': [], 'coef': {},
+           'seasonal': float(np.mean([p_['res'].get('seasonal', 1.0) for p_ in parts.values()])),
+           'parts': {tl.AUTH_LABEL.get(a, a): p_['res'] for a, p_ in parts.items()}}
+    vn1 = lambda x: f'{x:.1f}'.replace('.', ',')  # noqa: E731
+    pn = ', '.join(f"{tl.AUTH_LABEL.get(a, a)} (MAPE {vn1(p_['res']['mape'][p_['res']['best']])}%)" for a, p_ in parts.items())
+    return {'d': d, 'res': res,
+            'src': f'VPA TỔNG CỘNG (mọi cảng container cả nước, gồm rỗng) {vn.index.min():%m/%Y}–{vn.index.max():%m/%Y}',
+            'note': f'Ước/dự báo = CỘNG mô hình từng cảng vụ (số VPA của các cảng thành viên): {pn} + cảng VPA khác '
+                    f'(Bình Dương, Quy Nhơn, Nghệ Tĩnh, miền Tây...: {vn1(r_last * 100)}% tổng 4 cảng vụ, TB 3 tháng gần nhất).'}
+
+
 def with_pub_history(m, auth, name):
     """thêm các tháng SỐ CÔNG BỐ chưa có trong bảng mô hình (vd T1–T7/2025 VPA suy từ lũy kế cùng kỳ, trước khi cảng vụ phủ Cái Mép)
     thành dòng thực tế: hiện trên biểu đồ/bảng, không đưa vào hồi quy"""
@@ -1267,7 +1316,7 @@ def with_pub_history(m, auth, name):
 def vol_model(level, auth, term, E):
     """dict(d = bảng tháng actual/est/lo/hi/kind/backtest, res = kết quả hồi quy hoặc None, src, note)"""
     if level == 'toan-quoc':
-        rv = nc_published_total('VN', 'TOÀN QUỐC')                 # VPA TỔNG CỘNG (mọi cảng cả nước, gồm container rỗng)
+        rv = nc_vn_bottom_up() or nc_published_total('VN', 'TOÀN QUỐC')   # 17/10 PV2: cộng mô hình các cảng vụ (thành viên VPA)
         if rv: return mark_alloc(with_pub_history(rv, 'VN', 'TOÀN QUỐC'), 'VN', 'TOÀN QUỐC')
         r = vn_total(E)
         if r is None: return None

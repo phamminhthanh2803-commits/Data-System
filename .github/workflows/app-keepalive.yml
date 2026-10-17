@@ -1,4 +1,4 @@
-﻿# App keepalive - giu app Streamlit Community Cloud luon thuc (14/10/2026 PV2: 'app on 24/24').
+# App keepalive - giu app Streamlit Community Cloud luon thuc (14/10/2026 PV2: 'app on 24/24'; 17/10 them Port Tracker marinelife).
 # Streamlit Cloud cho app public ngu sau ~12 gio khong ai mo. Job nay mo app bang Chromium headless moi 2 gio
 # (app_keepalive.py): dang ngu -> bam danh thuc, doi render xong. Chay tay: Actions -> App keepalive -> Run workflow.
 name: App keepalive
@@ -12,13 +12,16 @@ concurrency:
   group: app-keepalive
   cancel-in-progress: false
 
-env:
-  APP_URL: https://vnstockterminal.streamlit.app/
-
 jobs:
   wake:
     runs-on: ubuntu-latest
     timeout-minutes: 12
+    strategy:
+      fail-fast: false                # 1 app loi khong chan app kia
+      matrix:
+        app:
+          - { name: market-data, url: "https://vnstockterminal.streamlit.app/", text: "Market Data" }
+          - { name: port-tracker, url: "https://marinelife.streamlit.app/", text: "Vessel Tracker" }   # 17/10/2026: man hinh mat khau cung co chu nay
     steps:
       - name: Lay code
         uses: actions/checkout@v4
@@ -34,13 +37,13 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Mo app (danh thuc neu dang ngu)
-        run: python app_keepalive.py "$APP_URL" --timeout 420
+        run: python app_keepalive.py "${{ matrix.app.url }}" --text "${{ matrix.app.text }}" --timeout 420
 
       - name: Anh man hinh (artifact 3 ngay)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: keepalive-${{ github.run_id }}
+          name: keepalive-${{ matrix.app.name }}-${{ github.run_id }}
           path: keepalive.png
           if-no-files-found: ignore
           retention-days: 3

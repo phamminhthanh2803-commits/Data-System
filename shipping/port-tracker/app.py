@@ -62,12 +62,12 @@ def _gate():
     st.stop()
 
 
-_gate()
 import cloud_boot_pt as cb   # noqa: E402
 try:
-    CLOUD = cb.boot()
+    CLOUD = cb.boot()            # 17/10/2026: kéo dữ liệu + bật luồng làm mới TRƯỚC màn hình mật khẩu -> lượt keepalive giữ dữ liệu luôn sẵn
 except cb.DriveAuthError as _e:
     st.error(str(_e)); st.stop()
+_gate()
 ui.PERIOD_MONTHS['2Y'] = 24
 PER = ['3M', '6M', '1Y', '2Y', '3Y', 'All']
 MEASURES = {'Lượt tàu': 'calls', 'TEU danh nghĩa': 'teu', 'DWT': 'dwt'}

@@ -27,6 +27,68 @@ try:                                   # lop nguon LIVE-FIRST (09/10/2026): Entr
 except Exception:  # noqa: BLE001
     src = None
 
+
+# ---------------------------------------------------------------- BỘ NHỚ ĐỆM THEO PHIÊN BẢN + VAN AN TOÀN RAM (21/10/2026)
+# Lỗi "Error running app" trên Streamlit Cloud: st.cache_data khoá theo mtime/phiên bản KHÔNG giới hạn -> mỗi lần cloud kéo dữ liệu mới
+# từ Drive thêm 1 bản (vd giá cổ phiếu ~400 MB), bản cũ ở lại -> RAM tăng dần tới > 1 GB -> Cloud tắt app.
+import functools as _ft
+import gc as _gc
+import inspect as _insp
+
+
+def _is_ver(name):
+    return name.startswith("mt") or name.endswith("stamp") or name in ("ver", "fver")
+
+
+def vcache(*dargs, **kw):
+    """st.cache_data chỉ giữ PHIÊN BẢN dữ liệu mới nhất: tham số tên mt*/…stamp/ver/fver là phiên bản; cùng các tham số còn lại mà
+    phiên bản đổi -> xoá cache của hàm này (bản cũ không nằm lại trong RAM)."""
+    def deco(f):
+        kw.setdefault("max_entries", 32)
+        cf = st.cache_data(**kw)(f)
+        names = list(_insp.signature(f).parameters)
+        vnames = [n for n in names if _is_ver(n)]
+        seen = {}
+
+        @_ft.wraps(f)
+        def w(*a, **k):
+            args = dict(zip(names, a)); args.update(k)
+            ver = tuple(args.get(n) for n in vnames)
+            try:
+                other = hash(tuple((n, args[n]) for n in names if n in args and n not in vnames and not n.startswith("_")))
+            except TypeError:
+                other = None
+            if vnames and other is not None:
+                if other in seen and seen[other] != ver:
+                    cf.clear(); seen.clear()
+                seen[other] = ver
+            return cf(*a, **k)
+        w.clear = cf.clear
+        return w
+    if dargs and callable(dargs[0]):
+        return deco(dargs[0])
+    return deco
+
+
+def mem_guard(limit_mb=None):
+    """RAM tiến trình vượt ngưỡng (env MEM_GUARD_MB, mặc định 850) -> xoá cache dữ liệu + trả RAM về hệ điều hành.
+    Trang sau chậm hơn một chút nhưng app không bị Cloud tắt. Trả về True nếu đã dọn."""
+    try:
+        import psutil
+        lim = float(limit_mb or os.environ.get("MEM_GUARD_MB", "850"))
+        if psutil.Process().memory_info().rss / 1e6 < lim:
+            return False
+        st.cache_data.clear(); _gc.collect()
+        try:
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:  # noqa: BLE001
+            pass
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 BASE = os.path.normpath(os.environ.get("MD_ROOT", "D:/market-data"))   # MD_ROOT (cloud); mac dinh D:\market-data
 IDXD = os.path.join(BASE, "index-fetcher")
 RAW = os.path.join(IDXD, "raw")
@@ -177,7 +239,7 @@ def live_first(key) -> bool:
 
 
 # ---------------------------------------------------------------- LOADERS
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def read_csv(path: str, mt: float, **kw) -> pd.DataFrame:
     if str(path).lower().endswith(".parquet"):     # dataset chi co ban live-first (insider): parquet cache\src
         if not os.path.exists(path):
@@ -227,7 +289,7 @@ def load(key: str, **kw) -> pd.DataFrame:
     return read_csv(path, _raw_mt(path), **kw)
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def _load_merged(key: str, mt: float) -> pd.DataFrame:
     path = REGISTRY[key][2]
     pipe = read_csv(path, _raw_mt(path))
@@ -532,7 +594,7 @@ def _build_tv_merged(mt: float, mt_src: float, pq: str, tag: str) -> pd.DataFram
         raise
     return pd.read_parquet(pq)
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def stock_src_ohlc(code: str, mt_src: float) -> pd.DataFrame:
     """OHLCV 1 ma tu nguon live-first (chua dieu chinh, cot date). Rong neu chua co."""
     if src is None or not live_first("tv_history"):
@@ -544,7 +606,7 @@ def stock_src_ohlc(code: str, mt_src: float) -> pd.DataFrame:
     return d.sort_values("date").drop_duplicates("date", keep="last").reset_index(drop=True)
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def screener_meta(mt: float) -> pd.DataFrame:
     m = pd.read_csv(os.path.join(RAW, "vn_screener_meta.csv")).drop_duplicates("name").set_index("name")
     m["nhom"] = [nhom_nganh(n, s, i) for n, s, i in zip(m.index, m.sector, m.industry)]
@@ -625,7 +687,7 @@ def prices(since="2016-01-01"):
     return price_matrix(_mtime(REGISTRY["tv_history"][2]), since)
 
 
-@st.cache_data(show_spinner="Đang tính độ rộng thị trường ...")
+@vcache(show_spinner="Đang tính độ rộng thị trường ...")
 def breadth(mt: float, since: str = "2015-01-01") -> pd.DataFrame:
     """Do rong: tang/giam, A/D line, % tren MA, dinh-day 52 tuan, so ma duoi MA50/200/300."""
     px_raw, px, _ = prices(since="2015-01-01")
@@ -666,7 +728,7 @@ def breadth_df(since="2015-01-01"):
     return breadth(_mtime(REGISTRY["tv_history"][2]), since)
 
 
-@st.cache_data(show_spinner="Đang tính giá trị giao dịch ...")
+@vcache(show_spinner="Đang tính giá trị giao dịch ...")
 def turnover(mt_idx: float, mt_tv: float) -> pd.DataFrame:
     """GTGD thi truong VN theo ngay (ty VND).
 
@@ -719,7 +781,7 @@ def turnover_df():
     return turnover(_mtime(REGISTRY["indices"][2]), _mtime(REGISTRY["tv_history"][2]))
 
 
-@st.cache_data(show_spinner="Đang tính vốn hoá & chỉ số ngành ...")
+@vcache(show_spinner="Đang tính vốn hoá & chỉ số ngành ...")
 def sector_caps(mt: float, since: str = "2018-01-01", end: str = None, pn=None):
     """(chi so nganh rebase 100 tai `since`, von hoa nhom quy mo) trong [since, end]."""
     _, px, _ = prices(since="2016-01-01")
@@ -803,7 +865,7 @@ MKT_REGION = [("VNINDEX", "Việt Nam (HOSE)", "VND"), ("KOSPI", "Hàn Quốc (K
               ("FBMKLCI", "Malaysia (Bursa)", "MYR")]
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def flows_region(mt_fl: float, mt_fx: float, start=None, end=None) -> pd.DataFrame:
     """Khoi ngoai theo thang, trieu USD, trong khoang [start, end].
 
@@ -832,7 +894,7 @@ def flows_region_df(start=None, end=None):
     return flows_region(_mtime(REGISTRY["flows"][2]), _mtime(REGISTRY["fx"][2]), start, end)
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def heatmap(mt: float, days: int, topn: int, san: tuple, end: str, pn=None) -> pd.DataFrame:
     """Du lieu ban do nhiet: top `topn` ma theo von hoa, bien dong `days` phien."""
     _, px, _ = prices()
@@ -862,7 +924,7 @@ def heatmap_df(days=1, topn=300, san=("HOSE",), end=None):
 TM_WIDE = os.path.join(TRAD, "transmission-wide.csv")
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def tm_meta(mt: float) -> pd.DataFrame:
     """series_id -> ten tieng Viet, don vi, node, ngay cuoi. Lay ban GHI SAU CUNG vi
     SBV doi cach viet ten giua chung (vd 'qua dem' -> 'Qua đêm') nhung series_id giu nguyen."""
@@ -873,7 +935,7 @@ def tm_meta(mt: float) -> pd.DataFrame:
     return m
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def tm_wide(mt: float) -> pd.DataFrame:
     """transmission-wide.csv: 1 cot = 1 series_id, da gop cac ten viet khac nhau."""
     w = pd.read_csv(TM_WIDE, parse_dates=["date"]).set_index("date").sort_index()
@@ -991,7 +1053,7 @@ def nso_key(name: str) -> str:
     return _NSO_ALIAS.get(s, s)
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def nso_monthly_wide(mt: float, group: str, metric: str, section: str = "") -> pd.DataFrame:
     m = load("nso_monthly")
     m = m[(m.group == group) & (m.metric == metric)]
@@ -1026,7 +1088,7 @@ def nm_last(series_id: str, pct: bool = False):
     return (v - 100 if pct and nso_key(series_id.split("|")[-1]) != "lamphatcoban" else v), cuoi_ky(s.date.iloc[-1])
 
 
-@st.cache_data(show_spinner="Đang nạp niên giám NSO ...")
+@vcache(show_spinner="Đang nạp niên giám NSO ...")
 def nso_long(mt: float) -> pd.DataFrame:
     p = REGISTRY["nso"][2]
     pq = os.path.join(CACHE, "nso_master.parquet")
@@ -1049,7 +1111,7 @@ def nso_catalog() -> pd.DataFrame:
     return read_csv(p, _mtime(p), dtype=str, keep_default_na=False, encoding="utf-8-sig")
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def nso_table_wide(mt: float, table_id: str, freq: str) -> pd.DataFrame:
     """1 bang PX-Web -> wide (ngay x chuoi). Moc = CUOI ky: A -> 31/12, M -> cuoi thang, Q -> cuoi quy."""
     d = nso_long(mt)
@@ -1237,7 +1299,7 @@ NGANH_TP = ["Ngân hàng", "Bất động sản", "Xây dựng", "Tài chính", 
 # nua de chi co 1 nguon su that; sua sai thi sua config/nganh_overrides.csv roi chay lai.
 
 
-@st.cache_data(show_spinner="Đang nạp dữ liệu trái phiếu ...")
+@vcache(show_spinner="Đang nạp dữ liệu trái phiếu ...")
 def bonds_clean(mt: float, mt_master: float, mt_fx: float) -> pd.DataFrame:
     """Trai phieu toan thi truong da lam sach:
     - SUA LOI: trai phieu USD (tien_te=USD) bi nhan menh gia USD nhu VND -> gia tri gan 0;
@@ -1294,7 +1356,7 @@ def _yc():
     return yield_curve
 
 
-@st.cache_data(show_spinner="Đang nạp lợi suất trái phiếu ...")
+@vcache(show_spinner="Đang nạp lợi suất trái phiếu ...")
 def _yields_prepared(mt: float, tin_cay: str) -> pd.DataFrame:
     y = pd.read_csv(REGISTRY["bond_yields"][2], low_memory=False)
     return _yc().prepare_yields(y, tin_cay)
@@ -1348,7 +1410,7 @@ def despike(s: pd.Series, tol=0.3) -> pd.Series:
     return s.mask((a > tol) & (b > tol))
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def eps_market(mt: float) -> pd.DataFrame:
     """EPS & loi nhuan TTM toan thi truong theo ro (VNDirect tinh san).
 
@@ -1374,7 +1436,7 @@ def eps_market_df():
     return eps_market(_mtime(REGISTRY["valuation_wide"][2]))
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def eps_sector(mt: float, cap: int, end: str) -> pd.DataFrame:
     """Loi nhuan TTM + tang truong theo NGANH ICB (cap 2 hoac 3), tinh den ngay `end`."""
     s = load("sectors_wide")
@@ -1513,7 +1575,7 @@ def set_pn(pn):
     PN = tuple(pn)
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def _icb(mt: float) -> pd.DataFrame:
     """Phan nganh ICB 4 cap tieng Viet cua Vietcap (index-fetcher\fetch_icb_vci.py)."""
     if not os.path.exists(ICB_CSV):
@@ -1624,7 +1686,7 @@ def flows_nhom_ma(start, end, nhom, san=("HOSE", "HNX", "UPCOM"), chi_tieu="netV
 PROP_CSV = os.path.join(RAW, "vn_prop_stocks.csv")
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def _prop_stocks(mt: float) -> pd.DataFrame:
     """Tu doanh CTCK theo tung ma (VNDirect, index-fetcher\fetch_prop_stocks.py, tu 17/05/2022).
     Chi co dong cho ma CO giao dich tu doanh trong phien."""
@@ -1703,7 +1765,7 @@ SV_RATIOS = {"PRICE_TO_EARNINGS": "pe", "PRICE_TO_BOOK": "pb", "PRICE_TO_SALES":
              "DIVIDEND_YIELD": "div_yield", "MARKETCAP": "marketcap", "BVPS_CR": "bvps"}
 
 
-@st.cache_data(show_spinner="Đang kéo định giá mã này từ VNDirect (lần đầu ~15 giây)...")
+@vcache(show_spinner="Đang kéo định giá mã này từ VNDirect (lần đầu ~15 giây)...")
 def _stock_val_live(code: str, ngay: str) -> pd.DataFrame:
     """Dinh gia 1 ma (VNDirect v4/ratios) cho ma KHONG co trong stocks-wide.csv.
     Cache dia cache/stock_val/<MA>.parquet (long), moi ngay chi keo phan moi."""
@@ -1818,7 +1880,7 @@ def to_excel(sheets: dict) -> bytes:
     return out.getvalue()
 
 
-@st.cache_data(show_spinner=False)
+@vcache(show_spinner=False)
 def freshness(stamp: float) -> pd.DataFrame:
     """Bang do tuoi cua moi dataset - cot quan trong nhat cua trang Tong quan."""
     rows = []

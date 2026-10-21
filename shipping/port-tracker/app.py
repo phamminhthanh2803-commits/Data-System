@@ -30,6 +30,67 @@ import nowcast as nw    # noqa: E402
 import services as svm   # noqa: E402
 
 
+# ---------------------------------------------------------------- BỘ NHỚ ĐỆM THEO PHIÊN BẢN + VAN AN TOÀN RAM (21/10/2026)
+# Lỗi "Error running app" trên Streamlit Cloud: st.cache_data khoá theo mtime/phiên bản KHÔNG giới hạn -> mỗi lần cloud kéo dữ liệu mới
+# từ Drive thêm 1 bản (vd giá cổ phiếu ~400 MB), bản cũ ở lại -> RAM tăng dần tới > 1 GB -> Cloud tắt app.
+import functools as _ft
+import gc as _gc
+import inspect as _insp
+
+
+def _is_ver(name):
+    return name.startswith("mt") or name.endswith("stamp") or name in ("ver", "fver")
+
+
+def vcache(*dargs, **kw):
+    """st.cache_data chỉ giữ PHIÊN BẢN dữ liệu mới nhất: tham số tên mt*/…stamp/ver/fver là phiên bản; cùng các tham số còn lại mà
+    phiên bản đổi -> xoá cache của hàm này (bản cũ không nằm lại trong RAM)."""
+    def deco(f):
+        kw.setdefault("max_entries", 32)
+        cf = st.cache_data(**kw)(f)
+        names = list(_insp.signature(f).parameters)
+        vnames = [n for n in names if _is_ver(n)]
+        seen = {}
+
+        @_ft.wraps(f)
+        def w(*a, **k):
+            args = dict(zip(names, a)); args.update(k)
+            ver = tuple(args.get(n) for n in vnames)
+            try:
+                other = hash(tuple((n, args[n]) for n in names if n in args and n not in vnames and not n.startswith("_")))
+            except TypeError:
+                other = None
+            if vnames and other is not None:
+                if other in seen and seen[other] != ver:
+                    cf.clear(); seen.clear()
+                seen[other] = ver
+            return cf(*a, **k)
+        w.clear = cf.clear
+        return w
+    if dargs and callable(dargs[0]):
+        return deco(dargs[0])
+    return deco
+
+
+def mem_guard(limit_mb=None):
+    """RAM tiến trình vượt ngưỡng (env MEM_GUARD_MB, mặc định 850) -> xoá cache dữ liệu + trả RAM về hệ điều hành.
+    Trang sau chậm hơn một chút nhưng app không bị Cloud tắt. Trả về True nếu đã dọn."""
+    try:
+        import psutil
+        lim = float(limit_mb or os.environ.get("MEM_GUARD_MB", "850"))
+        if psutil.Process().memory_info().rss / 1e6 < lim:
+            return False
+        st.cache_data.clear(); _gc.collect()
+        try:
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        except Exception:  # noqa: BLE001
+            pass
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def _fresh(mod):
     """server Streamlit đang chạy giữ module cũ trong bộ nhớ (chỉ app.py được nạp lại) -> nạp lại khi file module đổi"""
     import importlib
@@ -109,8 +170,7 @@ def _p_years(lo):
     return [y for y in ys if os.path.exists(os.path.join(PRESENT_DIR, f'calls_{y}.parquet'))]
 
 
-@st.cache_data(show_spinner=False, max_entries=3)
-def p_table(kind, lo, ver):
+def p_table(kind, lo, ver):                               # không cache riêng: get_calls / get_visits đã cache (tránh 2 bản trong RAM)
     """chuyến / lượt cập bến dựng sẵn từ mốc lo"""
     ys = _p_years(lo)
     d = pd.concat([_p_read(f'{kind}_{y}.parquet') for y in ys], ignore_index=True) if ys else pd.DataFrame()
@@ -119,17 +179,17 @@ def p_table(kind, lo, ver):
 
 
 # ================================================================ dữ liệu: ghép từ kho (khoá cache = phiên bản kho)
-@st.cache_data(show_spinner='Đang ghép chuyến phần lịch sử (mỗi tháng chỉ tính 1 lần)…', max_entries=6, persist='disk')
+@vcache(show_spinner='Đang ghép chuyến phần lịch sử (mỗi tháng chỉ tính 1 lần)…', max_entries=6, persist='disk')
 def get_frozen(auths, lo, b, fver, cv=2):
     return tl.calls_frozen(auths, lo, b)
 
 
-@st.cache_data(show_spinner='Đang ghép chuyến từ dữ liệu vừa kéo…', max_entries=6)
+@vcache(show_spinner='Đang ghép chuyến từ dữ liệu vừa kéo…', max_entries=6)
 def get_tail(auths, b, hi, ver, cv=2):
     return tl.calls_tail(auths, b, hi)
 
 
-@st.cache_data(show_spinner=False, max_entries=6)
+@vcache(show_spinner=False, max_entries=6)
 def get_calls(auths, lo, hi, ver, mstamp):
     if PRESENT: return p_table('calls', lo, ver)
     b = str((TODAY.replace(day=1) - pd.DateOffset(months=1)).date())
@@ -140,7 +200,7 @@ def get_calls(auths, lo, hi, ver, mstamp):
     return tl.enrich_calls(pd.concat(parts, ignore_index=True)) if parts else pd.DataFrame()
 
 
-@st.cache_data(show_spinner='Đang tách lượt cập bến…', max_entries=6)
+@vcache(show_spinner='Đang tách lượt cập bến…', max_entries=6)
 def get_visits(auths, lo, hi, ver, mstamp):
     if PRESENT: return p_table('visits', lo, ver)
     c = get_calls(auths, lo, hi, ver, mstamp)
@@ -158,11 +218,11 @@ def get_lanes(auths, lo, hi, ver, mstamp):
     return cache[key]
 
 
-@st.cache_data(show_spinner=False, max_entries=12)
+@vcache(show_spinner=False, max_entries=12)
 def _p_cached(name, ver): return _p_read(f'{name}.parquet')
 
 
-@st.cache_data(max_entries=2)
+@vcache(max_entries=2)
 def get_master(ver, mstamp):
     if PRESENT:
         m = _p_cached('master', ver)
@@ -172,7 +232,7 @@ def get_master(ver, mstamp):
     return tl.master_live()
 
 
-@st.cache_data(show_spinner=False, max_entries=2)
+@vcache(show_spinner=False, max_entries=2)
 def get_services(estamp, mstamp):
     """vòng tuyến + dịch vụ từ lượt ghé toàn cầu EconDB (store/econdb/vessel_portcalls.parquet); hãng đã biết lấy từ vessel_master"""
     if PRESENT:                                          # dựng sẵn: dịch vụ + vòng tuyến; danh sách tàu EconDB đọc kho nhỏ
@@ -446,6 +506,9 @@ tick('goi nguon')
 VER = (PMETA['version'] + '|' + PMETA['built_at']) if PRESENT else ld.version()
 MST = PMETA['built_at'] if PRESENT else tl.stamp('master', 'hp_terminals', 'hcm_terminals')
 KEY = (tuple(AUTHS), str(LOAD_LO.date()), str(LOAD_HI.date()), VER, MST)
+if st.session_state.get('_ver_key') != (VER, MST):        # phiên bản dữ liệu đổi -> bỏ kết quả mô hình / chặng của bản cũ trong phiên
+    for _k in ('_nc', '_lanes'): st.session_state.pop(_k, None)
+    st.session_state['_ver_key'] = (VER, MST)
 with st.spinner('Đang ghép chuyến tàu từ kho (lần đầu trong tháng có thể mất 1–2 phút)…'):
     calls = get_calls(*KEY)
 if calls.empty:
@@ -933,7 +996,7 @@ def page_data(level, auth, term, K):
 
 
 # ================================================================ TRANG 6: SẢN LƯỢNG - thực tế EconDB (container full / throughput terminal) + ước/dự báo hồi quy
-@st.cache_data(show_spinner=False, max_entries=2)
+@vcache(show_spinner=False, max_entries=2)
 def get_econdb(stamp): return ed.load()
 
 
@@ -1201,7 +1264,7 @@ VIMAWA = os.path.join(tl.HUB, 'vimawa-sanluong', 'data', 'vimawa_sanluong.csv')
 def vimawa_stamp(): return os.path.getmtime(VIMAWA) if os.path.exists(VIMAWA) else 0
 
 
-@st.cache_data(show_spinner=False, max_entries=2)
+@vcache(show_spinner=False, max_entries=2)
 def vimawa_teu(stamp):
     """container toàn quốc (1000 TEU -> TEU) theo tháng từ biểu 28-T Cục Hàng hải: thuc_te (suy từ lũy kế) + uoc (cột tháng báo cáo)"""
     if not stamp: return pd.DataFrame()
@@ -1776,5 +1839,6 @@ with st.container(border=True, key='khung_noi_dung'):
         {'tong-quan': page_overview, 'hang-tau': page_operators, 'dieu-do': page_ops, 'tuyen': page_lanes, 'san-luong': page_volume,
          'du-lieu': page_data}[PG](LV, AUTH, TERM, K)
 tick('render')
+if CLOUD: mem_guard()                                # 21/10/2026: RAM > MEM_GUARD_MB (850) -> xoá cache, tránh Cloud tắt app
 st.markdown(f'<div class="gn-note" style="margin-top:10px">Dữ liệu đến {LAST:%d/%m/%Y} · 12 cảng vụ · kho <code>{ld.STORE}</code> · '
             'Giao diện theo mẫu Market Data App (ui_genea.py)</div>', unsafe_allow_html=True)

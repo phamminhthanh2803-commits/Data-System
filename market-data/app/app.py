@@ -223,4 +223,5 @@ st.markdown(f'<div class="gn-note" style="margin-top:10px">Phiên gần nhất: 
             f'Dữ liệu đọc từ <code>{dl.BASE}</code> · Giao diện cũ: <code>app_legacy.py</code>{_cb}</div>',
             unsafe_allow_html=True)
 if CLOUD:
+    dl.mem_guard()                               # 21/10/2026: RAM > MEM_GUARD_MB (850) -> xoá cache, tránh Cloud tắt app ("Error running app")
     cloud_boot.trim_memory()                     # tra RAM tam ve he dieu hanh (may cloud 1 GB)

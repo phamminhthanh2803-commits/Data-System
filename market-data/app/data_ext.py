@@ -40,7 +40,7 @@ def ohlc_vn() -> pd.DataFrame:
     return pd.read_parquet(_ohlc_pq(dl._raw_mt(dl.REGISTRY["tv_history"][2])))      # mtime THAT cua CSV
 
 
-@st.cache_data(show_spinner=False, max_entries=64)
+@dl.vcache(show_spinner=False, max_entries=64)
 def _ohlc_one(mt: float, col: str, value: str) -> pd.DataFrame:
     """OHLCV 1 ma (col='symbol') hoac 1 chi so (col='tv_symbol') doc thang tu parquet bang bo loc pyarrow:
     chi vai nghin dong vao RAM thay vi 3,3 trieu."""
@@ -55,7 +55,7 @@ def stock_ohlc(code: str) -> pd.DataFrame:
     return _stock_ohlc_tail(code, d, dl._src_mt("tv_history"))
 
 
-@st.cache_data(show_spinner=False)
+@dl.vcache(show_spinner=False)
 def _stock_ohlc_tail(code: str, d: pd.DataFrame, mt_src: float) -> pd.DataFrame:
     s = dl.stock_src_ohlc(code, mt_src)
     if s.empty:
@@ -148,7 +148,7 @@ def sector_returns_from(px: pd.DataFrame, end, pn: tuple, san: tuple) -> pd.Data
     return out
 
 
-@st.cache_data(show_spinner=False)
+@dl.vcache(show_spinner=False)
 def _sector_returns(mt: float, end: str, pn: tuple, san: tuple) -> pd.DataFrame:
     _, px, _ = dl.prices(since="2016-01-01")
     return sector_returns_from(px, end, pn, san)
@@ -181,7 +181,7 @@ def stock_returns_from(px: pd.DataFrame, nhom: str, end, pn: tuple) -> pd.DataFr
     return out.sort_values("Vốn hoá (tỷ)", ascending=False)
 
 
-@st.cache_data(show_spinner=False)
+@dl.vcache(show_spinner=False)
 def _stock_returns(mt: float, nhom: str, end: str, pn: tuple) -> pd.DataFrame:
     _, px, _ = dl.prices(since="2016-01-01")
     return stock_returns_from(px, nhom, end, pn)
@@ -230,12 +230,12 @@ def treemap_flows(kind: str, d0, d1, pn=None, san=("HOSE", "HNX", "UPCOM"), topn
     return _treemap_flows(_flows_mt(), kind, pd.Timestamp(d0), pd.Timestamp(d1), tuple(pn or dl.PN), tuple(san), topn)
 
 
-@st.cache_data(show_spinner=False)
+@dl.vcache(show_spinner=False)
 def flows_sector_c(mt: float, d0, d1, san: tuple, tan: str, chi_tieu: str, pn: tuple):
     return dl.flows_sector(d0, d1, san, tan, chi_tieu, pn)
 
 
-@st.cache_data(show_spinner=False)
+@dl.vcache(show_spinner=False)
 def prop_sector_c(mt: float, d0, d1, san: tuple, pn: tuple):
     return dl.prop_sector(d0, d1, san, pn)
 
@@ -248,7 +248,7 @@ def prop_sector(d0, d1, san, pn):
     return prop_sector_c(_flows_mt(), pd.Timestamp(d0), pd.Timestamp(d1), tuple(san), tuple(pn or dl.PN))
 
 
-@st.cache_data(show_spinner=False)
+@dl.vcache(show_spinner=False)
 def _treemap_flows(mt: float, kind: str, d0, d1, pn: tuple, san: tuple, topn: int) -> pd.DataFrame:
     d = dl._loc_fs(d0, d1, san, pn) if kind == "kn" else dl._loc_prop(d0, d1, san, pn)
     if d.empty:
@@ -287,7 +287,7 @@ def monthly_turnover() -> pd.DataFrame:
 
 
 # ------------------------------------------------------------- DINH GIA
-@st.cache_data(show_spinner="Đang tính ngũ phân vị định giá ...")
+@dl.vcache(show_spinner="Đang tính ngũ phân vị định giá ...")
 def _quintiles(mt: float, ratio: str, years: int) -> pd.DataFrame:
     """% so co phieu theo ngu phan vi cua CHINH lich su ma do (cua so `years` nam), moi thang 1 diem."""
     # stocks-wide chi co 7 ma -> dung sectors-wide ICB cap 3 (36 nganh), moi nganh so voi chinh lich su cua no
@@ -439,7 +439,7 @@ def _insider_mt() -> float:
     return dl._src_mt("insider")
 
 
-@st.cache_data(show_spinner=False)
+@dl.vcache(show_spinner=False)
 def _insider_all(mt: float) -> pd.DataFrame:
     d = dl.load("insider")
     if d is None or d.empty:
@@ -455,7 +455,7 @@ def insider_all() -> pd.DataFrame:
     return _insider_all(_insider_mt())
 
 
-@st.cache_data(show_spinner=False)
+@dl.vcache(show_spinner=False)
 def _insider_market(mt: float) -> pd.DataFrame:
     d = _insider_all(mt)
     if d.empty:
@@ -475,7 +475,7 @@ def insider_market() -> pd.DataFrame:
     return _insider_market(_insider_mt())
 
 
-@st.cache_data(show_spinner=False)
+@dl.vcache(show_spinner=False)
 def _last_close(mt: float) -> pd.Series:
     """Gia dong cua gan nhat moi ma (stock_daily live-first, dong) - de uoc gia tri dang ky dang chay."""
     try:                                   # 12/10/2026: chi doc 3 cot + 60 ngay cuoi (pyarrow) thay vi ca bang 3,5 trieu dong

@@ -29,13 +29,24 @@ CONF = os.path.join(os.path.expanduser('~'), '.config', 'rclone', 'rclone.conf')
 MARKER = os.path.join(APP, '.cloud_boot.json')
 REFRESH_SEC = int(os.environ.get('CLOUD_REFRESH_SEC', '1800'))
 # (thư mục trên Drive dưới shipping/, include) -> kéo về HUB/<thư mục>
-PULL = [('port-tracker', ['/store/**', '/nowcast_targets.csv', '/nowcast_blocks.csv']),
-        ('cangvu-haiphong', ['/data/vessel_master.csv']),
-        ('vessel-itinerary', ['/data/vessel_route_pattern.csv', '/data/lane_monthly.csv', '/data/itinerary_legs.csv',
-                       '/data/port_pairs_nm.csv']),
-        ('vimawa-sanluong', ['/data/vimawa_sanluong.csv'])]                   # biểu 28-T Cục Hàng hải: tham chiếu trang Sản lượng     # cache hải lý: thiếu -> trang Tuyến phải gọi searoute cho mọi cặp cảng
-# file nhỏ do PV2 sửa tay (số công bố VPA, khối, Cục HH) -> kéo ngay khi app chạy code mới + mỗi FAST_SEC giây
-FAST = [('port-tracker', ['/nowcast_targets.csv', '/nowcast_blocks.csv']), ('vimawa-sanluong', ['/data/vimawa_sanluong.csv'])]
+def _present_inc(years_back=2):
+    """bản dựng sẵn (present.py): file chung + chuyến/lượt cập bến của NĂM HIỆN TẠI và years_back năm trước; năm cũ hơn app kéo khi cần"""
+    y = time.localtime().tm_year
+    yrs = [f'/store/present/{k}_{x}.parquet' for x in range(y - years_back, y + 1) for k in ('calls', 'visits')]
+    return ['/store/present/meta.json'] + [f'/store/present/{n}.parquet' for n in
+            ('lanes', 'patterns', 'legs', 'services', 'rotations', 'master', 'events_recent')] + yrs
+
+
+# (thư mục trên Drive dưới shipping/, include) -> kéo về HUB/<thư mục>
+# 21/10/2026: KHÔNG kéo store/** thô nữa (app không còn nạp SQLite / ghép chuyến) - chỉ bản dựng sẵn + EconDB nhỏ + số công bố
+PULL = [('port-tracker', _present_inc() + ['/store/econdb/series.parquet', '/store/econdb/calls.parquet', '/store/econdb/schedule.parquet',
+                                           '/store/econdb/ports.parquet', '/store/econdb/vessels.parquet', '/store/econdb/terminals.parquet',
+                                           '/nowcast_targets.csv', '/nowcast_blocks.csv']),
+        ('vessel-itinerary', ['/data/port_pairs_nm.csv']),                      # cache hải lý (bản đồ lộ trình 1 tàu)
+        ('vimawa-sanluong', ['/data/vimawa_sanluong.csv'])]                     # biểu 28-T Cục Hàng hải: tham chiếu trang Sản lượng
+# file đổi thường xuyên (bản dựng sẵn mỗi lượt pipeline, số công bố PV2 sửa tay, Cục HH) -> kéo ngay khi app chạy code mới + mỗi FAST_SEC;
+# rclone chỉ chép file đổi
+FAST = [('port-tracker', ['/nowcast_targets.csv', '/nowcast_blocks.csv'] + _present_inc()), ('vimawa-sanluong', ['/data/vimawa_sanluong.csv'])]
 FAST_SEC = int(os.environ.get('CLOUD_FAST_SEC', '300'))
 STATE = {'error': None, 'last': None, 'mb': None}
 
@@ -52,6 +63,11 @@ def _secret(name):
     except Exception:  # noqa: BLE001
         pass
     return os.environ.get(name)
+
+
+def _have_present():
+    """đủ bản dựng sẵn (meta + các file chung + năm hiện tại) trên máy chưa"""
+    return all(os.path.exists(os.path.join(APP, x.lstrip('/'))) for x in _present_inc(0))
 
 
 def is_cloud():
@@ -131,15 +147,15 @@ def trim_memory():
 def boot():
     """True nếu đang chạy cloud (đã kéo dữ liệu). Gọi 1 lần đầu app.py."""
     if not _secret('RCLONE_CONF'): return False
-    if os.path.exists(MARKER) and os.path.isdir(os.path.join(APP, 'store', 'events')):
+    if os.path.exists(MARKER) and _have_present():          # 21/10/2026: đủ bản dựng sẵn (store/present) thì không kéo lại
         try: STATE.update(json.load(open(MARKER)))
         except Exception: pass  # noqa: E701,BLE001
     else:
         import streamlit as st
         _conf()
-        with st.status('Lần đầu mở trên cloud: đang kéo dữ liệu từ Google Drive (≈ 1 phút)…', expanded=True) as s:
+        with st.status('Đang kéo dữ liệu dựng sẵn từ Google Drive (≈ 20 giây)…', expanded=True) as s:
             pull(lambda i, n, f: s.write(f'{i + 1}/{n} · {f}'))
             s.update(label=f'Đã kéo {STATE["mb"]} MB trong {STATE.get("secs")} s', state='complete', expanded=False)
-    if not any(t.name == 'pt_refresh_v2' for t in threading.enumerate()):
-        threading.Thread(target=_loop, name='pt_refresh_v2', daemon=True).start()
+    if not any(t.name == 'pt_refresh_v3' for t in threading.enumerate()):     # v3 (21/10): danh sách kéo mới (bản dựng sẵn)
+        threading.Thread(target=_loop, name='pt_refresh_v3', daemon=True).start()
     return True

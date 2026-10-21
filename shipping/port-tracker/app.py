@@ -69,9 +69,53 @@ except cb.DriveAuthError as _e:
     st.error(str(_e)); st.stop()
 _gate()
 ui.PERIOD_MONTHS['2Y'] = 24
+# 21/10/2026: dữ liệu TRÌNH BÀY dựng sẵn bởi bước pipeline pt-present (present.py) -> app chỉ đọc parquet, không SQLite / ghép chuyến
+PRESENT_DIR = os.path.join(ld.STORE, 'present')
+
+
+def _present_meta():
+    f = os.path.join(PRESENT_DIR, 'meta.json')
+    if not os.path.exists(f): return None
+    try:
+        import json
+        with open(f, encoding='utf-8') as fh: return json.load(fh)
+    except Exception: return None  # noqa: E701,BLE001
+
+
+PMETA = _present_meta()
+PRESENT = PMETA is not None
 PER = ['3M', '6M', '1Y', '2Y', '3Y', 'All']
 MEASURES = {'Lượt tàu': 'calls', 'TEU danh nghĩa': 'teu', 'DWT': 'dwt'}
 TOK = ui.TOK
+
+
+# ================================================================ dữ liệu: đọc bản dựng sẵn (present) hoặc ghép từ kho
+def _p_read(name):
+    f = os.path.join(PRESENT_DIR, name)
+    if not os.path.exists(f): return pd.DataFrame()
+    d = pd.read_parquet(f)
+    for c in d.columns:                                   # category -> chữ thường: giữ nguyên hành vi groupby/pivot (RAM còn thấp hơn nhờ gộp chuỗi)
+        if isinstance(d[c].dtype, pd.CategoricalDtype): d[c] = d[c].astype(object)
+    return d
+
+
+def _p_years(lo):
+    """các năm cần đọc từ mốc lo; bản online thiếu năm cũ thì kéo thêm từ Drive (chỉ khi chọn '3 năm' / 'Từ 2019')"""
+    ys = [y for y in (PMETA or {}).get('years', []) if y >= pd.Timestamp(lo).year]
+    miss = [y for y in ys if not os.path.exists(os.path.join(PRESENT_DIR, f'calls_{y}.parquet'))]
+    if miss and CLOUD:
+        with st.spinner(f'Đang kéo thêm dữ liệu các năm {", ".join(map(str, miss))}…'):
+            cb.pull_items([('port-tracker', [f'/store/present/{k}_{y}.parquet' for y in miss for k in ('calls', 'visits')])])
+    return [y for y in ys if os.path.exists(os.path.join(PRESENT_DIR, f'calls_{y}.parquet'))]
+
+
+@st.cache_data(show_spinner=False, max_entries=3)
+def p_table(kind, lo, ver):
+    """chuyến / lượt cập bến dựng sẵn từ mốc lo"""
+    ys = _p_years(lo)
+    d = pd.concat([_p_read(f'{kind}_{y}.parquet') for y in ys], ignore_index=True) if ys else pd.DataFrame()
+    col = 'date' if kind == 'calls' else 'arr_day'
+    return d[d[col] >= pd.Timestamp(lo)].reset_index(drop=True) if len(d) else d
 
 
 # ================================================================ dữ liệu: ghép từ kho (khoá cache = phiên bản kho)
@@ -87,6 +131,7 @@ def get_tail(auths, b, hi, ver, cv=2):
 
 @st.cache_data(show_spinner=False, max_entries=6)
 def get_calls(auths, lo, hi, ver, mstamp):
+    if PRESENT: return p_table('calls', lo, ver)
     b = str((TODAY.replace(day=1) - pd.DateOffset(months=1)).date())
     t0 = time.time(); fz = get_frozen(auths, lo, b, ld.version_before(auths, pd.Timestamp(b) + pd.Timedelta(days=30)))
     t1 = time.time(); tail = get_tail(auths, b, hi, ver)
@@ -97,12 +142,15 @@ def get_calls(auths, lo, hi, ver, mstamp):
 
 @st.cache_data(show_spinner='Đang tách lượt cập bến…', max_entries=6)
 def get_visits(auths, lo, hi, ver, mstamp):
+    if PRESENT: return p_table('visits', lo, ver)
     c = get_calls(auths, lo, hi, ver, mstamp)
     return tl.load_visits(c, tl.terminal_meta(c))
 
 
 def get_lanes(auths, lo, hi, ver, mstamp):
-    key = (auths, lo, hi, str(TODAY.date()), ld.version_before(auths, TODAY - pd.Timedelta(days=30)), mstamp)
+    if PRESENT and MONTHS == PMETA.get('lanes_months', 26):     # khung mặc định: chặng dựng sẵn
+        return _p_cached('lanes', ver), _p_cached('patterns', ver), _p_cached('legs', ver)
+    key = (auths, lo, hi, str(TODAY.date()), (ver if PRESENT else ld.version_before(auths, TODAY - pd.Timedelta(days=30))), mstamp)
     cache = st.session_state.setdefault('_lanes', {})
     if key not in cache:
         with st.spinner('Đang tính chặng và vòng tuyến…'):
@@ -110,13 +158,27 @@ def get_lanes(auths, lo, hi, ver, mstamp):
     return cache[key]
 
 
+@st.cache_data(show_spinner=False, max_entries=12)
+def _p_cached(name, ver): return _p_read(f'{name}.parquet')
+
+
 @st.cache_data(max_entries=2)
-def get_master(ver, mstamp): return tl.master_live()
+def get_master(ver, mstamp):
+    if PRESENT:
+        m = _p_cached('master', ver)
+        for c in ('teu', 'dwt', 'gt', 'loa', 'calls_total', 'calls_12m'):
+            if c in m: m[c] = pd.to_numeric(m[c], errors='coerce')
+        return m
+    return tl.master_live()
 
 
 @st.cache_data(show_spinner=False, max_entries=2)
 def get_services(estamp, mstamp):
     """vòng tuyến + dịch vụ từ lượt ghé toàn cầu EconDB (store/econdb/vessel_portcalls.parquet); hãng đã biết lấy từ vessel_master"""
+    if PRESENT:                                          # dựng sẵn: dịch vụ + vòng tuyến; danh sách tàu EconDB đọc kho nhỏ
+        rot = _p_cached('rotations', VER)
+        if len(rot): rot['ports'] = rot['ports'].fillna('').str.split(' ').map(tuple)
+        return _p_cached('services', VER), rot, ed.load().get('vessels', pd.DataFrame())
     E = ed.load(); pc = E.get('vessel_portcalls')
     if pc is None or pc.empty: return pd.DataFrame(), pd.DataFrame(), E.get('vessels', pd.DataFrame())
     m = tl.load_master()
@@ -329,12 +391,13 @@ _doc_query()
 h1, h2c = st.columns([5, 2])
 with h1:
     st.markdown('<div class="gn-logo"><span class="dia"></span>Port &amp; Vessel Tracker</div>', unsafe_allow_html=True)
-cov = ld.coverage()
+cov = pd.DataFrame(PMETA['coverage']) if PRESENT else ld.coverage()
 with h2c:
     _, p = st.columns([1, 3])
     with p:
         with st.popover(f'Kho dữ liệu: {len(cov)} cảng vụ ▾', width='stretch'):
-            ss = ld.store_status()
+            ss = PMETA['store_status'] if PRESENT else ld.store_status()
+            if PRESENT: ui.note(f'Bản trình bày dựng sẵn bởi pipeline lúc {PMETA["built_at"]} (bước pt-present) - app chỉ đọc, không ghép lại.')
             ui.note(f'Pipeline ghép liên tục: cloud 9:00 + 22:00 (11 cảng vụ), laptop 8:30 + 18:40 (TP.HCM) → kho chia sẻ store/ '
                     f'({ss["files"]} tệp parquet, cập nhật gần nhất {ss["latest"] or "–"}). Ngày đã qua hơn 2 ngày coi là chốt.')
             if len(cov):
@@ -342,10 +405,12 @@ with h2c:
                 st.dataframe(cv2.sort_values('o')[['Cảng vụ', 'tu_ngay', 'den_ngay', 'so_ngay', 'so_su_kien', 'keo_gan_nhat']]
                              .rename(columns={'tu_ngay': 'Từ', 'den_ngay': 'Đến', 'so_ngay': 'Số ngày', 'so_su_kien': 'Sự kiện', 'keo_gan_nhat': 'Kéo gần nhất'}),
                              width='stretch', hide_index=True, height=40 + 35 * len(cv2))
-            LIVE = st.toggle('Kéo thêm từ trang nguồn khi mở', value=False, key='live_on',
-                             help='Kho đã được pipeline cập nhật 2 lần/ngày. Bật khi cần số liệu trong ngày (gọi thẳng 12 trang cảng vụ, 10–60 giây).')
-            TTL = st.select_slider('Làm mới ngày gần đây sau (phút)', [5, 10, 30, 60, 180], value=30, key='ttl')
-            FORCE = st.button('🔄 Kéo lại từ nguồn ngay', key='force_pull', width='stretch')
+            if PRESENT: LIVE, TTL, FORCE = False, 30, False         # bản dựng sẵn: không gọi nguồn từ app
+            else:
+                LIVE = st.toggle('Kéo thêm từ trang nguồn khi mở', value=False, key='live_on',
+                                 help='Kho đã được pipeline cập nhật 2 lần/ngày. Bật khi cần số liệu trong ngày (gọi thẳng 12 trang cảng vụ, 10–60 giây).')
+                TTL = st.select_slider('Làm mới ngày gần đây sau (phút)', [5, 10, 30, 60, 180], value=30, key='ttl')
+                FORCE = st.button('🔄 Kéo lại từ nguồn ngay', key='force_pull', width='stretch')
 
 # ---- bộ lọc chung (thay sidebar cũ)
 f1, f2, f3, f4, f5 = st.columns([1.3, 1.9, 1.2, 1.7, 3])
@@ -361,12 +426,13 @@ MONTHS = {'2 năm': 26, '3 năm': 38, 'Từ 2019': 400}[NAP]
 tick('header')
 
 # ================================================================ nạp kho + ghép chuyến
-with st.spinner('Đang nạp dữ liệu mới từ kho chia sẻ store/ (lần đầu khoảng 1–2 phút)…'):
-    N_IMP, _ = ld.import_store()
-if N_IMP: st.toast(f'Đã nạp {N_IMP} tệp mới từ kho chia sẻ')
-if ld.is_empty():
-    with st.spinner('Khởi tạo kho dữ liệu của app từ lịch sử đã có (chỉ 1 lần, khoảng 1–2 phút)…'):
-        ld.seed_from_local()
+if not PRESENT:
+    with st.spinner('Đang nạp dữ liệu mới từ kho chia sẻ store/ (lần đầu khoảng 1–2 phút)…'):
+        N_IMP, _ = ld.import_store()
+    if N_IMP: st.toast(f'Đã nạp {N_IMP} tệp mới từ kho chia sẻ')
+    if ld.is_empty():
+        with st.spinner('Khởi tạo kho dữ liệu của app từ lịch sử đã có (chỉ 1 lần, khoảng 1–2 phút)…'):
+            ld.seed_from_local()
 AUTHS = ALL_AUTHS
 LOAD_LO = max(pd.Timestamp('2019-01-01'), TODAY - pd.DateOffset(months=MONTHS) - pd.Timedelta(days=45))
 LOAD_HI = TODAY + pd.Timedelta(days=1)
@@ -377,14 +443,15 @@ if LIVE or FORCE:
     if errs:
         with st.expander(f'{len(errs)} lỗi khi gọi nguồn'): st.write(errs[:40])
 tick('goi nguon')
-VER = ld.version(); MST = tl.stamp('master', 'hp_terminals', 'hcm_terminals')
+VER = (PMETA['version'] + '|' + PMETA['built_at']) if PRESENT else ld.version()
+MST = PMETA['built_at'] if PRESENT else tl.stamp('master', 'hp_terminals', 'hcm_terminals')
 KEY = (tuple(AUTHS), str(LOAD_LO.date()), str(LOAD_HI.date()), VER, MST)
 with st.spinner('Đang ghép chuyến tàu từ kho (lần đầu trong tháng có thể mất 1–2 phút)…'):
     calls = get_calls(*KEY)
 if calls.empty:
     st.error('Kho chưa có dữ liệu. Kiểm tra mạng hoặc vào trang "Dữ liệu" để kéo từ nguồn.'); st.stop()
 visits = get_visits(*KEY)
-if CLOUD: cb.trim_memory()                         # bản online: trả RAM tạm sau ghép chuyến (máy ~1 GB)
+if CLOUD and not PRESENT: cb.trim_memory()         # bản online: trả RAM tạm sau ghép chuyến (máy ~1 GB)
 tick('get_calls+visits')
 LAST = min(calls.loc[calls['arr_day'].notna(), 'arr_day'].max(), TODAY)
 LO = LOAD_LO
@@ -522,7 +589,10 @@ def page_overview(level, auth, term, K):
 # ================================================================ TRANG 2: HÃNG TÀU & TÀU
 def ship_detail(key, name, K):
     master = get_master(VER, MST)
-    sc = tl.ship_calls(key)
+    if PRESENT:                                          # mọi chuyến của tàu trong các năm đã có (đủ lịch sử khi đã nạp 'Từ 2019')
+        sc = calls[calls['ship_key'] == key]
+    else:
+        sc = tl.ship_calls(key)
     sc = sc.sort_values('date') if len(sc) else calls[calls['ship_key'] == key].sort_values('date')
     m = master[master['ship_key'] == key].iloc[0].to_dict() if (not master.empty and (master['ship_key'] == key).any()) else {}
     if not m.get('imo') and len(sc): m['imo'] = next((x for x in sc['imo'] if x), '')
@@ -666,7 +736,11 @@ def page_ops(level, auth, term, K):
     day = c1.selectbox('Ngày kế hoạch', days, index=1, key='dd_day', format_func=lambda d: pd.Timestamp(d).strftime('%d/%m/%Y') + (' (hôm nay)' if d == TODAY.strftime('%Y-%m-%d') else ''))
     auths_pull = ALL_AUTHS if level == 'toan-quoc' else [auth]
     if LIVE: live_pull(auths_pull, day, day, min(TTL, 10), 0, f'Đang gọi kế hoạch ngày {day}')
-    e = tl.events_day(auths_pull, day)
+    if PRESENT:
+        er = _p_cached('events_recent', VER)
+        e = er[(er['plan_date'] == str(day)[:10]) & er['auth'].isin(auths_pull)].drop(columns=['plan_date']) if len(er) else er
+    else:
+        e = tl.events_day(auths_pull, day)
     if ONLY_CONT and len(e): e = e[e['vessel_class'].isin(['container', 'container?'])]
     if level == 'cang' and len(e):
         t = term.upper(); e = e[(e['from'].str.upper().str.strip() == t) | (e['to'].str.upper().str.strip() == t)]
@@ -805,6 +879,9 @@ def page_lanes(level, auth, term, K):
 
 # ================================================================ TRANG 5: DỮ LIỆU
 def pull_block(auths_default, K):
+    if PRESENT:                                          # bản dựng sẵn: pipeline kéo nguồn 2 lần/ngày, app không ghi kho
+        ui.note(f'Dữ liệu do pipeline kéo từ trang cảng vụ 2 lần/ngày rồi dựng sẵn (lần gần nhất {PMETA["built_at"]}); app online không kéo nguồn.')
+        return
     with ui.card('Kéo bù / kéo lại từ trang nguồn', unit='gọi thẳng trang cảng vụ theo khoảng ngày', key=f'{K}_pull', controls=False) as cd:
         f1, f2, f3, f4 = st.columns([2, 1, 1, 1])
         ba = f1.multiselect('Cảng vụ', ALL_AUTHS, default=auths_default, format_func=lambda a: tl.AUTH_LABEL.get(a, a), key=f'{K}_pull_auths')
@@ -836,10 +913,11 @@ def page_data(level, auth, term, K):
         ui.kpi_strip([('Tàu trong bảng tham chiếu', fmt_int(len(master)), '', 0), ('Có IMO', fmt_int((master['imo'].fillna('').astype(str) != '').sum()), '', 0),
                       ('Chuyến container 12 tháng có TEU', f"{(pd.to_numeric(cc['teu'], errors='coerce') > 0).mean():.0%}" if len(cc) else '–', '', 0),
                       ('Chuyến container 12 tháng có hãng', f"{(cc['operator'] != '(chưa rõ hãng)').mean():.0%}" if len(cc) else '–', '', 0)])
-        with st.expander('Khởi tạo lại kho từ lịch sử đã parse sẵn (chỉ dùng khi kho hỏng)'):
-            if st.button('Nạp lịch sử có sẵn vào kho', key='seed_btn'):
-                with st.spinner('Đang nạp…'): n = ld.seed_from_local()
-                st.success(f'Đã nạp {fmt_int(n)} sự kiện'); st.cache_data.clear(); st.rerun()
+        if not PRESENT:
+            with st.expander('Khởi tạo lại kho từ lịch sử đã parse sẵn (chỉ dùng khi kho hỏng)'):
+                if st.button('Nạp lịch sử có sẵn vào kho', key='seed_btn'):
+                    with st.spinner('Đang nạp…'): n = ld.seed_from_local()
+                    st.success(f'Đã nạp {fmt_int(n)} sự kiện'); st.cache_data.clear(); st.rerun()
     elif level == 'cang-vu':
         r = cov[cov['auth'] == auth]
         if len(r):

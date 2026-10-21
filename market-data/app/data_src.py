@@ -302,8 +302,8 @@ def _write(name, df: pd.DataFrame, force=False):
             new = os.path.join(SRC_DIR, f"{name}.{ts}_{k}.parquet")
         tmp = new + ".tmp"
         try:
-            df.to_parquet(tmp, index=False)
-            for i in range(5):                        # rename sang ten moi: PermissionError hiem (antivirus/indexer) -> thu lai
+            df.to_parquet(tmp, index=False, row_group_size=100_000)   # 21/10/2026: row group nho -> app loc 1 ma it RAM
+            for i in range(5):                       # rename sang ten moi: PermissionError hiem (antivirus/indexer) -> thu lai
                 try:
                     os.replace(tmp, new)
                     break
@@ -1142,6 +1142,13 @@ def pipeline_ends() -> dict:
             ds.append(pd.to_datetime(pd.read_parquet(pq, columns=["date"]).date).max())
         for f in fs:
             ds.append(pd.to_datetime(pd.read_csv(f, usecols=["date"]).date).max())
+        if not ds:                       # 21/10/2026: cloud chi co ban dung san (present/) -> ngay cuoi pipeline ghi trong meta.json
+            pm = os.path.join(os.environ.get("MD_PRESENT") or os.path.join(base, "present"), "meta.json")
+            if os.path.exists(pm):
+                with open(pm, encoding="utf-8") as fh:
+                    pe = ((json.load(fh).get("parts") or {}).get("fs") or {}).get("pipe_end")
+                if pe:
+                    ds.append(pd.Timestamp(pe))
         if ds:
             out["foreign_stocks"] = max(ds)
     except Exception:  # noqa: BLE001

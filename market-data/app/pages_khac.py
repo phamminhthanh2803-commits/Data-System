@@ -127,11 +127,18 @@ def kho_du_lieu(ctx):
         lf = dl.live_first(key)
         ui.note(f"{mota} · <code>{path}</code> · <b>Nguồn: {'live-first (' + dl.src.DATASETS[dl.SRC_KEYS[key]][1] + ')' if lf else 'pipeline'}</b>"
                 + (" — hàng cùng ngày lấy từ nguồn live-first, lịch sử pipeline nối phía trước" if lf else ""))
-        d = dl.tv() if key == "tv_history" else dl.load(key)
+        if key == "tv_history":                       # 21/10/2026 (RAM cloud): chi doc cac ma dang chon, khong nap 3,8 trieu dong
+            ents = dl.tv_symbols()
+            pick = st.multiselect(f"Lọc {ecol}", ents, default=ents[:5], key=f"kho_pick_{key}")
+            d = dl.tv_rows(pick or ents[:5])
+            ecol_tv = True
+        else:
+            d = dl.load(key)
+            ecol_tv = False
         if key == "nso_monthly":
             nhom_tx = st.selectbox("Nhóm chỉ tiêu", list(dl.NHOM_NSO_TX), key="kho_nso_nhom")
             d = d[d.group.isin(dl.NHOM_NSO_TX[nhom_tx])]
-        if ecol and ecol in d:
+        if ecol and ecol in d and not ecol_tv:
             ents = sorted(d[ecol].dropna().unique().tolist())
             pick = st.multiselect(f"Lọc {ecol}", ents, default=ents[:5] if len(ents) > 5 else ents, key=f"kho_pick_{key}")
             if pick:

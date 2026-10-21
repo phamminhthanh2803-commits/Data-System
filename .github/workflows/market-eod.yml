@@ -82,10 +82,28 @@ jobs:
             python data_src.py --push
           fi
 
+      # 21/10/2026: ban trinh bay dung san cho app Market (present/, app/present_market.py) tu gia + khoi ngoai VUA cap nhat
+      # (SRC_CACHE o tren) + tv-history / khoi ngoai pipeline -> app Streamlit Cloud chi doc parquet nho (het RAM 1 GB)
+      - name: Keo file goc cho ban trinh bay (slot EOD)
+        id: pdown
+        if: always()
+        run: python sync_data.py down --hub market-data --slot EOD
+
+      - name: Dung ban trinh bay app (md-present-eod)
+        if: always() && steps.pdown.outcome == 'success'
+        run: |
+          python market-data/run_slot.py --slot EOD
+          cat market-data/status-EOD.txt || true
+
+      - name: Day ban trinh bay len Drive (present/)
+        if: always() && steps.pdown.outcome == 'success'
+        run: python sync_data.py up --hub market-data --slot EOD
+
       - name: Trang thai
         if: always()
         run: |
           echo "## Market EOD" >> "$GITHUB_STEP_SUMMARY"
+          cat market-data/status-EOD.txt >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
           python - <<'EOF' >> "$GITHUB_STEP_SUMMARY" || echo "(khong doc duoc status.json)" >> "$GITHUB_STEP_SUMMARY"
           import json, os
           st = json.load(open(os.path.join(os.environ["SRC_CACHE"], "status.json"), encoding="utf-8"))

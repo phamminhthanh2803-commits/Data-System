@@ -90,7 +90,7 @@ def hieu_suat(ctx):
                  help="Chỉ số ngành tự tính: tổng vốn hoá các mã HOSE trong ngành (ICB Vietcap), quy về 100 tại đầu kỳ; "
                       "rổ = mã có giá ở cả đầu và cuối kỳ.", key="sec_rebase", toggles=PN_TOGGLE, default="YTD") as c:
         pn = _pn(c)
-        sec, _ = dl.sector_caps(dl._mtime(dl.REGISTRY["tv_history"][2]), c.d0.strftime("%Y-%m-%d"),
+        sec, _ = dl.sector_caps(dl.px_ver(), c.d0.strftime("%Y-%m-%d"),
                                 min(c.d1, LAST).strftime("%Y-%m-%d"), pn)
         sec = rt.with_live(sec, "sector_caps", pn=pn)
         ds = [x for x in sec.columns if x != "Toàn HOSE"]

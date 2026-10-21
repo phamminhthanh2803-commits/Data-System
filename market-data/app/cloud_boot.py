@@ -11,7 +11,8 @@ xem D:\cloud-deploy\data_manifest.py). Module nay chay DAU app.py (truoc khi imp
      rclone.conf ghi tu secret vao ~/.config/rclone/rclone.conf (chmod 600). rclone_cmd() dung chung cho data_live (realtime/<ngay>).
   3. Keo du lieu app can (APP_DATA, --include tung file) ve DATA_ROOT = MD_ROOT (mac dinh /tmp/pipeline-data/market-data),
      dat env MD_ROOT / SHIP_ROOT / BCTC_ROOT / RT_ROOT / APP_CACHE / SRC_CACHE; chep code phu (bond-pivot/scripts, market-valuation/*.py)
-     tu repo vao DATA_ROOT vi datalib import tu do; dung san 2 parquet gia (tv-history 237 MB -> parquet) de trang dau mo nhanh.
+     tu repo vao DATA_ROOT vi datalib import tu do. 21/10/2026: keo ban trinh bay dung san present/ (gia, do rong, khoi ngoai theo
+     ma - buoc pipeline md-present) thay cho tv-history.csv + khoi ngoai theo ma; Drive chua co present/ -> keo file goc + dung parquet.
      Lan dau hien st.status tien do; ghi marker .cloud_boot.json de rerun / phien khac khong keo lai.
   4. Thread nen moi 30 phut: rclone copy lai (chi file doi) + dung lai parquet neu tv-history.csv moi.
 
@@ -50,10 +51,12 @@ DEFAULT_ROOT = ("/tmp/pipeline-data/market-data" if os.name != "nt"
 
 # (thu muc tren Drive gdrive:pipeline-data/market-data/<thu muc>, cac file app doc - rclone --include, '/' = goc thu muc)
 # Chi dung cac file datalib/data_ext/data_src doc; KHONG keo raw/vci_foreign (440 MB), reports/, monthly-reports/, history/...
+# 21/10/2026: gia (tv-history.csv 237 MB) va khoi ngoai theo ma (parquet + CSV ~113 MB) KHONG keo nua - app doc ban trinh bay dung
+# san present/ (buoc md-present, app/present_market.py); chi keo lai file goc (LEGACY) khi Drive chua co phan tuong ung cua present/.
 APP_DATA = [
-    ("index-fetcher", ["/indices-master.csv", "/flows-master.csv", "/fx-master.csv", "/tv-history.csv", "/indices.csv",
-                       "/raw/vn_screener_meta.csv", "/raw/vn_icb_vci.csv", "/raw/vn_foreign_stocks_vci.parquet",
-                       "/raw/vn_prop_stocks.csv", "/raw/vn_foreign_stocks_*.csv"]),
+    ("present", ["/*.parquet", "/meta.json"]),
+    ("index-fetcher", ["/indices-master.csv", "/flows-master.csv", "/fx-master.csv", "/indices.csv",
+                       "/raw/vn_screener_meta.csv", "/raw/vn_icb_vci.csv", "/raw/vn_prop_stocks.csv"]),
     ("market-valuation", ["/valuation-wide.csv", "/valuation-adjusted.csv", "/sectors-wide.csv", "/stocks-wide.csv",
                           "/shares-master.csv", "/valuation-region-wide.csv", "/market-eps.csv", "/nhom-loai.txt"]),
     ("transmission-fetcher", ["/transmission-master.csv", "/transmission-wide.csv"]),
@@ -65,6 +68,10 @@ APP_DATA = [
     ("bctc/bctc-scan", ["/data/bctc_congbo.csv"]),                         # 13/10/2026: BCTC moi cong bo -> tab Tin tuc
 ]
 OTHER_HUBS = ("bctc", "shipping", "hah")
+# phan ban dung san -> file can co (= datalib.PRESENT_FILES) va file goc phai keo neu thieu phan do (thu muc index-fetcher)
+PRESENT_FILES = {"px": ["px.parquet", "breadth.parquet", "turnover_est.parquet", "tv-live.parquet", "tv-ohlc-vn.parquet"],
+                 "fs": ["fs.parquet", "fs_san_vnd.parquet"]}
+LEGACY_IDX = {"px": ["/tv-history.csv"], "fs": ["/raw/vn_foreign_stocks_vci.parquet", "/raw/vn_foreign_stocks_*.csv"]}
 APP_CACHE_REMOTE = "app-cache/src"      # gdrive:pipeline-data/market-data/app-cache/src = cache\\src cua app laptop (stock_daily...)
 # code trong repo ma datalib import theo duong dan DU LIEU (MD_ROOT/...): chep sang DATA_ROOT
 CODE_DIRS = [("bond-pivot/scripts", "*.py"), ("market-valuation", "*.py")]
@@ -398,6 +405,7 @@ def _set_env(root: str) -> None:
     """Env cho datalib / data_src / data_live truoc khi import."""
     os.environ["MD_ROOT"] = root
     os.environ["SRC_CACHE_PUSH"] = "0"                   # cloud khong day cache nguon nguoc len Drive
+    os.environ.setdefault("MD_PRESENT_TRUST", "1")       # 21/10/2026: luon dung ban dung san present/ (file goc cu neu con thi bo qua)
     base = os.path.dirname(root)
     os.environ.setdefault("SHIP_ROOT", os.path.join(base, "shipping"))
     os.environ.setdefault("BCTC_ROOT", os.path.join(base, "bctc"))
@@ -407,6 +415,17 @@ def _set_env(root: str) -> None:
     os.environ.setdefault("APP_CACHE", cache)
     os.environ.setdefault("SRC_CACHE", os.path.join(cache, "src"))
     os.makedirs(os.environ["SRC_CACHE"], exist_ok=True)
+
+
+def present_parts(root: str) -> set:
+    """Cac phan ban dung san da co du file trong <root>/present (meta.json + PRESENT_FILES)."""
+    d = os.path.join(root, "present")
+    try:
+        with open(os.path.join(d, "meta.json"), encoding="utf-8") as f:
+            parts = json.load(f).get("parts") or {}
+    except Exception:  # noqa: BLE001
+        return set()
+    return {p for p, fs in PRESENT_FILES.items() if p in parts and all(os.path.exists(os.path.join(d, x)) for x in fs)}
 
 
 def _prebuild_tv(root: str) -> list[str]:
@@ -472,9 +491,23 @@ def pull_all(root: str, progress=None, first: bool = False) -> dict:
     for name, inc in APP_DATA:
         if progress:
             progress(f"Kéo {name} …")
-        s = pull_folder(name, inc, root)
+        try:
+            s = pull_folder(name, inc, root)
+        except RuntimeError as e:
+            if name != "present":
+                raise
+            _log(f"present: {e} - dung file goc")         # Drive chua co ban dung san -> keo file goc (LEGACY_IDX) ben duoi
+            continue
         steps.append((name, round(s, 1)))
         _log(f"keo {name}: {s:.1f} s")
+    have = present_parts(root)
+    legacy = [x for p, xs in LEGACY_IDX.items() if p not in have for x in xs]
+    if legacy:                                           # thieu phan nao cua present/ -> keo file goc de app tu tinh nhu cu
+        if progress:
+            progress(f"Kéo file gốc (chưa có bản dựng sẵn: {', '.join(sorted(set(PRESENT_FILES) - have))}) …")
+        s = pull_folder("index-fetcher", legacy, root)
+        steps.append(("index-fetcher (goc)", round(s, 1)))
+        _log(f"keo file goc {legacy}: {s:.1f} s")
     _copy_code(root)
     if first:
         if progress:
@@ -483,25 +516,32 @@ def pull_all(root: str, progress=None, first: bool = False) -> dict:
         got = pull_src_cache(os.environ.get("SRC_CACHE") or os.path.join(os.path.dirname(root), "app-cache", "src"))
         steps.append(("app-cache/src", round(time.time() - t1, 1)))
         _log(f"app-cache/src: {len(got)} file")
-    if progress:
-        progress("Dựng cache giá (parquet) …")
-    built = _prebuild_tv(root)
+    built = []
+    if "px" not in have:                                 # co ban dung san gia -> khong dung parquet tu CSV (dinh RAM ~+600 MB)
+        if progress:
+            progress("Dựng cache giá (parquet) …")
+        built = _prebuild_tv(root)
     mb, n = _size_mb(root)
-    info = {"seconds": round(time.time() - t0, 1), "mb": round(mb, 1), "files": n, "steps": steps, "built": built}
+    info = {"seconds": round(time.time() - t0, 1), "mb": round(mb, 1), "files": n, "steps": steps, "built": built,
+            "present": sorted(have)}
     _write_marker(root, **info)
     _STATE.update(last_pull=time.time(), pulls=_STATE["pulls"] + 1, error=None, mb=mb)
     _log(f"xong: {info['seconds']} s, {mb:.0f} MB, {n} file")
     return info
 
 
+def _safe_pull(root: str) -> None:
+    try:
+        pull_all(root)
+    except Exception as e:  # noqa: BLE001
+        _STATE["error"] = f"{type(e).__name__}: {str(e)[:200]}"
+        _log(f"lam moi loi: {_STATE['error']}")
+
+
 def _refresh_loop(root: str) -> None:
     while True:
         time.sleep(REFRESH_SEC)
-        try:
-            pull_all(root)
-        except Exception as e:  # noqa: BLE001
-            _STATE["error"] = f"{type(e).__name__}: {str(e)[:200]}"
-            _log(f"lam moi loi: {_STATE['error']}")
+        _safe_pull(root)
 
 
 def _start_refresh(root: str) -> None:
@@ -562,6 +602,8 @@ def boot(ui: bool = True) -> bool:
     _tune_allocators()
     with _LOCK:
         if _STATE["booted"] or os.path.exists(_marker_path(root)):
+            if not _STATE["booted"] and not present_parts(root):   # 21/10/2026: /tmp cu (truoc ban dung san) -> keo present/ ngay
+                threading.Thread(target=lambda: _safe_pull(root), name="cloud_boot_present", daemon=True).start()
             _STATE["booted"] = True
             _start_refresh(root)
             return True

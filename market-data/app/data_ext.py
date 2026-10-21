@@ -27,7 +27,9 @@ OHLC_COLS = ["date", "tv_symbol", "exchange", "symbol", "open", "high", "low", "
 
 def _ohlc_pq(mt: float) -> str:
     """Parquet OHLCV toan bo ma + chi so VN (HOSE/HNX/UPCOM); dung lai tu tv-history.csv THEO KHOI khi CSV moi hon
-    (12/10/2026: khong read_csv ca bang nua - dinh RAM thap cho cloud 1 GB)."""
+    (12/10/2026: khong read_csv ca bang nua - dinh RAM thap cho cloud 1 GB). 21/10/2026: co ban dung san -> present/tv-ohlc-vn.parquet."""
+    if dl.present_on("px"):
+        return os.path.join(dl.PRESENT, "tv-ohlc-vn.parquet")
     pq = os.path.join(dl.CACHE, "tv-ohlc-vn.parquet")
     if not (os.path.exists(pq) and os.path.getmtime(pq) >= mt):
         with st.spinner("Đang dựng cache OHLC (lần đầu ~30 giây) ..."):
@@ -37,21 +39,26 @@ def _ohlc_pq(mt: float) -> str:
 
 def ohlc_vn() -> pd.DataFrame:
     """Ca bang OHLCV VN (3,3 trieu dong ~200 MB) - KHONG con cache thuong tru (12/10/2026); chi dung khi that su can ca bang."""
-    return pd.read_parquet(_ohlc_pq(dl._raw_mt(dl.REGISTRY["tv_history"][2])))      # mtime THAT cua CSV
+    return pd.read_parquet(_ohlc_pq(ohlc_ver()))
+
+
+def ohlc_ver() -> float:
+    """Khoa phien ban parquet OHLC: ban dung san hoac mtime THAT cua tv-history.csv."""
+    return dl.present_ver("px") if dl.present_on("px") else dl._raw_mt(dl.REGISTRY["tv_history"][2])
 
 
 @dl.vcache(show_spinner=False, max_entries=64)
 def _ohlc_one(mt: float, col: str, value: str) -> pd.DataFrame:
     """OHLCV 1 ma (col='symbol') hoac 1 chi so (col='tv_symbol') doc thang tu parquet bang bo loc pyarrow:
     chi vai nghin dong vao RAM thay vi 3,3 trieu."""
-    d = pd.read_parquet(_ohlc_pq(mt), filters=[(col, "==", value)])
+    d = dl.pq_filter(_ohlc_pq(mt), col, str(value))       # 21/10/2026: tung row group, bo theo thong ke (RAM)
     d = d.set_index("date").sort_index()[["open", "high", "low", "close", "volume", "value_approx"]]
     return d[~d.index.duplicated(keep="last")]
 
 
 def stock_ohlc(code: str) -> pd.DataFrame:
     """OHLCV 1 ma: tv-history (gia dieu chinh) + duoi live-first (Entrade/VNDirect x he so dieu chinh) sau ngay cuoi tv-history."""
-    d = _ohlc_one(dl._raw_mt(dl.REGISTRY["tv_history"][2]), "symbol", str(code))
+    d = _ohlc_one(ohlc_ver(), "symbol", str(code))
     return _stock_ohlc_tail(code, d, dl._src_mt("tv_history"))
 
 
@@ -81,7 +88,7 @@ def index_ohlc(code: str) -> pd.DataFrame:
     """OHLCV + GTGD (ty) cua 1 chi so VN. VNINDEX/VN30/HNXINDEX/UPCOM: indices-master (co value);
     VNMIDCAP/VNSMALLCAP: tv-history."""
     if code in ("VNMIDCAP", "VNSMALLCAP"):
-        d = _ohlc_one(dl._raw_mt(dl.REGISTRY["tv_history"][2]), "tv_symbol", f"HOSE:{code}")
+        d = _ohlc_one(ohlc_ver(), "tv_symbol", f"HOSE:{code}")
         d = d[["open", "high", "low", "close", "volume"]].copy()
         d["value"] = np.nan
     else:
@@ -155,7 +162,7 @@ def _sector_returns(mt: float, end: str, pn: tuple, san: tuple) -> pd.DataFrame:
 
 
 def sector_returns(end, pn=None, san=("HOSE",)) -> pd.DataFrame:
-    return _sector_returns(dl._mtime(dl.REGISTRY["tv_history"][2]), str(pd.Timestamp(end).date()), tuple(pn or dl.PN), tuple(san))
+    return _sector_returns(dl.px_ver(), str(pd.Timestamp(end).date()), tuple(pn or dl.PN), tuple(san))
 
 
 def stock_returns_from(px: pd.DataFrame, nhom: str, end, pn: tuple) -> pd.DataFrame:
@@ -188,7 +195,7 @@ def _stock_returns(mt: float, nhom: str, end: str, pn: tuple) -> pd.DataFrame:
 
 
 def stock_returns(nhom, end, pn=None) -> pd.DataFrame:
-    return _stock_returns(dl._mtime(dl.REGISTRY["tv_history"][2]), nhom, str(pd.Timestamp(end).date()), tuple(pn or dl.PN))
+    return _stock_returns(dl.px_ver(), nhom, str(pd.Timestamp(end).date()), tuple(pn or dl.PN))
 
 
 # ------------------------------------------------------------- DONG TIEN
@@ -222,7 +229,8 @@ def resample_flow(df: pd.DataFrame, freq: str) -> pd.DataFrame:
 
 
 def _flows_mt() -> float:
-    return dl._mtime(dl.REGISTRY["flows"][2]) + dl._mtime(getattr(dl, "FS_VCI", "")) + dl._mtime(getattr(dl, "FS_VND", ""))
+    # 21/10/2026: fs_ver = ban dung san / file goc khoi ngoai theo ma (+ phan live-first); them tu doanh theo ma
+    return dl._mtime(dl.REGISTRY["flows"][2]) + dl.fs_ver() + dl._raw_mt(dl.PROP_CSV)
 
 
 def treemap_flows(kind: str, d0, d1, pn=None, san=("HOSE", "HNX", "UPCOM"), topn=250) -> pd.DataFrame:
@@ -261,7 +269,12 @@ def _treemap_flows(mt: float, kind: str, d0, d1, pn: tuple, san: tuple, topn: in
 
 
 def stock_flows(code: str) -> pd.DataFrame:
-    fs = dl.foreign_stocks()
+    return _stock_flows(str(code), _flows_mt())
+
+
+@dl.vcache(show_spinner=False)
+def _stock_flows(code: str, mt: float) -> pd.DataFrame:
+    fs = dl.fs_code(code)                    # 21/10/2026: chi doc 1 ma (khong nap 5 trieu dong) + cache theo phien ban
     pr = dl.prop_stocks()
     kn = fs[fs.code == code].set_index("date").sort_index()
     td = pr[pr.code == code].set_index("date").sort_index()

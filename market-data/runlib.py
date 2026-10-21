@@ -56,7 +56,7 @@ CHILD_ENV.update({"PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8",
 
 @dataclass
 class Step:
-    slot: str                       # 'AM' | 'PM'
+    slot: str                       # 'AM' | 'PM' | 'EOD'
     name: str
     script: str                     # duong dan .py (tuong doi root cua hub hoac tuyet doi)
     workdir: str = ""               # tuong doi root hoac tuyet doi; "" -> thu muc chua script
@@ -325,7 +325,7 @@ def select_steps(steps: list, slot: str, only=None, skip=None, is_win: bool | No
 def parse_args(default_slot: str, argv=None):
     import argparse
     ap = argparse.ArgumentParser(description="Runner Python thay Run-*.ps1 (cung bang buoc).")
-    ap.add_argument("--slot", choices=["AM", "PM"], default=default_slot)
+    ap.add_argument("--slot", choices=["AM", "PM", "EOD"], default=default_slot)   # EOD (21/10/2026): market-eod.yml dung ban trinh bay app
     ap.add_argument("--only", default="", help="chi chay cac buoc nay, cach nhau boi dau phay (bo qua dieu kien lich)")
     ap.add_argument("--skip", default="", help="bo qua cac buoc nay (cong them env CLOUD_SKIP), vd cvhcm,nganh-ck")
     ap.add_argument("--dry-run", action="store_true", help="chi liet ke buoc se chay, khong chay")

@@ -23,6 +23,9 @@ is_mon, is_sat, is_early = today.weekday() == 0, today.weekday() == 5, today.day
 NGANH_CK = os.path.join(BCTC_ROOT, "nganh-chung-khoan")
 BCTC_SCAN = os.path.join(BCTC_ROOT, "bctc-scan")          # 13/10/2026: quet BCTC moi cong bo (CafeF, du phong Vietstock) -> app tab Tin tuc
 
+PRESENT_MATCH = "Che do|-> |Da luu|LOI|! "
+PRESENT_NOTE = "ban trinh bay dung san cho app Market Data (app/present_market.py) -> present/"
+
 STEPS = [
     # ---- AM 10:30
     Step("AM", "valuation-vn", "market-valuation/run_daily.py", "market-valuation", when=True, critical=True,
@@ -41,6 +44,9 @@ STEPS = [
     # 13/10/2026: BCTC moi cong bo toan thi truong (CafeF FileBCTC.ashx theo tung ma, ~1-2 phut; cloud chay duoc - probe 12/10 cafef OK)
     Step("AM", "bctc-scan", os.path.join(BCTC_SCAN, "bctc_scan.py"), BCTC_SCAN, when=True, retry=2, retry_wait=120,
          match="Che do|Tong|Da luu|LOI|-> |! ", note="BCTC quy/soat xet/kiem toan moi dang (CafeF) -> bctc-scan/data/bctc_congbo.csv -> app Tin tuc"),
+    # 21/10/2026: ban trinh bay dung san cho app Market (ma tran gia, do rong, khoi ngoai theo ma...) -> present/ - app Streamlit Cloud
+    # chi doc parquet nho thay vi nap tv-history 3,8 trieu dong + khoi ngoai 5 trieu dong (het RAM 1 GB). CUOI slot (sau moi buoc du lieu).
+    Step("AM", "md-present", "app/present_market.py", "app", when=True, match=PRESENT_MATCH, note=PRESENT_NOTE),
     # ---- PM 18:30 (sau khi TQ/HK/Han/Dai/Thai/Indo/Malaysia/Nhat dong cua; SBV da dang so trong ngay)
     Step("PM", "transmission", "transmission-fetcher/fetch_all.py", "transmission-fetcher", when=True, retry=3, retry_wait=90,
          critical=True, match="Che do|Master:|Bao cao|Tong|X |! ",
@@ -69,6 +75,9 @@ STEPS = [
     Step("PM", "bctc-scan", os.path.join(BCTC_SCAN, "bctc_scan.py"), BCTC_SCAN, when=True, retry=2, retry_wait=120,
          match="Che do|Tong|Da luu|LOI|-> |! ", note="lan 2 trong ngay: BCTC dang buoi chieu (mua cong bo 20-30 hang thang)"),
     Step("PM", "macro-region", "macro-fetcher/fetch_macro_region.py", "macro-fetcher", when=is_mon, match="."),
+    Step("PM", "md-present-pm", "app/present_market.py", "app", when=True, match=PRESENT_MATCH, note=PRESENT_NOTE),   # sau tvhistory/foreign-vci
+    # ---- EOD 15:20 (market-eod.yml, 21/10/2026): sau khi data_src.py --push day gia + khoi ngoai hom nay len Drive
+    Step("EOD", "md-present-eod", "app/present_market.py", "app", when=True, match=PRESENT_MATCH, note=PRESENT_NOTE),
 ]
 
 

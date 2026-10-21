@@ -87,6 +87,15 @@ FOLDERS: dict[str, Folder] = {f.key: f for f in [
     Folder("market-data", "nso-fetcher", note="NSO PX-Web + Bieu so lieu thang (monthly-reports 134 MB, parse lai moi tuan)"),
     Folder("market-data", "macro-fetcher"),
     Folder("market-data", "vsdc-accounts"),
+    # 21/10/2026: ban trinh bay dung san cho app Market Data (app/present_market.py, buoc md-present cuoi AM / PM / EOD) ~190 MB:
+    # ma tran gia, do rong, GTGD uoc, tv-live, OHLC VN, khoi ngoai theo ma -> app Streamlit Cloud chi doc parquet nay (het RAM 1 GB)
+    Folder("market-data", "present", seed=False,
+           note="ban trinh bay app Market (px/breadth/turnover_est/tv-live/tv-ohlc-vn/fs parquet + meta.json); cloud dung, khong seed"),
+    # cache live-first cua app (data_src.py) tren Drive: CHI DOC o day (buoc md-present AM/PM keo gia + khoi ngoai hom nay).
+    # Ghi do data_src.py --push (laptop + market-eod.yml) tu quan ly ban theo phien ban -> owner laptop + khong STEP 'rw' nao
+    # => sync_data KHONG bao gio day len / xoa thu muc nay.
+    Folder("market-data", "app-cache/src", owner="laptop", seed=False,
+           note="cache live-first app (stock_daily, foreign_stocks_tail...): data_src --push ghi, sync_data chi keo ve (md-present)"),
     Folder("market-data", "bond-pivot", exclude=["data/raw/pdfs/**", "logs/**", "tessdata/**", "output/**"],
            note="13/10/2026: cloud chay buoc bonds HANG NGAY (Market AM); Drive = data/processed + data/raw/pdf_text (cache OCR 25 MB)"
                 " + ca_bundle + config (~90 MB); PDF tai ve xoa sau OCR nen khong len Drive"),
@@ -124,6 +133,11 @@ FOLDERS: dict[str, Folder] = {f.key: f for f in [
 IDX_SMALL = ["indices-master.csv", "flows-master.csv", "fx-master.csv", "tv-history.csv", "raw/vn_screener_meta.csv",
              "raw/vn_icb_vci.csv"]
 
+# buoc md-present (app/present_market.py): gia tv-history + khoi ngoai theo ma (Vietcap parquet + VNDirect CSV) + meta san/nganh
+IDX_PRESENT = ["tv-history.csv", "raw/vn_screener_meta.csv", "raw/vn_icb_vci.csv", "raw/vn_foreign_stocks_vci.parquet",
+               "raw/vn_foreign_stocks_20*.csv"]
+SRC_PRESENT = ["status.json", "stock_daily*.parquet", "foreign_stocks_tail*.parquet"]   # app-cache/src: gia + khoi ngoai live-first
+
 # buoc -> [(thu muc, 'r'|'rw', include hoac None)]  (ten buoc = Step.name trong run_slot.py cua tung hub)
 STEP_FOLDERS: dict[str, list] = {
     # market-data AM
@@ -152,6 +166,12 @@ STEP_FOLDERS: dict[str, list] = {
     "macro-region":     [("market-data/macro-fetcher", "rw", None)],
     # market-data AM + PM (13/10/2026): quet BCTC moi cong bo; doc danh sach ma + ten DN tu index-fetcher raw
     "bctc-scan":        [("bctc/bctc-scan", "rw", None), ("market-data/index-fetcher", "r", IDX_SMALL)],
+    # 21/10/2026: ban trinh bay app Market (cuoi AM / PM; EOD dung SRC_CACHE vua cap nhat cua market-eod.yml nen khong keo app-cache)
+    "md-present":       [("market-data/present", "rw", None), ("market-data/index-fetcher", "r", IDX_PRESENT),
+                         ("market-data/app-cache/src", "r", SRC_PRESENT)],
+    "md-present-pm":    [("market-data/present", "rw", None), ("market-data/index-fetcher", "r", IDX_PRESENT),
+                         ("market-data/app-cache/src", "r", SRC_PRESENT)],
+    "md-present-eod":   [("market-data/present", "rw", None), ("market-data/index-fetcher", "r", IDX_PRESENT)],
     # shipping AM
     "vhbs":             [("shipping/VHBS-ConTex", "rw", None)],
     "haian":            [("hah", "rw", None)],

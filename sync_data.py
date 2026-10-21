@@ -217,7 +217,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("action", choices=["down", "up", "app", "seed", "plan"])
     ap.add_argument("--hub", default="market-data", choices=["market-data", "shipping", "bat-dong-san"])
-    ap.add_argument("--slot", default="", choices=["", "AM", "PM"])
+    ap.add_argument("--slot", default="", choices=["", "AM", "PM", "EOD"])     # EOD: market-eod.yml (md-present-eod)
     ap.add_argument("--only", default="")
     ap.add_argument("--job", default="cloud" if os.environ.get("CLOUD") == "1" or os.name != "nt" else "laptop",
                     choices=["cloud", "laptop"])
@@ -233,7 +233,7 @@ def main(argv=None) -> int:
     if a.action == "seed":
         return 1 if do_seed(rc, a.remote, a.skip_bond, a.dry_run) else 0
     if not a.slot:
-        sys.exit("can --slot AM|PM")
+        sys.exit("can --slot AM|PM|EOD")
     names, down, up_full, up_part = plan(a.hub, a.slot, only, a.job)
     print(f"[{a.action}] hub={a.hub} slot={a.slot} job={a.job} buoc: {', '.join(names) or '(khong co)'}")
     # hub 'hah' dung chung voi shipping: dong bo khi buoc haian chay

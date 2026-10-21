@@ -192,6 +192,51 @@ def by_period(df, lo=None, hi=None):
     return d
 
 
+def yoy_total(df, idx):
+    """% tổng (đo lường đang chọn) so CÙNG KỲ năm trước tại các kỳ idx. Kỳ đang chạy so cùng SỐ NGÀY năm trước."""
+    if df is None or df.empty or idx is None or not len(idx): return pd.Series(dtype=float)
+    d = df[['arr_day', MEAS]].copy(); d['ky'] = bucket(d['arr_day'], FREQ)
+    tot = d.groupby('ky')[MEAS].sum()
+    out = {}
+    for k in pd.DatetimeIndex(idx):
+        prev = (k - pd.DateOffset(years=1)) if FREQ == 'Tháng' else (k - pd.Timedelta(weeks=52))
+        if FREQ == 'Tháng': prev = prev + pd.offsets.MonthEnd(0)
+        cur_v = tot.get(k, np.nan)
+        if LAST < k:                                              # kỳ đang chạy: lũy kế tới LAST so cùng số ngày năm trước
+            p0 = (k.replace(day=1) if FREQ == 'Tháng' else k - pd.Timedelta(days=6)) - (pd.DateOffset(years=1) if FREQ == 'Tháng' else pd.Timedelta(weeks=52))
+            p1 = LAST - (pd.DateOffset(years=1) if FREQ == 'Tháng' else pd.Timedelta(weeks=52))
+            base = d.loc[(d['arr_day'] >= p0) & (d['arr_day'] <= p1), MEAS].sum()
+        else:
+            base = tot.get(prev, np.nan)
+        out[k] = (cur_v / base - 1) * 100 if base and base == base and base > 0 else np.nan
+    y = pd.Series(out, name='YoY tổng (%)')
+    # lịch cảng vụ chỉ có Cái Mép từ 08/2025 -> phạm vi có Cái Mép: YoY chỉ so được từ 08/2026 (hai kỳ cùng phạm vi)
+    hcm = (df['auth'] == 'HCM') if 'auth' in df else pd.Series(False, index=df.index)
+    has_cm = (hcm & (df['terminal'].map(_tp_hcm) == CM_PORT)).any() if 'terminal' in df else hcm.any()   # bảng chuyến (không có bến): có HCM là tính
+    if has_cm: y[y.index < YOY_CM_FROM] = np.nan
+    return y
+
+
+_tp_hcm = ed.terminal_port('HCM')
+YOY_CM_FROM = pd.Timestamp('2026-08-31')
+
+
+def with_yoy(fig, df, w):
+    """công tắc YoY bật: thêm đường YoY của TỔNG biểu đồ (trục phải)"""
+    if not YOY or fig is None or w is None or w.empty: return fig
+    y = yoy_total(df, w.index).dropna()
+    if y.empty and len(w) and 'auth' in df and (df['auth'] == 'HCM').any():
+        fig.add_annotation(x=1, y=1, xref='paper', yref='paper', xanchor='right', yanchor='bottom', showarrow=False,
+                           text='YoY từ 08/2026 (dữ liệu Cái Mép có từ 08/2025)', font=dict(size=10, color=TOK['down']))
+    if y.empty: return fig
+    fig.add_trace(go.Scatter(x=y.index, y=y.values, name='YoY tổng (%)', mode='lines+markers', yaxis='y2',
+                             line=dict(color=TOK['down'], width=1.8, dash='dash'), marker=dict(size=4),
+                             hovertemplate='%{y:+.1f}%<extra>YoY tổng</extra>'))
+    fig.update_layout(yaxis2=dict(overlaying='y', side='right', showgrid=False, ticksuffix='%', zeroline=True, zerolinecolor=TOK['ink3'],
+                                  tickfont=dict(size=11, color=TOK['down'])), showlegend=True)
+    return fig
+
+
 def entity_order(df, key, value):
     """thứ tự thực thể CỐ ĐỊNH theo tổng 24 tháng gần nhất -> màu đi theo thực thể, không đổi khi lọc kỳ"""
     d = df[df['arr_day'] >= LAST - pd.DateOffset(months=24)]
@@ -304,6 +349,9 @@ with h2c:
 
 # ---- bộ lọc chung (thay sidebar cũ)
 f1, f2, f3, f4, f5 = st.columns([1.3, 1.9, 1.2, 1.7, 3])
+_t1, _t2, _t3 = f5.columns([0.9, 1.3, 2.6])
+with _t1: YOY = st.toggle('YoY', value=False, key='f_yoy', help='Thêm đường % so cùng kỳ năm trước (trục phải) cho biểu đồ theo kỳ')
+with _t2: ui.LABELS['on'] = st.toggle('Nhãn số liệu', value=False, key='f_lbl', help='Hiện số trên biểu đồ, cách quãng (~12 nhãn) cho đỡ chồng')
 with f1: TAU = st.segmented_control('Loại tàu', ['Container', 'Mọi loại'], default='Container', key='f_tau') or 'Container'
 with f2: MEAS_LABEL = st.segmented_control('Đo lường', list(MEASURES), default='TEU danh nghĩa', key='f_meas') or 'TEU danh nghĩa'
 with f3: FREQ = st.segmented_control('Độ phân giải', ['Tháng', 'Tuần'], default='Tháng', key='f_freq') or 'Tháng'
@@ -344,7 +392,7 @@ ui.set_data_end(LAST); ui.DATA_MIN = LOAD_LO.date()
 _cur = bucket(pd.Series([LAST]), FREQ).iloc[0]                    # mốc cuối kỳ đang chạy (tháng / tuần)
 ui.PARTIAL.update(x=_cur if LAST < _cur else None, last=LAST, label=f'lũy kế đến {LAST:%d/%m}', freq=FREQ)
 _upd = (VER.split('|')[1] or '')[:16]
-with f5:
+with _t3:
     st.markdown(f'<div class="gn-note" style="margin-top:28px">Dữ liệu đến <b>{LAST:%d/%m/%Y}</b> · kho cập nhật {_upd} · '
                 'TEU là sức chở danh nghĩa của tàu, không phải sản lượng xếp dỡ.</div>', unsafe_allow_html=True)
 
@@ -408,7 +456,7 @@ def page_overview(level, auth, term, K):
         with ui.card(f'{MEAS_LABEL} theo {FREQ.lower()}', unit='theo cảng vụ', key=f'{K}_series', periods=PER, default='2Y', end=LAST,
                      help='Mỗi đường = 1 cảng vụ (7 lớn nhất + Khác). Kỳ đang chạy = lũy kế tới ngày dữ liệu cuối (nét đứt).') as cd:
             w = wide(by_period(c, cd.d0, cd.d1), 'Cảng vụ', order)
-            cd.chart(ui.fig_line(w, unit=MEAS_LABEL, zero=True, hover_nd=0), w, last=LAST, ten='theo_cang_vu',
+            cd.chart(with_yoy(ui.fig_line(w, unit=MEAS_LABEL, zero=True, hover_nd=0), c, w), w, last=LAST, ten='theo_cang_vu',
                      note_text='Các bến Cái Mép – Thị Vải chỉ có trong dữ liệu TP.HCM từ 07–08/2025 nên chuỗi TP.HCM tăng bậc ở mốc này.')
         with ui.card('Tỷ trọng từng cảng vụ', unit='% cả nước', key=f'{K}_share', periods=PER, default='2Y', end=LAST) as cd:
             d = by_period(c, cd.d0, cd.d1); w = wide(d, 'Cảng vụ', order, share_of=d)
@@ -426,7 +474,7 @@ def page_overview(level, auth, term, K):
             dim = {'Bến': 'terminal', 'Nhóm chủ bến': 'group', 'Mã CK': 'ticker'}[cd.chip]
             va = v[v[dim] != '']; order = entity_order(va, dim, MEAS)
             w = wide(by_period(va, cd.d0, cd.d1), dim, order)
-            cd.chart(ui.fig_stack(w, unit=MEAS_LABEL), w, last=LAST, ten=f'{auth}_theo_{dim}')
+            cd.chart(with_yoy(ui.fig_stack(w, unit=MEAS_LABEL), va, w), w, last=LAST, ten=f'{auth}_theo_{dim}')
         with ui.card(f'Thị phần trong tổng {tl.AUTH_LABEL[auth]}', unit='%', key=f'{K}_share_{auth}', periods=PER, default='2Y', end=LAST,
                      chips=['Bến', 'Nhóm chủ bến', 'Mã CK'], chip_default='Bến', chip_label='Gộp theo') as cd:
             dim = {'Bến': 'terminal', 'Nhóm chủ bến': 'group', 'Mã CK': 'ticker'}[cd.chip]
@@ -452,7 +500,7 @@ def page_overview(level, auth, term, K):
                          note_text=f'Thị phần của {term} trong tổng lượt cập bến {tl.AUTH_LABEL[auth]} (cùng bộ lọc loại tàu).')
             else:
                 w = wide(d, 'Bến', [term])
-                cd.chart(ui.fig_bars(w, unit=MEAS_LABEL, sign=False, hover_nd=0), w, last=LAST, ten=f'{term}_theo_ky')
+                cd.chart(with_yoy(ui.fig_bars(w, unit=MEAS_LABEL, sign=False, hover_nd=0), v, w), w, last=LAST, ten=f'{term}_theo_ky')
         a, b = st.columns(2)
         last12 = v[(v['arr_day'] > LAST - pd.DateOffset(months=12)) & (v['arr_day'] <= LAST)]
         with a:
@@ -576,7 +624,7 @@ def page_operators(level, auth, term, K):
         with b:
             with ui.card('Hãng theo kỳ', unit=f'{MEAS_LABEL} · 6 hãng lớn nhất + Khác', key=f'{K}_opseries', periods=PER, default='2Y', end=LAST, compact=True) as cd:
                 order = entity_order(known, 'operator', MEAS); w = wide(by_period(known, cd.d0, cd.d1), 'operator', order, n=6)
-                cd.chart(ui.fig_stack(w, unit=MEAS_LABEL), w, last=LAST, ten=f'{term}_hang_theo_ky')
+                cd.chart(with_yoy(ui.fig_stack(w, unit=MEAS_LABEL), known, w), w, last=LAST, ten=f'{term}_hang_theo_ky')
 
     order_op = entity_order(known, 'operator', MEAS)
     if order_op:
@@ -585,7 +633,7 @@ def page_operators(level, auth, term, K):
             allo = known[known['operator'] == op].copy()
             allo['ben'] = allo['Cảng vụ'] if level == 'toan-quoc' else (allo['terminal'] if level == 'cang-vu' else term)
             w = wide(by_period(allo, cd.d0, cd.d1), 'ben', entity_order(allo, 'ben', MEAS))
-            cd.chart(ui.fig_stack(w, unit=MEAS_LABEL), w, last=LAST, ten=f'{ui.slug(op)}_theo_ben')
+            cd.chart(with_yoy(ui.fig_stack(w, unit=MEAS_LABEL), allo, w), w, last=LAST, ten=f'{ui.slug(op)}_theo_ben')
             f12 = allo[(allo['arr_day'] > LAST - pd.DateOffset(months=12)) & (allo['arr_day'] <= LAST)]
             pat = get_lanes(*KEY)[1]
             fl = (f12.groupby(['ship_key', 'ship'], as_index=False)

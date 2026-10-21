@@ -397,6 +397,7 @@ class Card:
             fig.update_layout(height=height)
         _xaxis_fmt(fig, self.months)
         apply_rangebreaks(fig)
+        add_labels(fig)
         mark_partial(fig)
         live = (df.attrs.get("live") if df is not None and hasattr(df, "attrs") else None) if LIVE["active"] else None
         if live and isinstance(df, pd.DataFrame) and isinstance(df.index, pd.DatetimeIndex) and \
@@ -752,6 +753,61 @@ def apply_rangebreaks(fig):
 PARTIAL = {'x': None, 'last': None, 'label': ''}
 
 
+LABELS = {'on': False, 'target': 12}     # 21/10/2026: nhãn số liệu (bật ở hàng bộ lọc), ~12 nhãn / biểu đồ
+
+
+def _fmt_lbl(v, pct=False):
+    if v is None or v != v: return ''
+    if pct == 'yoy': return f'{v:+.1f}%'.replace('.', ',') if abs(v) < 1000 else ''
+    if pct: return f'{v:.1f}%'.replace('.', ',')
+    a = abs(v)
+    if a >= 1e6: return f'{v / 1e6:.2f}tr'.replace('.', ',')
+    if a >= 1e4: return f'{v / 1e3:.0f}k'
+    if a >= 100: return f'{v:,.0f}'.replace(',', '.')
+    return f'{v:.1f}'.replace('.', ',')
+
+
+def _is_date_x(tr):
+    return tr.x is not None and len(tr.x) > 0 and (isinstance(tr.x[0], (pd.Timestamp, np.datetime64))
+                                                  or bool(re.match(r'\d{4}-\d{2}-\d{2}', str(tr.x[0]))))
+
+
+def add_labels(fig):
+    """nhãn số liệu THƯA: bước = ceil(số kỳ / 12) tính lùi từ kỳ mới nhất (24 tháng -> cách 1 tháng 1 nhãn).
+    Cột/vùng chồng: nhãn TỔNG trên đỉnh; đường: nhãn từng đường (tối đa 4 đường); YoY: nhãn %."""
+    if not LABELS['on'] or fig is None or 'no_labels' in str(fig.layout.meta or ''): return
+    trs = [t for t in fig.data if _is_date_x(t) and t.y is not None]
+    if not trs: return
+    xs = sorted({pd.Timestamp(x) for t in trs for x in t.x})
+    step = max(1, int(np.ceil(len(xs) / LABELS['target'])))
+    pick = set(xs[::-1][::step])
+    pct_axis = '%' in str(fig.layout.yaxis.title.text or '')
+    stack_bars = [t for t in trs if t.type == 'bar'] if fig.layout.barmode in ('stack', 'relative') else []
+    stack_area = [t for t in trs if t.type == 'scatter' and getattr(t, 'stackgroup', None)]
+    for grp in (stack_bars if len(stack_bars) > 1 else [], stack_area):
+        if not grp or pct_axis: continue                                  # tỷ trọng (%) cộng = 100: không ghi nhãn tổng
+        tot = {}
+        for t in grp:
+            for x, y in zip(t.x, t.y):
+                if y is not None and y == y: tot[pd.Timestamp(x)] = tot.get(pd.Timestamp(x), 0) + float(y)
+        px = [x for x in sorted(tot) if x in pick]
+        fig.add_trace(go.Scatter(x=px, y=[tot[x] for x in px], mode='text', text=[_fmt_lbl(tot[x], pct_axis) for x in px],
+                                 textposition='top center', textfont=dict(size=10, color=TOK['ink2']), showlegend=False, hoverinfo='skip'))
+    singles = [t for t in trs if t.type == 'bar' and t not in (stack_bars if len(stack_bars) > 1 else [])]
+    for t in singles:
+        t.text = [_fmt_lbl(y, pct_axis) if pd.Timestamp(x) in pick else '' for x, y in zip(t.x, t.y)]
+        t.textposition = 'outside'; t.textfont = dict(size=10, color=TOK['ink2']); t.cliponaxis = False
+    lines = [t for t in trs if t.type == 'scatter' and not getattr(t, 'stackgroup', None) and 'lines' in str(t.mode or 'lines')
+             and t.showlegend is not False]
+    yoy = [t for t in lines if 'YoY' in str(t.name)]
+    for t in (lines if len(lines) - len(yoy) <= 4 else yoy):            # nhiều đường: chỉ ghi nhãn đường YoY
+        if True:
+            is_pct = 'yoy' if 'YoY' in str(t.name) else (pct_axis or '%' in str(t.name))
+            t.text = [_fmt_lbl(y, is_pct) if pd.Timestamp(x) in pick else '' for x, y in zip(t.x, t.y)]
+            t.mode = (t.mode or 'lines') + '+text'; t.textposition = 'top center'
+            t.textfont = dict(size=10, color=(t.line.color if t.line and t.line.color else TOK['ink2']))
+
+
 def mark_partial(fig):
     """cột của kỳ chưa trọn -> mờ; đường -> đoạn cuối nét đứt; + nhãn 'lũy kế đến dd/mm'"""
     x0 = PARTIAL.get('x')
@@ -771,7 +827,10 @@ def mark_partial(fig):
             i = int(np.argmax(hit)); ys = list(tr.y)
             if i > 0 and ys[i] is not None and ys[i - 1] is not None:
                 col = tr.line.color if tr.line and tr.line.color else None
-                extra.append(go.Scatter(x=[tr.x[i - 1], tr.x[i]], y=[ys[i - 1], ys[i]], mode='lines+markers', name=tr.name, showlegend=False,
+                txt = list(tr.text) if tr.text is not None and not isinstance(tr.text, str) else None
+                extra.append(go.Scatter(x=[tr.x[i - 1], tr.x[i]], y=[ys[i - 1], ys[i]], name=tr.name, showlegend=False,
+                                        mode='lines+markers+text' if txt else 'lines+markers', text=['', txt[i]] if txt else None,
+                                        textposition='top center', textfont=tr.textfont if txt else None,
                                         line=dict(color=col, width=(tr.line.width or 2), dash='dot'), marker=dict(size=6, color=col, symbol='circle-open'),
                                         yaxis=tr.yaxis, hovertemplate='%{y:,.0f}<extra>' + str(tr.name) + ' (' + PARTIAL['label'] + ')</extra>'))
                 ys[i] = None; tr.y = ys

@@ -17,6 +17,7 @@ Tùy chọn:
     --dpi N           DPI render trang khi OCR (mặc định: 300). Hạ xuống 250 = nhanh hơn.
     --psm N           Tesseract page segmentation mode (mặc định: 6)
     --layout {on,off} Dựng lại bảng theo toạ độ chữ, bọc code-block (mặc định: on)
+    --rotate {auto,off} Tự xoay trang scan nằm ngang/lộn ngược bằng Tesseract OSD (mặc định: auto)
 
 Mẹo tốc độ (khối lượng lớn):
     - jobs để mặc định (đã bằng ~3/4 số luồng CPU) là tối ưu cho đa số máy.
@@ -30,6 +31,7 @@ Ví dụ:
 """
 import argparse
 import os
+import re
 import statistics
 import sys
 import threading
@@ -145,27 +147,45 @@ def ocr_layout(img, lang, psm):
     return "\n".join(out)
 
 
-def ocr_page(img, lang, psm, layout):
+def detect_rotation(img):
+    """Tesseract OSD: góc (0/90/180/270, chiều kim đồng hồ) cần xoay để trang đứng thẳng."""
     import pytesseract as pt
+    try:
+        osd = pt.image_to_osd(img, config="--psm 0")
+        m = re.search(r"Rotate:\s*(\d+)", osd)
+        return int(m.group(1)) % 360 if m else 0
+    except Exception:  # noqa: BLE001 - trang trắng/ít chữ -> OSD lỗi, coi như không xoay
+        return 0
+
+
+def ocr_page(img, lang, psm, layout, rotate="auto"):
+    import pytesseract as pt
+    note = ""
+    if rotate == "auto":
+        deg = detect_rotation(img)
+        if deg:
+            # OSD "Rotate: 90" = xoay ảnh 90° theo chiều kim đồng hồ; PIL.rotate quay ngược chiều -> -deg
+            img = img.rotate(-deg, expand=True)
+            note = f"<!-- xoay {deg} -->\n"
     if layout:
-        return f"```text\n{ocr_layout(img, lang, psm)}\n```"
-    return pt.image_to_string(img, lang=lang).strip()
+        return f"{note}```text\n{ocr_layout(img, lang, psm)}\n```"
+    return note + pt.image_to_string(img, lang=lang).strip()
 
 
 class OcrEngine:
     """Pool OCR dùng chung cho toàn bộ job, có semaphore chặn tràn RAM."""
 
-    def __init__(self, workers, lang, psm, layout):
+    def __init__(self, workers, lang, psm, layout, rotate="auto"):
         self.pool = ThreadPoolExecutor(max_workers=workers)
         self.sem = threading.Semaphore(workers * 2)
-        self.lang, self.psm, self.layout = lang, psm, layout
+        self.lang, self.psm, self.layout, self.rotate = lang, psm, layout, rotate
 
     def submit(self, img):
         self.sem.acquire()
 
         def run():
             try:
-                return ocr_page(img, self.lang, self.psm, self.layout)
+                return ocr_page(img, self.lang, self.psm, self.layout, self.rotate)
             finally:
                 self.sem.release()
 
@@ -248,6 +268,8 @@ def main():
     parser.add_argument("-l", "--lang", default="vie+eng", help="Ngôn ngữ OCR")
     parser.add_argument("--dpi", type=int, default=300, help="DPI render trang khi OCR")
     parser.add_argument("--psm", type=int, default=6, help="Tesseract PSM (mặc định 6)")
+    parser.add_argument("--rotate", choices=["auto", "off"], default="auto",
+                        help="auto = tự phát hiện trang scan xoay ngang (Tesseract OSD) và xoay lại trước khi OCR")
     parser.add_argument("--layout", choices=["on", "off"], default="on",
                         help="Dựng bảng theo toạ độ + bọc code-block (mặc định: on)")
     args = parser.parse_args()
@@ -271,7 +293,7 @@ def main():
     layout = args.layout == "on"
 
     print(f"PDF: {len(pdfs)} (làm {len(todo)}, bỏ qua {skip}) | OCR={args.ocr} "
-          f"| lang={args.lang} | dpi={args.dpi} | psm={args.psm} | layout={args.layout} "
+          f"| lang={args.lang} | dpi={args.dpi} | psm={args.psm} | layout={args.layout} | rotate={args.rotate} "
           f"| jobs={jobs} | CPU={cpu}\n")
     if not todo:
         print("Không còn file nào cần làm.")
@@ -306,7 +328,7 @@ def main():
         if err:
             print(f"Không bật được OCR: {err}")
             sys.exit(1)
-        engine = OcrEngine(jobs, args.lang, args.psm, layout)
+        engine = OcrEngine(jobs, args.lang, args.psm, layout, args.rotate)
         # vài luồng đọc/render file song song để luôn có việc đẩy vào pool OCR
         file_workers = max(2, jobs // 3)
         try:

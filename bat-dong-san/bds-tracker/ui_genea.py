@@ -346,11 +346,11 @@ def kpi_strip(items):
 def period_dates(per: str, end=None):
     end = pd.Timestamp(end or DATA_END).date()
     if per == "YTD":
-        return date(end.year - 1, 12, 31), end
+        return max(DATA_MIN, date(end.year - 1, 12, 31)), end
     if per in ("All", None):
         return DATA_MIN, end
     m = PERIOD_MONTHS.get(per, 12)
-    return (pd.Timestamp(end) - pd.DateOffset(months=m)).date(), end
+    return max(DATA_MIN, (pd.Timestamp(end) - pd.DateOffset(months=m)).date()), end   # 17/10/2026: khong lui truoc DATA_MIN (date_input bao loi)
 
 
 def _on_per(key, end):

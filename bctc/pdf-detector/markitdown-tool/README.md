@@ -32,6 +32,7 @@ python "D:\bctc\pdf-detector\markitdown-tool\pdf2md.py" "<đường dẫn>" [tù
 | `--dpi 300` | độ nét OCR — `250` nhanh hơn ~30%, `350-400` nét hơn |
 | `--psm 6` | chế độ phân vùng trang Tesseract |
 | `--layout on` | (mặc định) dựng bảng thẳng cột + bọc code-block; `off` = OCR thường |
+| `--rotate auto` | (mặc định) tự phát hiện trang scan nằm ngang/lộn ngược bằng Tesseract OSD và xoay lại trước khi OCR (trang bị xoay có ghi chú `<!-- xoay 90 -->`); `off` = không xoay |
 
 **Ví dụ:**
 ```powershell
@@ -62,6 +63,7 @@ python "...\pdf2md.py" "D:\TaiLieu" -r --ocr off      # PDF có sẵn chữ, b�
 - markitdown thuần **KHÔNG OCR** → PDF scan (không có lớp text) sẽ ra rỗng. Vì vậy mới tự thêm OCR bằng pypdfium2 (render trang) + Tesseract.
 - Trỏ tessdata qua biến môi trường **`TESSDATA_PREFIX`**, KHÔNG dùng `--tessdata-dir` (pytesseract cắt config theo dấu cách → path có khoảng trắng bị hỏng).
 - **Tốc độ:** song song theo TRANG bằng 1 pool OCR dùng chung (`OcrEngine`) + semaphore chặn tràn RAM; vài luồng render đẩy việc vào pool → nhanh cả khi 1 file lớn lẫn nhiều file nhỏ. Tắt đa luồng nội bộ Tesseract (`OMP_THREAD_LIMIT=1`) để tự song song ngoài. Benchmark: HAH 58 trang scan từ 578s (tuần tự) → 84s (~6.9x).
+- **Xoay trang (20/10/2026):** BCTC scan hay có trang ngang (KQHĐ, LCTT, VCSH, thuyết minh) -> OCR ra rác. `--rotate auto` gọi `image_to_osd` (cần `osd.traineddata` trong tessdata) mỗi trang OCR, OSD "Rotate: N" = xoay N° chiều kim đồng hồ -> `img.rotate(-N, expand=True)` (PIL quay ngược chiều). Trang trắng/ít chữ OSD lỗi -> bỏ qua. Chạy trong pool OCR nên song song, tốn ~+1s/trang.
 - **Bảng:** `--layout on` dựng lại dòng theo toạ độ x của chữ (`image_to_data`/TSV) rồi bọc ` ```text ` → số trong bảng tài chính thẳng cột, Markdown giữ căn lề.
 - Console Windows ép UTF-8 để in tiếng Việt (tránh lỗi cp1252).
 

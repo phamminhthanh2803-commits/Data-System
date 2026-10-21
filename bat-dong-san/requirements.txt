@@ -1,11 +1,12 @@
-# requirements.txt — thư viện cho bước bds-projects (bds_scrape.py) trên GitHub Actions (bds-am.yml), 17/10/2026.
-# Phiên bản ghim theo D:\market-data\requirements.txt (Python 3.12). App bds-tracker (streamlit/plotly) chạy ở laptop,
-# dùng bộ thư viện chung của market-data, không cần cài trên cloud.
+# requirements.txt — thư viện cho bước bds-projects (bds_scrape.py), 17/10/2026. 18/10: hub chạy LOCAL (laptop), KHÔNG dùng cloud;
+# file này chỉ để ghim phiên bản (theo D:/market-data/requirements.txt, Python 3.12). App bds-tracker (streamlit/plotly)
+# dùng bộ thư viện chung của market-data.
 pandas==2.3.3
 numpy==2.2.6
 pyarrow==24.0.0
 curl_cffi==0.15.0            # giả Chrome qua Cloudflare batdongsan.com.vn
 beautifulsoup4==4.14.3       # parser html.parser (không cần lxml)
+pymupdf==1.28.2              # --reports: trích text/bảng PDF research.batdongsan (không bắt buộc, thiếu thì --no-extract)
 python-dateutil==2.9.0.post0
 pytz==2026.2
 tzdata==2026.2

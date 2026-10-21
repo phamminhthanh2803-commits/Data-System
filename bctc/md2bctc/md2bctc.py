@@ -8,7 +8,7 @@ Usage:
 
 Output (trong outdir):
     <ticker>_<year>_bctc_long.csv   -> 1 dòng / (báo cáo, mã số, kỳ)  [chính, dùng cho SQL]
-    <ticker>_<year>_bctc_wide.csv   -> dạng bảng dễ đọc (mã số + 2 cột kỳ)
+    <ticker>_<year>_bctc_wide.csv   -> dạng bảng dễ đọc (mã số + 2 cột kỳ; BC quý: thêm 4 cột KQKD quy_/ytd_)
     <ticker>_<year>_bctc_meta.csv   -> metadata 1 dòng (công ty, năm, đơn vị...)
 
 Thiết kế cho mẫu CTCK (B01/B02/B03/B04). Parse thuần regex, không cần API.
@@ -339,6 +339,51 @@ def normalize_code(code):
 # 4. Bóc record theo block báo cáo
 # ----------------------------------------------------------------------------
 
+QUARTER_IS_PERIODS = ["quy_current", "quy_prior", "ytd_current", "ytd_prior"]
+QUARTER_IS_DESC = ["Quy nay - Nam nay", "Quy nay - Nam truoc",
+                   "Luy ke - Nam nay", "Luy ke - Nam truoc"]
+
+
+def _extract_quarterly_is(blocks, stmt):
+    """
+    blocks: [(code, text, cflag, raw_lines)] của B02. Nếu số cột phổ biến (mode) == 4
+    -> trả về records 4 kỳ (quy_current/quy_prior/ytd_current/ytd_prior) gán theo toạ độ
+    cuối số trên dòng chứa số; ô trống '-' giữ đúng cột. Không phải 4 cột -> None.
+    """
+    rows = []
+    for code, text, _cflag, raw in blocks:
+        line = next((ln for ln in raw if AMOUNT_RE.search(ln)), None)
+        if line is None:
+            continue
+        cells = find_amounts_pos(normalize_line_ocr(line))
+        name, note, _ = parse_record(text)
+        rows.append((code, name, note, cells, line.strip()))
+    if not rows:
+        return None
+    N = Counter(len(r[3]) for r in rows).most_common(1)[0][0]
+    if N != 4:
+        return None
+    full = [r for r in rows if len(r[3]) == 4]
+    anchors = [sum(r[3][i][1] for r in full) / len(full) for i in range(4)]
+    out = []
+    for code, name, note, cells, rawtxt in rows:
+        if len(cells) == 4:
+            vals, overflow = [c[0] for c in cells], False
+        else:
+            vals, overflow = _assign_cols(cells, anchors)
+        flag = "overflow" if overflow else ""
+        for i, v in enumerate(vals):
+            if v is None:
+                continue
+            out.append({
+                "statement": stmt, "ma_so": code, "chi_tieu": name,
+                "thuyet_minh": note, "period": QUARTER_IS_PERIODS[i],
+                "period_desc": QUARTER_IS_DESC[i], "value": v,
+                "flag": flag, "raw": rawtxt if flag else "",
+            })
+    return out
+
+
 def extract_statement(form, pages_of_form):
     """
     pages_of_form: list các (page_no, lines) đã gom theo 1 form code.
@@ -387,6 +432,13 @@ def extract_statement(form, pages_of_form):
         blocks.append(cur)
 
     base_stmt, _ = FORM_NAME[form]
+
+    # KQKD báo cáo QUÝ (TT334, mã đầu dòng) có 4 cột: Quý này/Quý trước/Lũy kế nay/Lũy kế trước
+    # -> gán theo TOẠ ĐỘ (anchor) như _parse_old_section, thay vì chỉ lấy cặp đầu.
+    if base_stmt == "income_statement":
+        q = _extract_quarterly_is(blocks, base_stmt)
+        if q is not None:
+            return q
 
     for code, text, cflag, raw in blocks:
         stmt = "cash_flow_client" if (form == "B03" and cflag) else base_stmt
@@ -996,7 +1048,11 @@ def write_wide(path, records):
                          "current": "", "prior": "", "flag": r["flag"]}
             order.append(key)
         wide[key][r["period"]] = r["value"]
-    wcols = ["statement", "ma_so", "chi_tieu", "thuyet_minh", "current", "prior", "flag"]
+    wcols = ["statement", "ma_so", "chi_tieu", "thuyet_minh", "current", "prior"]
+    periods = {r["period"] for r in records}
+    if periods & set(QUARTER_IS_PERIODS):
+        wcols += QUARTER_IS_PERIODS
+    wcols.append("flag")
     with open(path, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.writer(f)
         w.writerow(wcols)

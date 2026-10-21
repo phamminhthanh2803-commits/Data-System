@@ -29,6 +29,9 @@ import pandas as pd
 HERE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(HERE, 'data')
 TARGETS = os.path.join(os.path.dirname(HERE), 'port-tracker', 'nowcast_targets.csv')
+# 21/10/2026: kho dữ liệu cục bộ D:\shipping\port-tracker\store đã xoá (bản online đọc Drive) -> chia khối theo EconDB / lịch tàu đọc kho laptop đồng bộ
+_PD_STORE = r'D:\pipeline-data\shipping\port-tracker\store'
+if os.path.isdir(_PD_STORE): os.environ.setdefault('PORT_TRACKER_STORE', _PD_STORE)
 COLS = ['year_prev', 'cum_prev', 'cum_cur', 'teu', 'nhap_ngoai', 'xuat_ngoai', 'nhap_noi', 'xuat_noi', 'trung_chuyen', 'teu20', 'rong', 'lanh', 'sa_lan']
 CANG_VU = '__CANG_VU__'           # dòng tổng cảng vụ trong nowcast_targets (cộng các cảng VPA của cảng vụ)
 REGIONS = ('MIỀN BẮC', 'BẮC TRUNG BỘ', 'NAM TRUNG BỘ', 'ĐÔNG NAM BỘ', 'CÁI MÉP', 'ĐỒNG BẰNG', 'TỔNG CỘNG')

@@ -397,6 +397,7 @@ class Card:
             fig.update_layout(height=height)
         _xaxis_fmt(fig, self.months)
         apply_rangebreaks(fig)
+        mark_partial(fig)
         live = (df.attrs.get("live") if df is not None and hasattr(df, "attrs") else None) if LIVE["active"] else None
         if live and isinstance(df, pd.DataFrame) and isinstance(df.index, pd.DatetimeIndex) and \
                 (df.empty or pd.Timestamp(df.index.max()).normalize() != _today()):
@@ -410,6 +411,7 @@ class Card:
         self.export(df_export if df_export is not None else df, ten, fig)
         if last is None and df is not None and len(df) and isinstance(df.index, pd.DatetimeIndex):
             last = df.index.max()
+            if PARTIAL.get('x') is not None and pd.Timestamp(last) >= pd.Timestamp(PARTIAL['x']): last = PARTIAL['last']   # kỳ chưa trọn
         txt = []
         if live:
             hist_end = live.get("hist_end")
@@ -742,6 +744,43 @@ def apply_rangebreaks(fig):
     if hol:
         rb.append(dict(values=hol))
     fig.update_xaxes(rangebreaks=rb)
+
+
+# 21/10/2026 PV2: kỳ đang chạy (tháng/tuần chưa trọn) vẫn hiện = LŨY KẾ tới ngày dữ liệu cuối, vẽ khác đi tới khi đủ kỳ.
+# App đặt PARTIAL['x'] = mốc cuối kỳ đang chạy, PARTIAL['last'] = ngày dữ liệu cuối. Biểu đồ có layout.meta 'no_partial' bỏ qua
+# (vd biểu đồ sản lượng đã có nowcast cả tháng).
+PARTIAL = {'x': None, 'last': None, 'label': ''}
+
+
+def mark_partial(fig):
+    """cột của kỳ chưa trọn -> mờ; đường -> đoạn cuối nét đứt; + nhãn 'lũy kế đến dd/mm'"""
+    x0 = PARTIAL.get('x')
+    if x0 is None or fig is None or (fig.layout.meta or '') == 'no_partial': return
+    x0 = pd.Timestamp(x0); found, extra = False, []
+    for tr in fig.data:
+        if tr.x is None or len(tr.x) == 0: continue
+        if not isinstance(tr.x[0], (pd.Timestamp, np.datetime64)) and not re.match(r'\d{4}-\d{2}-\d{2}', str(tr.x[0])): continue   # trục chữ
+        try: xt = pd.to_datetime(pd.Index(list(tr.x)), errors='coerce')
+        except Exception: continue  # noqa: E701,BLE001
+        hit = np.asarray(xt == x0)
+        if not hit.any(): continue
+        found = True
+        if tr.type == 'bar':
+            tr.marker.opacity = [0.38 if h else 1.0 for h in hit]
+        elif tr.type == 'scatter' and not getattr(tr, 'stackgroup', None) and tr.y is not None:
+            i = int(np.argmax(hit)); ys = list(tr.y)
+            if i > 0 and ys[i] is not None and ys[i - 1] is not None:
+                col = tr.line.color if tr.line and tr.line.color else None
+                extra.append(go.Scatter(x=[tr.x[i - 1], tr.x[i]], y=[ys[i - 1], ys[i]], mode='lines+markers', name=tr.name, showlegend=False,
+                                        line=dict(color=col, width=(tr.line.width or 2), dash='dot'), marker=dict(size=6, color=col, symbol='circle-open'),
+                                        yaxis=tr.yaxis, hovertemplate='%{y:,.0f}<extra>' + str(tr.name) + ' (' + PARTIAL['label'] + ')</extra>'))
+                ys[i] = None; tr.y = ys
+    for t in extra: fig.add_trace(t)
+    if found:
+        half = pd.Timedelta(days=3.5 if PARTIAL.get('freq') == 'Tuần' else 15)   # dải nền phủ kỳ đang chạy (mọi loại biểu đồ, kể cả vùng chồng)
+        fig.add_vrect(x0=x0 - half, x1=x0 + half, fillcolor=TOK['ink3'], opacity=0.08, line_width=0, layer='below')
+        fig.add_annotation(x=x0, y=1, xref='x', yref='paper', yanchor='bottom', text=PARTIAL['label'], showarrow=False,
+                           font=dict(size=10, color=TOK['ink3']))
 
 
 def _is_time(df):

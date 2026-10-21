@@ -597,7 +597,11 @@ def _bbox(mm, pad=0.02):
 def _layer_controls(K, bbox, default_osm=('exp_plan', 'metro', 'construction', 'proposed', 'motorway', 'airport')):
     """bộ chọn lớp chồng: tile quy hoạch (theo phạm vi), lớp OSM, trạng thái, ranh phân khu HN, độ mờ"""
     tl_opts = il.tiles_for_bbox(bbox)
-    c1, c2, c3 = st.columns([2.4, 2.4, 1.4])
+    c0, c1, c2, c3 = st.columns([1.6, 2.2, 2.2, 1.3])
+    with c0:
+        base = st.selectbox('Nền bản đồ', list(il.BASEMAPS), index=list(il.BASEMAPS).index(st.session_state.get('basemap', il.BASEMAP_DEFAULT)), key=f'{K}_base',
+                            format_func=lambda k: il.BASEMAPS[k][0], help='Voyager/Liberty/Bright/Esri: nền có đường, tên đường, địa danh kiểu Google Maps; Positron: nền nhạt để lớp hạ tầng nổi.')
+        st.session_state['basemap'] = base
     with c1:
         tiles = st.multiselect('Lớp quy hoạch (tile)', tl_opts, default=[], key=f'{K}_tiles', format_func=lambda k: il.TILES[k][0],
                                placeholder='Chọn lớp quy hoạch chồng lên nền…' if tl_opts else 'Phạm vi này chưa có tile quy hoạch')
@@ -673,7 +677,7 @@ def page_map(level, tinh, pid, K):
         # 17/10/2026: nền OpenStreetMap (tile.openstreetmap.org) không phân giải DNS được từ mạng VN -> CARTO Positron
         n_inf = _apply_layers(fig, tiles, osm, sts, zones, op, bbox if level != 'toan-quoc' else None, max_pts=25 if level == 'toan-quoc' else 60)
         fig.update_traces(marker=dict(opacity=0.85 if dens == 'Đủ' else 0.95))
-        fig.update_layout(height=680, margin=dict(l=0, r=0, t=10, b=0), showlegend=False, hovermode='closest')
+        fig.update_layout(height=680, margin=dict(l=0, r=0, t=10, b=0), showlegend=False, hovermode='closest', map_style=il.BASEMAPS[st.session_state.get('basemap', il.BASEMAP_DEFAULT)][1])
         note = (f'hiện {len(mm):,}/{len(m):,} chấm (mỗi ô lưới giữ dự án nhiều căn nhất, hover thấy số dự án còn lại trong ô)'.replace(',', '.') if dens != 'Đủ' else f'{len(m):,} chấm'.replace(',', '.'))
         cd.chart(fig, bl.project_table(m).assign(lat=m['lat'].values, lng=m['lng'].values), ten='ban_do_du_an', height=680,
                  note_text=note + (f' · {n_inf:,} đoạn hạ tầng OSM trong khung'.replace(',', '.') if n_inf else ''))
@@ -695,7 +699,7 @@ def page_project_map(pid, K):
                              color_discrete_map={'Dự án này': TOK['down'], 'Dự án lân cận': TOK['gray']}, center={'lat': lat, 'lon': lng})
         fig.update_traces(marker=dict(opacity=0.75)); fig.update_traces(marker=dict(opacity=1), selector=dict(name='Dự án này')); fig.update_traces(marker_sizemin=5)
         n_inf = _apply_layers(fig, tiles, osm, sts, zones, op, bbox)
-        fig.update_layout(height=620, margin=dict(l=0, r=0, t=10, b=0), showlegend=False, hovermode='closest')
+        fig.update_layout(height=620, margin=dict(l=0, r=0, t=10, b=0), showlegend=False, hovermode='closest', map_style=il.BASEMAPS[st.session_state.get('basemap', il.BASEMAP_DEFAULT)][1])
         cd.chart(fig, near[['project_id', 'name', 'status', 'lat', 'lng']], ten=f'ban_do_pj{pid}', height=620,
                  note_text=f'{n_inf} đoạn hạ tầng OSM trong khung · {len(near) - 1} dự án lân cận')
     lk = get_hcm_lookup(il.stamp())

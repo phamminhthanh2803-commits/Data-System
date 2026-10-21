@@ -265,3 +265,18 @@ def hcm_lookup_summary(row) -> dict:
     for k in ['parcel_area', 'parcel_no', 'docs', 'landuse', 'roads', 'dccb', 'fetched']:
         if k in row and pd.notna(row[k]) and row[k] not in ('', '[]'): out[k] = row[k]
     return out
+
+# ---------------------------------------------------------------- nền bản đồ (21/10/2026, PV2 muốn nền kiểu Google Maps)
+# Plotly/MapLibre nhận tên style có sẵn, URL style vector, hoặc dict style raster. Không dùng tile Google (vi phạm điều khoản nếu không qua Maps Platform).
+_ESRI = {'version': 8, 'sources': {'esri': {'type': 'raster', 'tiles': ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'],
+                                            'tileSize': 256, 'attribution': 'Esri, HERE, Garmin, OpenStreetMap contributors'}},
+         'layers': [{'id': 'esri', 'type': 'raster', 'source': 'esri'}]}
+BASEMAPS = {
+    'voyager': ('Voyager – đường & địa danh kiểu Google (CARTO)', 'carto-voyager'),
+    'liberty': ('Liberty – vector, tuỳ biến được (OpenFreeMap)', 'https://tiles.openfreemap.org/styles/liberty'),
+    'bright': ('Bright – vector rõ đường (OpenFreeMap)', 'https://tiles.openfreemap.org/styles/bright'),
+    'esri': ('Esri World Street Map (raster)', _ESRI),
+    'positron': ('Positron – nền nhạt tối giản (CARTO)', 'carto-positron'),
+    'osm': ('OpenStreetMap chuẩn', 'open-street-map'),
+}
+BASEMAP_DEFAULT = 'voyager'

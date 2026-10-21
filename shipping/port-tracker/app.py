@@ -180,12 +180,11 @@ def bucket(s, freq):
 
 
 def by_period(df, lo=None, hi=None):
-    """lọc khung ngày [lo, hi] (mặc định của thẻ) rồi gán kỳ; bỏ kỳ cuối chưa trọn để đường không gãy giả"""
+    """lọc khung ngày [lo, hi] (mặc định của thẻ) rồi gán kỳ. 21/10/2026: GIỮ kỳ cuối chưa trọn (= lũy kế tới ngày dữ liệu cuối);
+    biểu đồ tự vẽ kỳ đó mờ / nét đứt (ui.PARTIAL)"""
     d = df[(df['arr_day'] >= pd.Timestamp(lo if lo is not None else LO)) & (df['arr_day'] <= pd.Timestamp(hi if hi is not None else LAST))].copy()
     if d.empty: return d
     d['ky'] = bucket(d['arr_day'], FREQ)
-    cur = bucket(pd.Series([LAST]), FREQ).iloc[0]                 # mốc cuối kỳ hiện tại
-    if LAST < cur: d = d[d['ky'] < cur]                            # kỳ cuối chưa trọn
     first = d['ky'].min() if len(d) else None
     if first is not None:
         p0 = first - pd.Timedelta(days=6) if FREQ == 'Tuần' else first.replace(day=1)     # ngày đầu kỳ đầu tiên
@@ -342,6 +341,8 @@ tick('get_calls+visits')
 LAST = min(calls.loc[calls['arr_day'].notna(), 'arr_day'].max(), TODAY)
 LO = LOAD_LO
 ui.set_data_end(LAST); ui.DATA_MIN = LOAD_LO.date()
+_cur = bucket(pd.Series([LAST]), FREQ).iloc[0]                    # mốc cuối kỳ đang chạy (tháng / tuần)
+ui.PARTIAL.update(x=_cur if LAST < _cur else None, last=LAST, label=f'lũy kế đến {LAST:%d/%m}', freq=FREQ)
 _upd = (VER.split('|')[1] or '')[:16]
 with f5:
     st.markdown(f'<div class="gn-note" style="margin-top:28px">Dữ liệu đến <b>{LAST:%d/%m/%Y}</b> · kho cập nhật {_upd} · '
@@ -405,7 +406,7 @@ def page_overview(level, auth, term, K):
     if level == 'toan-quoc':
         order = entity_order(c, 'Cảng vụ', MEAS)
         with ui.card(f'{MEAS_LABEL} theo {FREQ.lower()}', unit='theo cảng vụ', key=f'{K}_series', periods=PER, default='2Y', end=LAST,
-                     help='Mỗi đường = 1 cảng vụ (7 lớn nhất + Khác). Kỳ cuối chưa trọn bị bỏ.') as cd:
+                     help='Mỗi đường = 1 cảng vụ (7 lớn nhất + Khác). Kỳ đang chạy = lũy kế tới ngày dữ liệu cuối (nét đứt).') as cd:
             w = wide(by_period(c, cd.d0, cd.d1), 'Cảng vụ', order)
             cd.chart(ui.fig_line(w, unit=MEAS_LABEL, zero=True, hover_nd=0), w, last=LAST, ten='theo_cang_vu',
                      note_text='Các bến Cái Mép – Thị Vải chỉ có trong dữ liệu TP.HCM từ 07–08/2025 nên chuỗi TP.HCM tăng bậc ở mốc này.')
@@ -725,7 +726,7 @@ def page_lanes(level, auth, term, K):
     with b:
         with ui.card('Chặng theo tháng', unit=mlab, key=f'{K}_series', periods=PER, default='2Y', end=LAST, compact=True) as cd:
             pick = st.multiselect('Chặng theo dõi (tối đa 6)', order, default=order[:4], max_selections=6, key=f'{K}_pick')
-            g = L[L['lane'].isin(pick) & (L['month'] >= pd.Timestamp(cd.d0)) & (L['month'] <= pd.Timestamp(cd.d1)) & (L['month'] < tl.me(LAST))]
+            g = L[L['lane'].isin(pick) & (L['month'] >= pd.Timestamp(cd.d0)) & (L['month'] <= pd.Timestamp(cd.d1)) ]
             w = g.groupby(['month', 'lane'])[mcol].sum().unstack('lane').reindex(columns=[k for k in order if k in pick]).fillna(0)
             w.index = pd.DatetimeIndex(w.index); w.index.name = 'Tháng'
             cd.chart(ui.fig_line(w, unit=mlab, zero=True, hover_nd=0), w, last=LAST, ten='chang_theo_thang')
@@ -1004,7 +1005,7 @@ def fig_nowcast(d, bt_name, blocks=None):
         f = d.loc[d['kind'] != 'nowcast (tháng đang chạy)', 'modeled'].dropna()      # tháng đang chạy mới vài ngày -> fit quy đổi nhiễu, không vẽ
         fig.add_trace(go.Scatter(x=f.index, y=f.values, name=f'Mô hình fit ({bt_name.split(":")[0]})' if bt_name else 'Mô hình fit', mode='lines+markers',
                                  line=dict(color=TOK['down'], width=2, dash='dash'), marker=dict(size=5), hovertemplate='%{y:,.0f}<extra>Mô hình fit</extra>'))
-    fig.update_layout(height=380, barmode='overlay', bargap=0.25, yaxis=dict(title='TEU / tháng', rangemode='tozero'))
+    fig.update_layout(height=380, barmode='overlay', bargap=0.25, yaxis=dict(title='TEU / tháng', rangemode='tozero'), meta='no_partial')
     return fig
 
 
@@ -1370,7 +1371,7 @@ def fig_quarter(q):
                          hovertemplate='%{y:,.0f}<br>%{customdata}<extra>Ước / dự báo</extra>'))
     fig.add_trace(go.Scatter(x=q.index, y=q['tong'], mode='text', text=[f'{v / 1e6:,.2f}tr' if v >= 1e6 else f'{v / 1e3:,.0f}k' for v in q['tong']],
                              textposition='top center', showlegend=False, hoverinfo='skip'))
-    fig.update_layout(height=380, barmode='stack', bargap=0.35, yaxis=dict(title='TEU / quý', rangemode='tozero'))
+    fig.update_layout(height=380, barmode='stack', bargap=0.35, yaxis=dict(title='TEU / quý', rangemode='tozero'), meta='no_partial')
     return fig
 
 
@@ -1509,8 +1510,10 @@ def page_volume(level, auth, term, K):
                 w, ratio, err = vimawa_compare(m['d'], vm)
                 w = cd.cut(w)
                 fe = lambda k, lab: f'{lab} {err[k][0]:.1f}% ({err[k][1]} tháng)'.replace('.', ',') if err[k][0] is not None else ''  # noqa: E731
-                cd.chart(ui.fig_line(w, unit='TEU', zero=False, hover_nd=0, markers=True,
-                                     dash={'App: dự báo quá khứ (backtest)': 'dot', 'Cục HH ước (lập ngày 15)': 'dot'}),
+                fv = ui.fig_line(w, unit='TEU', zero=False, hover_nd=0, markers=True,
+                                 dash={'App: dự báo quá khứ (backtest)': 'dot', 'Cục HH ước (lập ngày 15)': 'dot'})
+                if fv is not None: fv.update_layout(meta='no_partial')             # tháng đang chạy = nowcast cả tháng
+                cd.chart(fv,
                          w.iloc[::-1].round(0), ten='tham_chieu_cuc_hang_hai', last=LAST,
                          note_text=(f'Tỷ lệ VPA / Cục HH 6 tháng gần nhất = {ratio:.1%}. '.replace('.', ',', 1) if ratio else '')
                                    + 'Sai số trung bình (MAPE): ' + ' · '.join(x for x in (

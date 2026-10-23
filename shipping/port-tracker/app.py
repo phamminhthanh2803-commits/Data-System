@@ -1126,7 +1126,7 @@ def nc_term(auth, term, E, ra):
         members = [x.strip() for x in grp.split('+')]
         fg = ft if len(members) == 1 else nw.features(va[va['terminal'].map(nw.nfc).isin([nw.nfc(x) for x in members])], LAST)   # nhóm: biến gộp các bến
         mt = nw.own_min_train(fg, pub)                            # 7–8 tháng trùng (Cái Mép) vẫn tự hồi quy, backtest ít điểm
-        res = nw.run(fg, pub, min_train=mt, seasonal_ref=port, force=force, prior=prior,
+        res = nw.run(fg, pub, min_train=mt, seasonal_ref=nw.season_ref(T, auth), force=force, prior=prior,
                      blocks=nw.block_list(nw.load_blocks(), auth, grp, pub)) if mt else None
         if res is not None:
             if len(members) > 1 and len(ts): ts = nw.terminal_series(E['series'], lcs, ed.TERMINAL_MAP, members[0], TODAY)
@@ -1247,7 +1247,7 @@ def nc_published_total(auth, name):
         r = nc_split_cm(v, pub_all, cut, auth, name) if cut else None          # tách Cái Mép: phần còn lại học + fit được cả trước mốc cắt
         if r is None:
             f = nw.features(v, LAST); mt = nw.own_min_train(f, pub)
-            r = nw.run(f, pub, min_train=mt, seasonal_ref=pub_all, prior=nw.self_prior(f, pub),
+            r = nw.run(f, pub, min_train=mt, seasonal_ref=nw.season_ref(T, auth), prior=nw.self_prior(f, pub),
                        blocks=nw.block_list(nw.load_blocks(), auth, name, pub_all)) if mt else None
         cache[key] = None if r is None else {
             'd': r['data'], 'res': r,
@@ -1351,8 +1351,9 @@ def nc_split_cm(v, pub, cut, auth=None, name=None):
     for W, tot in (nw.block_list(B, auth, name, pub) if auth else []):           # khối tổng (vd T8–T12/2025) -> chia 2 phần chính xác
         cm_w = _window_sum(T, B, 'HCM', cm_terms, W)
         if cm_w is not None and 0 < cm_w < tot: b_cm.append((W, cm_w)); b_rest.append((W, tot - cm_w))
-    r_rest = nw.run(f_rest, rest_act, min_train=mt_r, seasonal_ref=rest_act, prior=nw.self_prior(f_rest, rest_act), blocks=b_rest)
-    r_cm = nw.run(f_cm, cm_fit, min_train=mt_c, seasonal_ref=cm_act, prior=nw.self_prior(f_cm, cm_fit), blocks=b_cm)
+    sref = nw.season_ref(T, 'HCM')                                  # mùa vụ: chuỗi VPA cảng vụ (không lấy chuỗi riêng từng phần)
+    r_rest = nw.run(f_rest, rest_act, min_train=mt_r, seasonal_ref=sref, prior=nw.self_prior(f_rest, rest_act), blocks=b_rest)
+    r_cm = nw.run(f_cm, cm_fit, min_train=mt_c, seasonal_ref=sref, prior=nw.self_prior(f_cm, cm_fit), blocks=b_cm)
     if r_rest is None or r_cm is None: return None
     # phần Cái Mép trước mốc cắt: thực tế VPA làm cả fit/backtest (chỉ để cộng ra đường tổng, không tính sai số)
     pre = [m for m in r_rest['data'].index if m not in r_cm['data'].index and m in cm_act.index]
@@ -1646,6 +1647,12 @@ def page_volume(level, auth, term, K):
                 note += ' ⚠ Mô hình chưa tốt hơn "lấy tháng trước" → dùng số dự báo thận trọng.'
             elif r and not r.get('pooled') and r.get('n_bt', 99) < 6:
                 note += f' Chỉ {r["n_bt"]} tháng backtest chung → sai số chưa đáng tin.'
+            if r:                                        # 23/10/2026: hệ số hiệu chỉnh sai số 3 tháng có số gần nhất
+                adjs = [r['adj']] if r.get('adj') else [p_.get('adj') for p_ in (r.get('parts') or {}).values() if p_ and p_.get('adj')]
+                if adjs:
+                    note += (' Ước/dự báo đã nhân hệ số hiệu chỉnh theo sai số 3 tháng có số gần nhất ('
+                             + ', '.join(f'×{x:.2f}'.replace('.', ',') for x in adjs[:5]) + ') - độ đầy hàng của tàu thay đổi theo thời gian.'
+                             + ' Mùa vụ tháng dự báo theo chuỗi VPA cấp cảng vụ năm trước (cảng vụ đang tăng/giảm mạnh thì theo toàn quốc).')
             fig = fig_nowcast(dd, m['res']['best'] if m['res'] else '', blocks=(m['res'] or {}).get('blocks'))
             econ = m.get('econ')
             if econ is not None and len(econ):            # EconDB (full) chỉ để trong bảng tải về, không vẽ (PV2 16/10)

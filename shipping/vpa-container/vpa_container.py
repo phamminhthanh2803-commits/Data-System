@@ -206,6 +206,28 @@ def apply_confirmed(long):
     return long, d
 
 
+TRAILING_RATIO = (0.55, 1.4)   # TB tháng của phần còn lại / TB các số cuối phải nằm trong khoảng này mới tin cách đọc
+
+
+def _trailing_ok(key, t, yr, have):
+    """23/10/2026: kiểm chứng công thức ít số = 'lũy kế T1..Tk + các tháng cuối' bằng các tháng ĐÃ BIẾT (lũy kế cùng kỳ của sheet mới):
+    số đầu − tháng đã biết trong T1..Tk chia cho số tháng còn thiếu (≤ 3) phải cỡ các số cuối (TRAILING_RATIO);
+    không thiếu tháng nào thì số đầu phải khớp tổng đã biết ±2%."""
+    n = len(t); fe = 13 - n
+    span = [_me(yr, m) for m in range(1, fe + 1)]
+    known = [have[(key, m)] for m in span if (key, m) in have.index]
+    unk = len(span) - len(known)
+    if unk > 3: return False
+    rest = t[0] - sum(known)
+    if unk == 0:
+        ok = abs(rest) <= 0.02 * t[0]
+    else:
+        tail = float(np.mean(t[1:])) if t[1:] else 0
+        ok = tail > 0 and TRAILING_RATIO[0] <= (rest / unk) / tail <= TRAILING_RATIO[1]
+    if ok: print(f'  + {key}: xác nhận công thức "lũy kế T1..T{fe} + {n - 1} tháng cuối" (còn {unk} tháng: {rest:,.0f})')
+    return ok
+
+
 def year_months(form, long, weights=None, cum=None):
     """-> (rows, blocks) năm trước từ công thức cột Năm.
     rows: tháng tách được (nguon nam_truoc_cong_thuc) + tháng PHÂN BỔ từ khối (phan_bo_nam_truoc, chỉ để hiển thị/cộng tổng tham khảo).
@@ -219,7 +241,8 @@ def year_months(form, long, weights=None, cum=None):
         if r.key not in meta.index: continue
         if r.key == 'TONG CONG': continue                                                         # tổng: khối riêng ở main()
         t, yr = r.terms, r.year
-        if len(t) <= MIN_TERMS_MONTHLY - 1 and r.key not in TRAILING_OK: t = [sum(t)]     # 2–4 số: không rõ mỗi số là tháng nào (HTIT 49.476 ≠ T12 ảnh 63.729) -> chỉ tổng năm
+        if 1 < len(t) <= MIN_TERMS_MONTHLY - 1 and r.key not in TRAILING_OK and not _trailing_ok(r.key, t, yr, have):
+            t = [sum(t)]     # 2–4 số chưa kiểm chứng được cách đọc 'lũy kế + tháng cuối' (HTIT 49.476 ≠ T12 ảnh 63.729) -> chỉ tổng năm
         n = len(t); fe = 13 - n if n > 1 else 12                                                    # số đầu = T1..T(fe)
         for i, v in enumerate(t[1:] if n > 1 else [], start=fe + 1):
             rows.append({'key': r.key, 'month': _me(yr, i), 'teu': v, 'nguon': 'nam_truoc_cong_thuc'})

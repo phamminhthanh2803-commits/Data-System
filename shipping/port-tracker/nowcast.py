@@ -58,6 +58,19 @@ MODELS = {
     'H: giờ + sức chở, 6 tháng':  (['hours', 'teu'], 6),
 }
 NAIVE = 'Naive: tháng trước'
+# 23/10/2026: hiệu chỉnh theo sai số gần nhất - độ đầy hàng của tàu (TEU công bố / sức chở) đổi theo thời gian (HP 0,63 nửa đầu 2026 ->
+# 0,82 T9/2026), hệ số cố định đoán lệch có hệ thống. Ước/dự báo × TB(thực tế / mô hình) của BIAS_K tháng có số gần nhất, chặn BIAS_CLIP.
+# Backtest 360 điểm / 28 phạm vi: MAPE 15,6 -> 14,2% (2026: 15,8 -> 13,4%; T8-T9/2026: 20,5 -> 15,4%).
+BIAS_K = 3
+BIAS_CLIP = (0.7, 1.4)
+
+
+def _bias(y, fit):
+    """hệ số hiệu chỉnh = TB(thực tế / mô hình) của BIAS_K tháng cuối, chặn BIAS_CLIP; 1 nếu không đủ"""
+    y = np.asarray(y, float)[-BIAS_K:]; fit = np.asarray(fit, float)[-BIAS_K:]
+    ok = fit > 0
+    if not ok.any(): return 1.0
+    return float(np.clip(np.mean(y[ok] / fit[ok]), *BIAS_CLIP))
 RECENT_BT = 6               # chọn mô hình theo điểm = TB(MAPE cả lịch sử, MAPE 6 tháng backtest gần nhất)
 BAND_Q = 0.8                # khoảng ước/dự báo = ± sai số backtest phân vị 80%
 TARGETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'nowcast_targets.csv')   # số CÔNG BỐ theo bến (auth, terminal, month, actual_teu)
@@ -229,7 +242,8 @@ def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=
             lo = 0 if window is None else max(0, i - window)
             tr = train.iloc[lo:i]
             Xb, yb = _with_blocks(tr, cols, B, upto=train.index[i], lo=None if window is None else tr.index[0])
-            preds.append(float(train[cols].iloc[i].values @ _fit(Xb, yb, _pv(prior, cols))))
+            c_ = _fit(Xb, yb, _pv(prior, cols))
+            preds.append(float(train[cols].iloc[i].values @ c_) * _bias(tr['actual'].values, tr[cols].values @ c_))
         bt[name] = preds
     bt[NAIVE] = train['actual'].shift(1).iloc[min_train:].values
     mape = {c: float(np.mean(np.abs(bt[c] / bt['actual'] - 1)) * 100) for c in list(MODELS) + [NAIVE]}
@@ -249,11 +263,12 @@ def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=
     rows = train if window is None else train.iloc[-window:]
     Xb, yb = _with_blocks(rows, cols, B, lo=None if window is None else rows.index[0])
     coef = _fit(Xb, yb, _pv(prior, cols))
+    adj = _bias(rows['actual'].values, rows[cols].values @ coef)   # hiệu chỉnh theo sai số 3 tháng có số gần nhất
     # khoảng = ± sai số PHÂN VỊ 80% của backtest (16/10/2026: ± MAPE chỉ trùm 33/68 tháng công bố mới = 49%)
     err = float(np.quantile(np.abs(bt[best] / bt['actual'] - 1), BAND_Q))
 
-    data, seas = _assemble(feat, actual, cols, coef, err, seasonal_ref, bt[best])
-    return {'data': data, 'mape': mape, 'mape_recent': mape_recent, 'fit_err': fit_err, 'fits': fits, 'auto': auto, 'best': best, 'cols': cols,
+    data, seas = _assemble(feat, actual, cols, coef, err, seasonal_ref, bt[best], adj=adj)
+    return {'data': data, 'mape': mape, 'mape_recent': mape_recent, 'fit_err': fit_err, 'fits': fits, 'auto': auto, 'best': best, 'cols': cols, 'adj': adj,
             'coef': dict(zip(cols, coef)), 'backtest': bt, 'n_bt': len(bt),
             'n_train': len(train), 'seasonal': seas, 'dwt_per_teu': feat.attrs.get('dwt_per_teu'),
             'blocks': [{'months': b['months'], 'total': b['total'], 'modeled': float(np.array([b[c] for c in cols]) @ coef) * b['k']} for b in B]}
@@ -329,6 +344,22 @@ def target_series(t, auth, terminal):
     return s[~s.index.duplicated(keep='last')]
 
 
+SEAS_GROWTH = (0.8, 1.25)   # YoY 3 tháng gần nhất của cảng vụ ngoài khoảng này -> mùa vụ lấy chuỗi toàn quốc
+
+
+def season_ref(t, auth):
+    """chuỗi làm MÙA VỤ cho dự báo thuần (PV2 23/10/2026): VPA cấp CẢNG VỤ, không lấy chuỗi riêng của bến - tỷ lệ năm trước của 1 bến
+    lẫn đà tăng/giảm của bến (vd Phước An đang lên công suất) thành "mùa vụ" giả. Backtest dự báo thuần 04–09/2026 (444 điểm, h = 1–3):
+    mùa vụ riêng từng bến MAPE 18,7% -> theo cảng vụ 13,5%. Cảng vụ tự nó tăng/giảm mạnh (YoY ngoài SEAS_GROWTH, vd Đồng Nai) -> toàn quốc."""
+    vn = target_series(t, 'VN', 'TOÀN QUỐC')
+    if auth in ('VN', 'TOÀN QUỐC'): return vn
+    s = target_series(t, auth, '__CANG_VU__')
+    if len(s) >= 15:
+        r = s.iloc[-3:]; l = s.reindex([ly(x) for x in r.index])
+        if l.notna().all() and l.sum() > 0 and SEAS_GROWTH[0] <= r.sum() / l.sum() <= SEAS_GROWTH[1]: return s
+    return vn if len(vn) else s
+
+
 def save_targets(auth, terminal, rows):
     """thay toàn bộ số của (auth, terminal) bằng rows (cột month, actual_teu)"""
     old = load_targets(); old = old[~((old['auth'] == auth) & (old['terminal'].map(nfc) == nfc(terminal)))]
@@ -337,7 +368,7 @@ def save_targets(auth, terminal, rows):
     out['month'] = out['month'].dt.strftime('%Y-%m'); out.to_csv(TARGETS, index=False, encoding='utf-8')
 
 
-def _assemble(feat, actual, cols, coef, err, seasonal_ref=None, bt_series=None):
+def _assemble(feat, actual, cols, coef, err, seasonal_ref=None, bt_series=None, adj=1.0):
     """dựng bảng tháng (thực tế / nowcast / dự báo / khoảng) từ hệ số đã có; dùng cho run() và hệ số chung"""
     data = feat.join(actual.rename('actual'), how='left')
     scale = (data['days_month'] / data['days_obs'].clip(lower=1)).where(data['partial'], 1.0)
@@ -346,7 +377,7 @@ def _assemble(feat, actual, cols, coef, err, seasonal_ref=None, bt_series=None):
     data['kind'] = np.where(data['actual'].notna(), 'thực tế', ''); data['nowcast'] = np.nan; data['forecast'] = np.nan; data['w'] = np.nan
     last_act = actual.index.max() if len(actual) else feat.index.min() - pd.Timedelta(days=1)
     nc = data['actual'].isna() & ~data['partial'] & (data.index > last_act)      # tháng trọn SAU thực tế cuối, có biến chưa có thực tế
-    data.loc[nc, 'nowcast'] = data.loc[nc, 'modeled']; data.loc[nc, 'kind'] = 'nowcast'; data.loc[nc, 'w'] = 1.0
+    data.loc[nc, 'nowcast'] = data.loc[nc, 'modeled'] * adj; data.loc[nc, 'kind'] = 'nowcast'; data.loc[nc, 'w'] = 1.0   # adj: hiệu chỉnh sai số gần nhất
 
     # dự báo thuần (không cần biến tháng đích): biến = TB 3 tháng trọn gần nhất (B) × mùa vụ; mùa vụ từ chuỗi THỰC TẾ năm trước
     # = thực tế(tháng đích - 1 năm) / TB thực tế(B - 1 năm), chặn 0,7–1,35 (không lấy từ biến vì có thể gãy do đổi phạm vi)
@@ -358,7 +389,7 @@ def _assemble(feat, actual, cols, coef, err, seasonal_ref=None, bt_series=None):
         seas, ly_, lyb = 1.0, ly(tm), [ly(x) for x in B]
         if ly_ in sref.index and all(x in sref.index for x in lyb) and sref.loc[lyb].mean() > 0:
             seas = float(np.clip(sref.loc[ly_] / sref.loc[lyb].mean(), 0.7, 1.35))
-        return float(base.values @ coef) * seas, seas
+        return float(base.values @ coef) * seas * adj, seas
 
     # NOWCAST tháng đang chạy = w × (biến đã có quy ra cả tháng) + (1 - w) × dự báo thuần, w = số ngày đã có / số ngày tháng
     # (dưới MIN_DAYS_PARTIAL ngày thì w = 0: biến vài ngày đầu tháng quá nhiễu)
@@ -366,7 +397,7 @@ def _assemble(feat, actual, cols, coef, err, seasonal_ref=None, bt_series=None):
     if cur in data.index and data.loc[cur, 'partial'] and pd.isna(data.loc[cur, 'actual']):
         f, _ = forecast(cur); dobs, dmon = data.loc[cur, 'days_obs'], data.loc[cur, 'days_month']
         w = float(dobs / dmon) if dobs >= MIN_DAYS_PARTIAL else 0.0
-        data.loc[cur, ['forecast', 'w', 'nowcast', 'kind']] = [f, w, w * data.loc[cur, 'modeled'] + (1 - w) * f, 'nowcast (tháng đang chạy)']
+        data.loc[cur, ['forecast', 'w', 'nowcast', 'kind']] = [f, w, w * data.loc[cur, 'modeled'] * adj + (1 - w) * f, 'nowcast (tháng đang chạy)']
     data = data[data['kind'] != '']
     # 16/10/2026: dự báo tới HẾT QUÝ của tháng kế tiếp -> quý đang mở luôn đủ 3 tháng (T10 -> T11, T12; T12 -> T1..T3)
     nxt = me(cur + pd.Timedelta(days=1)); qend = me(nxt + pd.offsets.QuarterEnd(0))

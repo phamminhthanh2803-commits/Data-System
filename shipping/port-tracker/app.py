@@ -1653,6 +1653,9 @@ def page_volume(level, auth, term, K):
                     note += (' Ước/dự báo đã nhân hệ số hiệu chỉnh theo sai số 3 tháng có số gần nhất ('
                              + ', '.join(f'×{x:.2f}'.replace('.', ',') for x in adjs[:5]) + ') - độ đầy hàng của tàu thay đổi theo thời gian.'
                              + ' Mùa vụ tháng dự báo theo chuỗi VPA cấp cảng vụ năm trước (cảng vụ đang tăng/giảm mạnh thì theo toàn quốc).')
+                if r.get('best') == nw.ENS or any(p_ and p_.get('best') == nw.ENS for p_ in (r.get('parts') or {}).values()):
+                    note += (' Số ước = TB 3 cách: hồi quy lịch tàu, TB thực tế 3 tháng gần nhất × mùa vụ, độ đầy hàng 3 tháng × sức chở tháng đích'
+                             ' (backtest: sai số thấp hơn từng cách riêng, nhất là bến nhỏ/sà lan).')
             fig = fig_nowcast(dd, m['res']['best'] if m['res'] else '', blocks=(m['res'] or {}).get('blocks'))
             econ = m.get('econ')
             if econ is not None and len(econ):            # EconDB (full) chỉ để trong bảng tải về, không vẽ (PV2 16/10)
@@ -1759,19 +1762,23 @@ def page_volume(level, auth, term, K):
                     # chọn tay mô hình cho bến (mặc định: tự động theo điểm backtest)
                     opts = ['Tự động'] + list(nw.MODELS)
                     st.selectbox('Mô hình dùng cho bến này', opts, key=f'nc_force_{auth}_{nw.nfc(term)}',
-                                 format_func=lambda x: f'Tự động ({r["auto"].split(":")[0]})' if x == 'Tự động' else x)
+                                 format_func=lambda x: f'Tự động (tổ hợp, hồi quy {r["auto"].split(":")[0]})' if x == 'Tự động' else x)
                 rows = []
                 for k in nw.MODELS:
                     rows.append({'Mô hình': k, 'Đang dùng': '✔' if k == r['best'] else ('tự động' if k == r.get('auto') else ''),
                                  'MAPE backtest (%)': r['mape'].get(k), '6 tháng gần (%)': (r.get('mape_recent') or {}).get(k),
                                  'Fit trong mẫu (%)': (r.get('fit_err') or {}).get(k)})
+                if nw.ENS in r['mape']:
+                    rows.append({'Mô hình': nw.ENS, 'Đang dùng': '✔' if r['best'] == nw.ENS else '', 'MAPE backtest (%)': r['mape'][nw.ENS],
+                                 '6 tháng gần (%)': (r.get('mape_recent') or {}).get(nw.ENS)})
                 rows.append({'Mô hình': nw.NAIVE, 'Đang dùng': '', 'MAPE backtest (%)': r['mape'].get(nw.NAIVE), '6 tháng gần (%)': (r.get('mape_recent') or {}).get(nw.NAIVE)})
                 t = pd.DataFrame(rows).sort_values('MAPE backtest (%)')
                 cd.table(t.round(1).reset_index(drop=True), ten=f'so_sanh_mo_hinh_{_norm(name)}', height=60 + 36 * len(t))
                 if r.get('fits') is not None:
                     # đối chiếu fit: thực tế (cột) + fit của mô hình đang dùng và 2 mô hình tốt kế tiếp
                     score = {k: 0.5 * r['mape'][k] + 0.5 * r['mape_recent'][k] for k in nw.MODELS}
-                    show = [r['best']] + [k for k in sorted(score, key=score.get) if k != r['best']][:2]
+                    rg = r.get('reg', r['best'])                 # tổ hợp: fit vẽ theo mô hình hồi quy thành phần
+                    show = [rg] + [k for k in sorted(score, key=score.get) if k != rg][:2]
                     fits = r['fits'][show]; fits = fits[fits.index >= d.index.min()]
                     fig = go.Figure(go.Bar(x=d.index, y=d['actual'], name='Thực tế', marker_color=TOK['gray'], width=22 * 86400000, hovertemplate='%{y:,.0f}<extra>Thực tế</extra>'))
                     for i, k in enumerate(show):
@@ -1780,7 +1787,7 @@ def page_volume(level, auth, term, K):
                                                  hovertemplate='%{y:,.0f}<extra>' + k + '</extra>'))
                     fig.update_layout(height=340, yaxis=dict(title='TEU / tháng', rangemode='tozero'), bargap=0.25)
                     cd.chart(fig, fits.join(d['actual']).round(0), ten=f'fit_mo_hinh_{_norm(name)}', height=340,
-                             note_text=f'Fit trong mẫu (hệ số cuối) của mô hình đang dùng ({r["best"].split(":")[0]}) và 2 mô hình tốt kế tiếp theo điểm backtest. '
+                             note_text=f'Fit trong mẫu (hệ số cuối) của mô hình hồi quy đang dùng ({rg.split(":")[0]}) và 2 mô hình tốt kế tiếp theo điểm backtest. '
                                        f'{r["n_train"]} tháng huấn luyện; hệ số ' + ' · '.join(f'{k} × {v:.2f}' for k, v in r['coef'].items()) + f'; mùa vụ tháng tới {r["seasonal"]:.2f}.')
         elif ch == 'Theo bến':
             rows = terminal_rows(auth, E, m['res'] if m else None)

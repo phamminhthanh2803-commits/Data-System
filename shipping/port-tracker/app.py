@@ -1990,6 +1990,13 @@ with st.container(border=True, key='khung_noi_dung'):
         {'tong-quan': page_overview, 'hang-tau': page_operators, 'dieu-do': page_ops, 'tuyen': page_lanes, 'san-luong': page_volume,
          'du-lieu': page_data}[PG](LV, AUTH, TERM, K)
 tick('render')
+# 26/10/2026: GIẢI PHÓNG bảng lớn của lượt chạy. Streamlit giữ namespace lượt chạy cuối của TỪNG phiên (tab đang mở) tới lượt chạy sau;
+# st.cache_data trả BẢN SAO -> mỗi tab giữ ~150 MB chuyến/lượt cập bến (đo: 1 tab 544 MB, 4 tab 1.127 MB, không tự giảm) -> vài người mở
+# là vượt ~1 GB của Streamlit Cloud ("Error running app"); mem_guard xoá cache không gỡ được các bản này. Lượt chạy sau dựng lại từ cache.
+for _n, _v in list(globals().items()):
+    if not _n.startswith('_') and isinstance(_v, (pd.DataFrame, pd.Series)) and np.sum(_v.memory_usage(deep=False)) > 1e6:
+        globals().pop(_n, None)
+_gc.collect()
 if CLOUD: mem_guard()                                # 21/10/2026: RAM > MEM_GUARD_MB (850) -> xoá cache, tránh Cloud tắt app
 st.markdown(f'<div class="gn-note" style="margin-top:10px">Dữ liệu đến {LAST:%d/%m/%Y} · 12 cảng vụ · kho <code>{ld.STORE}</code> · '
             'Giao diện theo mẫu Market Data App (ui_genea.py)</div>', unsafe_allow_html=True)

@@ -55,6 +55,8 @@ PARTNERS = {'US': 'Mỹ', 'CN': 'Trung Quốc', 'JP': 'Nhật Bản', 'KR': 'Hà
 #   /maritime/get_terminal_detail/<locode>/<code>/ -> terminal_id, tên, nhà khai thác, chiều dài bến
 #   /widgets/port-time-series/data/?unit=throughput&by=teu_class&freq=month&terminal_id=  -> throughput (cộng các cỡ tàu) = term_throughput
 #   /widgets/sea-trade-by-week/data/?freq=month&terminal_id=                               -> container full nhập/xuất/TS = term_full
+#   /widgets/port-time-series/data/?unit=throughput&by=service&freq=month&terminal_id=    -> throughput theo TÊN TUYẾN DỊCH VỤ của hãng
+#       (top 8 tuyến + Others mỗi bến, từ 02/2022) = term_services.parquet (26/10/2026)
 # Mã terminal EconDB -> bến cảng vụ trong app (mã không có ở đây vẫn được kéo, chỉ không ghép được với bến):
 TERMINAL_MAP = {
     'VN HPH': {'VNCHL': 'HICT', 'HTIT': 'HTIT', 'HHIT': 'HHIT', 'NDV': 'NAM DINH VU', 'TANVU': 'TAN VU', 'VGR': 'VIP GREEN PORT',
@@ -176,7 +178,7 @@ def pull(only=None, log=print):
         def wget(path, **params):
             c.n += 1; time.sleep(0.25)
             r = w.get(WEB + path, params=params or None, timeout=60); r.raise_for_status(); return r.json()
-        meta = []
+        meta, tsv = [], []
         for lc in VN_PORTS:
             try: codes = [t['code'] for t in (wget(f'/maritime/ports/async/{lc}/').get('terminals') or []) if t.get('code')]
             except Exception as e: errs.append(f'{lc} terminals: {str(e)[:100]}'); continue  # noqa: E701
@@ -191,10 +193,16 @@ def pull(only=None, log=print):
                     fu = wget('/widgets/sea-trade-by-week/data/', locode=lc, freq='month', terminal_id=tid)
                     d = plot_long((fu.get('plots') or [{}])[0], lc, 'term_full')
                     if len(d): blocks.append(d.groupby(['scope', 'metric', 'date'], as_index=False)['value'].sum().assign(series=code))
+                    sv = wget('/widgets/port-time-series/data/', unit='throughput', locode=lc, by='service', freq='month', terminal_id=tid)
+                    d = plot_long((sv.get('plots') or [{}])[0], lc, 'term_service')
+                    if len(d): tsv.append(d.rename(columns={'series': 'service'}).assign(terminal=code))
                 except Exception as e:  # noqa: BLE001
                     errs.append(f'{lc} {code}: {type(e).__name__} {str(e)[:100]}')
         if meta:
             pd.DataFrame(meta).to_parquet(os.path.join(DIR, 'terminals.parquet'), index=False); log(f'terminals: {len(meta)} terminal')
+        if tsv:
+            pd.concat(tsv, ignore_index=True).to_parquet(os.path.join(DIR, 'term_services.parquet'), index=False)
+            log(f'tuyến dịch vụ theo bến: {sum(len(x) for x in tsv)} dòng')
     if on('peers'):
         for lc in PEERS: grab(lc, 'traffic', f'ports/{lc}/container-traffic')
     if on('p2p'):
@@ -335,7 +343,7 @@ def _read(name):
 
 def load():
     """dict các bảng + chữ ký mtime (để app làm khoá cache)."""
-    return {k: _read(f'{k}.parquet') for k in ('series', 'calls', 'schedule', 'ports', 'vessels', 'vessel_portcalls')}
+    return {k: _read(f'{k}.parquet') for k in ('series', 'calls', 'schedule', 'ports', 'vessels', 'vessel_portcalls', 'term_services', 'terminals')}
 
 
 def stamp():

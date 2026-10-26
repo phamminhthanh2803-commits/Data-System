@@ -16,7 +16,8 @@ from collections import Counter
 
 import pandas as pd
 
-WINDOW_DAYS = 120
+WINDOW_DAYS = 180          # 26/10/2026: 120 -> 180 ngày, vòng tuyến theo CHU KỲ của từng tàu (rotations)
+MAX_CYCLE_DAYS = 150
 JACCARD = 0.6
 INFER_SHARE = 0.6
 
@@ -92,23 +93,29 @@ def match_vessel(idx, imo=None, mmsi=None, name=None, dwt=None):
 
 
 def rotations(pc, window_days=WINDOW_DAYS, now=None):
-    """lượt ghé toàn cầu -> 1 dòng/tàu (mmsi): vòng tuyến = cảng ghé >= 2 lần trong cửa sổ (ít lượt thì mọi cảng), theo thứ tự ghé"""
+    """lượt ghé toàn cầu -> 1 dòng/tàu (mmsi). 26/10/2026: vòng tuyến = các cảng ghé trong 1 CHU KỲ gần nhất của tàu; chu kỳ = trung vị
+    khoảng ngày tàu quay lại cùng một cảng (>= 7 ngày; không quay lại -> 120 ngày; tối đa MAX_CYCLE_DAYS). Cách cũ (cảng ghé >= 2 lần trong
+    120 ngày) bỏ sót cảng của tuyến vòng dài (Á-Âu, Á-Mỹ ~ 80–110 ngày) và gom tàu chạy rời vào cụm rác 1 cảng (Singapore: 53 tàu nhiều hãng)."""
     if pc is None or pc.empty: return pd.DataFrame()
     now = pd.Timestamp(now or pd.Timestamp.now())
     p = pc[pc['start'] >= now - pd.Timedelta(days=window_days)].sort_values(['mmsi', 'start'])
     rows = []
     for mm, g in p.groupby('mmsi'):
-        seq = g['locode'].tolist()
-        seq = [x for i, x in enumerate(seq) if i == 0 or x != seq[i - 1]]               # bỏ ghé lặp liền nhau (dời bến)
-        cnt = Counter(seq)
-        reg = [x for x in dict.fromkeys(seq) if cnt[x] >= 2] if len(seq) >= 6 else list(dict.fromkeys(seq))
-        if not reg: reg = list(dict.fromkeys(seq))
+        g = g[g['locode'].ne(g['locode'].shift())]                                  # bỏ ghé lặp liền nhau (dời bến)
+        seen, gaps = {}, []
+        for x, ti in zip(g['locode'], g['start']):
+            if x in seen and (ti - seen[x]).days >= 7: gaps.append((ti - seen[x]).days)
+            seen[x] = ti
+        cyc = float(pd.Series(gaps).median()) if gaps else None
+        span = min(cyc * 1.05 if cyc else 120, MAX_CYCLE_DAYS)
+        h = g[g['start'] >= g['start'].max() - pd.Timedelta(days=span)]
+        reg = list(dict.fromkeys(h['locode']))
         name_of = dict(zip(g['locode'], g['port_name']))
         last = g.iloc[-1]
         rows.append({'mmsi': mm, 'imo': g['ship_imo'].dropna().iloc[-1] if g['ship_imo'].notna().any() else None, 'ship': last['ship_name'],
                      'ports': tuple(reg), 'route': ' – '.join(name_of.get(x, x) for x in reg),
                      'vn_ports': ', '.join(name_of.get(x, x) for x in reg if str(x).startswith('VN')),
-                     'n_calls': len(g), 'last_call': last['start'], 'last_port': last['port_name'],
+                     'n_calls': len(g), 'last_call': last['start'], 'last_port': last['port_name'], 'cycle_days': cyc,
                      'teu_moves': float(g[['import_count', 'export_count']].fillna(0).sum().sum())})
     return pd.DataFrame(rows)
 
@@ -118,7 +125,11 @@ def cluster(rot, ops=None, jac=JACCARD):
     ops: dict imo -> hãng đã biết. -> (svc: 1 dòng/dịch vụ, rot có cột service_id)"""
     if rot is None or rot.empty: return pd.DataFrame(), rot
     ops = ops or {}
-    rot = rot.copy(); rot['pset'] = rot['ports'].map(frozenset)
+    rot = rot.copy()
+    rot['operator_known'] = rot['imo'].map(lambda i: ops.get(int(i)) if pd.notna(i) and int(i) in ops else '')
+    # vòng toàn cảng VN (nội địa): mỗi hãng chạy tuyến riêng, không chia tàu -> thêm hãng vào tập so khớp (tách cụm 'Hồ Chí Minh – Hải Phòng')
+    rot['pset'] = [frozenset(p) | ({'OP:' + o} if o and all(str(x).startswith('VN') for x in p) else set())
+                   for p, o in zip(rot['ports'], rot['operator_known'])]
     groups = rot.groupby('pset').size().sort_values(ascending=False)
     centers, assign = [], {}
     for ps in groups.index:
@@ -129,14 +140,18 @@ def cluster(rot, ops=None, jac=JACCARD):
         if best is not None and bj >= jac: assign[ps] = best
         else: assign[ps] = len(centers); centers.append(ps)
     rot['service_id'] = rot['pset'].map(lambda s: f'S{assign[s] + 1:03d}')
-    rot['operator_known'] = rot['imo'].map(lambda i: ops.get(int(i)) if pd.notna(i) and int(i) in ops else '')
     svc = []
     for sid, g in rot.groupby('service_id'):
         pos = Counter(); order = {}
         for ports in g['ports']:
             for k, x in enumerate(ports): pos[x] += 1; order.setdefault(x, []).append(k / max(len(ports) - 1, 1))
         core = [x for x, n in pos.items() if n >= max(1, len(g) / 2)] or list(pos)
-        core.sort(key=lambda x: sum(order[x]) / len(order[x]))
+        # thứ tự cảng theo hành trình THỰC của 1 tàu đại diện (tàu có vòng giống tập lõi nhất, nhiều lượt nhất); TB vị trí nhiều tàu bị xáo
+        # vì mỗi tàu bắt đầu ở một điểm khác nhau của vòng. Cảng lõi tàu đại diện không ghé -> xếp theo TB vị trí, nối cuối.
+        cs = set(core)
+        rep_ = max(g.itertuples(), key=lambda r: (len(cs & set(r.ports)) / len(cs | set(r.ports)), r.n_calls))
+        seq = [x for x in rep_.ports if x in cs]
+        core = seq + sorted([x for x in core if x not in seq], key=lambda x: sum(order[x]) / len(order[x]))
         name_of = {}
         for r in g.itertuples():
             for x, nm in zip(r.ports, r.route.split(' – ')): name_of.setdefault(x, nm)

@@ -425,7 +425,7 @@ def dl_row(df, name, key):
 
 
 # ================================================================ điều hướng + deep-link
-PAGES = {'tong-quan': 'Tổng quan', 'hang-tau': 'Hãng tàu & tàu', 'dieu-do': 'Điều độ & cảnh báo', 'tuyen': 'Tuyến',
+PAGES = {'tong-quan': 'Tổng quan', 'hang-tau': 'Hãng tàu & tàu', 'dieu-do': 'Điều độ & cảnh báo', 'tuyen': 'Tuyến dịch vụ',
          'san-luong': 'Sản lượng', 'du-lieu': 'Dữ liệu'}
 LEVELS = {'toan-quoc': 'Toàn quốc', 'cang-vu': 'Từng cảng vụ', 'cang': 'Từng cảng'}
 CU = {'ben-cang': 'tong-quan', 'tau': 'hang-tau', 'canh-bao': 'dieu-do', 'econdb': 'san-luong', 'du-bao': 'san-luong'}            # slug trang cũ
@@ -888,56 +888,173 @@ def page_ops(level, auth, term, K):
 
 
 # ================================================================ TRANG 4: TUYẾN
+def svc_label(svc):
+    """service_id -> nhãn ngắn 'S036 · KMTC · Ho Chi Minh – Hong Kong – … (+3)'"""
+    out = {}
+    for r in svc.itertuples():
+        ports = [x for x in str(r.route).split(' – ') if x]
+        rt = ' – '.join(ports[:4]) + (f' … (+{len(ports) - 4})' if len(ports) > 4 else '')
+        out[r.service_id] = f'{r.service_id} · {r.operator or "chưa rõ hãng"} · {rt}'
+    return out
+
+
+def ship_service(mst, rot):
+    """ship_key -> service_id qua IMO (rồi MMSI) với bảng vòng tuyến dựng CÙNG lượt với services.parquet (mã dịch vụ trong master do
+    bước ghép tàu buổi sáng tính ở lượt khác, có thể lệch)"""
+    if rot is None or rot.empty: return pd.Series(dtype=object)
+    by_imo = rot.assign(k=pd.to_numeric(rot['imo'], errors='coerce')).query('k > 0').drop_duplicates('k').set_index('k')['service_id']
+    by_mmsi = rot.assign(k=pd.to_numeric(rot['mmsi'], errors='coerce')).dropna(subset=['k']).drop_duplicates('k').set_index('k')['service_id']
+    m = mst.drop_duplicates('ship_key').set_index('ship_key')
+    s_ = pd.to_numeric(m['imo'], errors='coerce').map(by_imo)
+    return s_.fillna(pd.to_numeric(m['mmsi'], errors='coerce').map(by_mmsi)).dropna()
+
+
+def term_codes(level, auth, term):
+    """mã bến EconDB (locode, mã) thuộc phạm vi đang xem"""
+    out = []
+    for a, lcs in ed.AUTH_LOCODES.items():
+        if level != 'toan-quoc' and a != auth: continue
+        for lc in lcs:
+            for code, t in ed.TERMINAL_MAP.get(lc, {}).items():
+                if level == 'cang' and nw.nfc(term) not in nw._members(t): continue
+                out.append((lc, code))
+    return out
+
+
 def page_lanes(level, auth, term, K):
-    lanes, patterns, legs = get_lanes(*KEY)
-    ui.h2(f'Luồng tuyến · {scope_name(level, auth, term)}')
-    if level != 'toan-quoc':
-        ships = set(scoped(level, auth, term)[1]['ship_key'])
-        legs = legs[legs['ship_key'].isin(ships)] if len(legs) else legs
-        lanes = tl.lanes_from_legs(legs); patterns = patterns[patterns['ship_key'].isin(ships)] if len(patterns) else patterns
-        ui.note(f'Chặng của các tàu container đã ghé {scope_name(level, auth, term)} trong dữ liệu đã nạp (mọi chặng của các tàu đó, kể cả chặng không qua cảng này).')
-    else:
-        ui.note('Chặng ghép trong app từ lịch 12 cảng vụ, chỉ gồm tàu container. Cảng nước ngoài đa số ở mức quốc gia. Không gồm chặng đi/đến "ngoài vùng dữ liệu".')
-    if lanes.empty: ui.card_empty('Chặng', note_text='Chưa đủ dữ liệu để ghép chặng cho phạm vi này.'); return
-    L = lanes[(~lanes['lane'].str.contains('ngoai vung du lieu')) & (lanes['from'] != lanes['to'])]
-    mcol = 'teu_sum' if MEAS == 'teu' else 'legs'; mlab = 'TEU danh nghĩa' if MEAS == 'teu' else 'Số chặng'
+    """TUYẾN DỊCH VỤ (26/10/2026, PV2: thay luồng chặng): (1) lượt cập bến cảng vụ của tàu container gắn DỊCH VỤ của tàu (gom từ lượt ghé
+    toàn cầu EconDB -> master.service_id), (2) truy ngược từ tàu, (3) tuyến dịch vụ CÓ TÊN của hãng theo bến (EconDB, top 8/bến + Others)."""
+    ui.h2(f'Tuyến dịch vụ · {scope_name(level, auth, term)}')
+    svc, rot, _ = get_services(ed.stamp(), MST)
+    mst = get_master(VER, MST)
+    v = scoped(level, auth, term)[1]; v = v[v['is_container'].astype(bool)]
+    if svc.empty or v.empty:
+        ui.card_empty('Tuyến dịch vụ', note_text='Chưa có dữ liệu dịch vụ (EconDB) hoặc lượt cập bến cho phạm vi này.'); return
+    sid = ship_service(mst, rot)
+    v = v.assign(service_id=v['ship_key'].map(sid), teu=pd.to_numeric(v['teu'], errors='coerce'))
+    lab = svc_label(svc); si = svc.set_index('service_id')
+    mcol = 'teu' if MEAS == 'teu' else 'calls'; mlab = 'TEU danh nghĩa ghé' if MEAS == 'teu' else 'Lượt cập bến'
+    has = v['service_id'].notna()
+    ui.note(f'Dịch vụ = nhóm tàu chạy cùng vòng cảng (vòng = các cảng tàu ghé trong 1 chu kỳ gần nhất, theo lượt ghé toàn cầu EconDB). Lượt cập bến cảng vụ của tàu tính cho dịch vụ hiện tại '
+            f'của tàu. Đã ghép dịch vụ: {has.mean() * 100:.0f}% lượt, {v.loc[has, "teu"].sum() / max(v["teu"].sum(), 1) * 100:.0f}% TEU danh nghĩa '
+            f'(còn lại chủ yếu tàu nội địa nhỏ/sà lan chưa có trong EconDB).')
+    vs = v[has]
+
+    def per(d0, d1): return vs[(vs['arr_day'] >= pd.Timestamp(d0)) & (vs['arr_day'] <= pd.Timestamp(d1))]
+
+    def by_svc(d):
+        return d.groupby('service_id').agg(calls=('call_id', 'size'), teu=('teu', 'sum'), ships=('ship_key', 'nunique'),
+                                           last=('arr_day', 'max')).sort_values(mcol, ascending=False)
+
+    def monthly(d, col):
+        k = d['arr_day'].dt.to_period('M').dt.to_timestamp('M')
+        g = d.groupby([k, col])['call_id'].size() if mcol == 'calls' else d.groupby([k, col])['teu'].sum()
+        w = g.unstack(col).fillna(0); w.index = pd.DatetimeIndex(w.index); w.index.name = 'Tháng'
+        return w
+
+    order = by_svc(per(LAST - pd.DateOffset(years=1), LAST)).index.tolist() or by_svc(vs).index.tolist()
     a, b = st.columns([2, 3])
     with a:
-        with ui.card('Chặng lớn nhất', unit=mlab, key=f'{K}_top', periods=PER, default='1Y', end=LAST, compact=True) as cd:
-            Lw = L[(L['month'] >= pd.Timestamp(cd.d0)) & (L['month'] <= pd.Timestamp(cd.d1))]
-            top = Lw.groupby('lane')[mcol].sum().sort_values(ascending=False)
-            cd.chart(ui.fig_hbar(top.head(15), unit=mlab, sign=False, nd=0), top.rename(mlab).to_frame(), last=LAST, ten='chang_lon_nhat')
-    order = L.groupby('lane')[mcol].sum().sort_values(ascending=False).index.tolist()
+        with ui.card('Dịch vụ ghé nhiều nhất', unit=mlab, key=f'{K}_svtop', periods=PER, default='1Y', end=LAST, compact=True) as cd:
+            g = by_svc(per(cd.d0, cd.d1))[mcol].head(15)
+            g.index = [lab.get(x, x) for x in g.index]
+            cd.chart(ui.fig_hbar(g, unit=mlab, sign=False, nd=0), g.rename(mlab).to_frame(), last=LAST, ten='dich_vu_lon_nhat')
     with b:
-        with ui.card('Chặng theo tháng', unit=mlab, key=f'{K}_series', periods=PER, default='2Y', end=LAST, compact=True) as cd:
-            pick = st.multiselect('Chặng theo dõi (tối đa 6)', order, default=order[:4], max_selections=6, key=f'{K}_pick')
-            g = L[L['lane'].isin(pick) & (L['month'] >= pd.Timestamp(cd.d0)) & (L['month'] <= pd.Timestamp(cd.d1)) ]
-            w = g.groupby(['month', 'lane'])[mcol].sum().unstack('lane').reindex(columns=[k for k in order if k in pick]).fillna(0)
-            w.index = pd.DatetimeIndex(w.index); w.index.name = 'Tháng'
-            cd.chart(ui.fig_line(w, unit=mlab, zero=True, hover_nd=0), w, last=LAST, ten='chang_theo_thang')
-    with ui.card('Hãng khai thác trên một chặng', unit=mlab, key=f'{K}_ops', periods=PER, default='1Y', end=LAST) as cd:
-        one = st.selectbox('Chặng', order, key=f'{K}_lane')
-        o = L[(L['lane'] == one) & (L['month'] >= pd.Timestamp(cd.d0)) & (L['month'] <= pd.Timestamp(cd.d1))].groupby('operator')[[mcol, 'ships']].sum().sort_values(mcol, ascending=False)
-        cd.chart(ui.fig_hbar(o[mcol].head(12), unit=mlab, sign=False, nd=0), o.rename(columns={mcol: mlab, 'ships': 'Số tàu'}), last=LAST, ten=f'hang_tren_chang')
-    svc, rot, _ = get_services(ed.stamp(), MST)
-    if len(svc):
-        sv = svc.copy()
-        if level != 'toan-quoc':                                   # dịch vụ có tàu đã ghé phạm vi này
-            mst = get_master(VER, MST); ks = set(scoped(level, auth, term)[1]['ship_key'])
-            imos = pd.to_numeric(mst.loc[mst['ship_key'].isin(ks), 'imo'], errors='coerce').dropna()
-            keep = set(rot.loc[pd.to_numeric(rot['imo'], errors='coerce').isin(imos), 'service_id'])
-            sv = sv[sv['service_id'].isin(keep)]
-        sv = sv[sv['vn_ports'] != '']
-        with ui.card('Tuyến dịch vụ (EconDB)', unit=f'{len(sv)} dịch vụ ghé VN', key=f'{K}_svc', controls=False,
-                     help='Gom tàu có cùng vòng cảng (cảng ghé lặp lại trong 120 ngày, lượt ghé toàn cầu EconDB). '
-                          'Hãng = đa số các tàu đã biết hãng; nhiều hãng = dịch vụ chia tàu (VSA/liên minh).') as cd:
-            t = sv[['service_id', 'route', 'vn_ports', 'n_vessels', 'operator', 'operators', 'vessels', 'last_call']].rename(columns={
-                'service_id': 'Mã', 'route': 'Vòng cảng', 'vn_ports': 'Cảng VN', 'n_vessels': 'Số tàu', 'operator': 'Hãng chính',
-                'operators': 'Các hãng (số tàu)', 'vessels': 'Tàu', 'last_call': 'Lượt ghé cuối'})
-            t['Lượt ghé cuối'] = pd.to_datetime(t['Lượt ghé cuối']).dt.strftime('%d/%m/%Y')
-            cd.table(t.reset_index(drop=True), ten='tuyen_dich_vu_econdb', height=420)
-    with ui.card('Vòng tuyến hay chạy của từng tàu', unit=f'{len(patterns)} tàu', key=f'{K}_pat', controls=False) as cd:
-        cd.table(patterns.drop(columns=['ship_key']).reset_index(drop=True), ten='vong_tuyen_tau', height=400)
+        with ui.card('Dịch vụ theo tháng', unit=mlab, key=f'{K}_svser', periods=PER, default='2Y', end=LAST, compact=True) as cd:
+            pick = st.multiselect('Dịch vụ theo dõi (tối đa 6)', order, default=order[:4], max_selections=6, key=f'{K}_svpick',
+                                  format_func=lambda x: lab.get(x, x))
+            d = per(cd.d0, cd.d1); d = d[d['service_id'].isin(pick)]
+            if d.empty: cd.empty('Chưa chọn dịch vụ hoặc không có lượt ghé trong khoảng ngày này.')
+            else:
+                w = monthly(d, 'service_id'); w = w.reindex(columns=[x for x in pick if x in w.columns]); w.columns = [lab.get(x, x) for x in w.columns]
+                cd.chart(ui.fig_line(w, unit=mlab, zero=True, hover_nd=0), w, last=LAST, ten='dich_vu_theo_thang')
+
+    with ui.card(f'Các dịch vụ ghé {scope_name(level, auth, term)}', unit='trong khoảng ngày', key=f'{K}_svlist', periods=PER, default='1Y', end=LAST) as cd:
+        d = per(cd.d0, cd.d1); g = by_svc(d)
+        tb = d.groupby(['service_id', 'terminal']).size().reset_index(name='n').sort_values('n', ascending=False)
+        terms = {k_: ', '.join(f'{t} ({n})' for t, n in zip(x['terminal'].head(4), x['n'].head(4))) for k_, x in tb.groupby('service_id')}
+        t = g.join(si[['operator', 'operators', 'route', 'vn_ports', 'n_vessels']], how='left')
+        t['ben'] = t.index.map(terms)
+        t = t.reset_index().rename(columns={'service_id': 'Mã', 'operator': 'Hãng chính', 'operators': 'Các hãng (số tàu)', 'route': 'Vòng cảng',
+                                            'vn_ports': 'Cảng VN trên vòng', 'ben': 'Bến ghé (lượt)', 'n_vessels': 'Tàu trong dịch vụ',
+                                            'ships': 'Tàu đã ghé', 'calls': 'Lượt cập bến', 'teu': 'TEU danh nghĩa', 'last': 'Lượt cuối'})
+        t['Lượt cuối'] = pd.to_datetime(t['Lượt cuối']).dt.strftime('%d/%m/%Y')
+        cols = ['Mã', 'Hãng chính', 'Vòng cảng', 'Bến ghé (lượt)', 'Lượt cập bến', 'TEU danh nghĩa', 'Tàu đã ghé', 'Tàu trong dịch vụ',
+                'Các hãng (số tàu)', 'Cảng VN trên vòng', 'Lượt cuối']
+        cd.table(t[cols].round(0), ten='dich_vu_ghe', height=420)
+
+    with ui.card('Chi tiết một dịch vụ', unit='vòng cảng · tàu · lượt ghé theo bến', key=f'{K}_svone', periods=PER, default='1Y', end=LAST) as cd:
+        one = st.selectbox('Dịch vụ', order, key=f'{K}_svsel', format_func=lambda x: lab.get(x, x)) if order else None
+        if one in si.index:
+            r = si.loc[one]
+            ui.note(f"<b>{one}</b> · hãng chính <b>{r['operator'] or 'chưa rõ'}</b>" + (f" ({r['operators']})" if r['operators'] else '')
+                    + f" · {int(r['n_vessels'])} tàu · vòng cảng: {r['route']}")
+            rv = rot[rot['service_id'] == one].copy(); rv['imo_n'] = pd.to_numeric(rv['imo'], errors='coerce')
+            mm = mst.assign(imo_n=pd.to_numeric(mst['imo'], errors='coerce')).dropna(subset=['imo_n'])
+            mm = mm[mm['imo_n'] > 0].drop_duplicates('imo_n').set_index('imo_n')
+            rv['ship_key'] = rv['imo_n'].map(mm['ship_key']); rv['Hãng'] = rv['imo_n'].map(mm['operator']); rv['TEU'] = rv['imo_n'].map(mm['teu'])
+            vl = V_ALL[V_ALL['ship_key'].isin(rv['ship_key'].dropna())].sort_values('arr_day').groupby('ship_key').tail(1).set_index('ship_key')
+            rv = rv.join(vl[['arr_day', 'auth', 'terminal']], on='ship_key')
+            show = rv[['ship', 'Hãng', 'TEU', 'last_port', 'last_call', 'arr_day', 'auth', 'terminal']].rename(columns={
+                'ship': 'Tàu', 'last_port': 'Cảng ghé cuối (toàn cầu)', 'last_call': 'Ngày', 'arr_day': 'Cập bến VN cuối', 'auth': 'Cảng vụ', 'terminal': 'Bến'})
+            for c in ('Ngày', 'Cập bến VN cuối'): show[c] = pd.to_datetime(show[c]).dt.strftime('%d/%m/%Y')
+            cd.table(show.sort_values('Tàu').reset_index(drop=True), ten=f'tau_dich_vu_{one}', height=min(420, 60 + 36 * len(show)))
+            d = per(cd.d0, cd.d1); d = d[d['service_id'] == one]
+            if len(d):
+                w = monthly(d, 'terminal')
+                cd.chart(ui.fig_stack(w, unit=mlab), w, last=LAST, ten=f'dich_vu_{one}_theo_ben',
+                         note_text='Lượt ghé của các tàu thuộc dịch vụ tại các bến trong phạm vi, theo tháng.')
+
+    with ui.card('Truy theo tàu', unit='tàu → dịch vụ → lượt ghé toàn cầu và Việt Nam', key=f'{K}_svship', controls=False) as cd:
+        cnt = v.groupby(['ship_key', 'ship']).size().sort_values(ascending=False).reset_index()
+        nm = dict(zip(cnt['ship_key'], cnt['ship']))
+        k = st.selectbox('Tàu (đã ghé phạm vi này, nhiều lượt trước)', cnt['ship_key'].tolist(), key=f'{K}_svshipsel', format_func=lambda x: nm.get(x, x))
+        if k:
+            m = mst[mst['ship_key'] == k].iloc[0].to_dict() if (mst['ship_key'] == k).any() else {}
+            sv_ = sid.get(k, '') if isinstance(sid.get(k, ''), str) else ''
+            ui.note(f"<b>{nm.get(k, k)}</b> · IMO {m.get('imo') or '–'} · hãng {m.get('operator') or '–'} · {fmt_int(m.get('teu'))} TEU · "
+                    + (f"dịch vụ <b>{lab.get(sv_, sv_)}</b> — vòng cảng {si.loc[sv_, 'route']}" if sv_ in si.index
+                       else 'chưa ghép được dịch vụ (tàu chưa có lượt ghé toàn cầu trong EconDB)'))
+            pc = get_econdb(ed.stamp()).get('vessel_portcalls', pd.DataFrame())
+            mm_ = pd.to_numeric(pd.Series([m.get('mmsi')]), errors='coerce').iloc[0]
+            im_ = pd.to_numeric(pd.Series([m.get('imo')]), errors='coerce').iloc[0]
+            g = pd.DataFrame()
+            if len(pc) and (pd.notna(mm_) or (pd.notna(im_) and im_ > 0)):
+                g = pc[(pc['mmsi'] == mm_) | ((pc['ship_imo'] == im_) if pd.notna(im_) and im_ > 0 else False)]
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown('**Lượt ghé toàn cầu (EconDB, 120 ngày)**')
+                g = g[g['start'] >= LAST - pd.Timedelta(days=120)].sort_values('start', ascending=False) if len(g) else g
+                if len(g):
+                    st.dataframe(pd.DataFrame({'Đến': g['start'].dt.strftime('%d/%m/%Y'), 'Cảng': g['port_name'], 'Mã': g['locode'],
+                                               'Dỡ (TEU)': g['import_count'], 'Xếp (TEU)': g['export_count']}), hide_index=True, height=360)
+                else: st.caption('Không có lượt ghé toàn cầu của tàu này trong EconDB.')
+            with c2:
+                st.markdown('**Lượt cập bến tại Việt Nam (cảng vụ)**')
+                h = V_ALL[V_ALL['ship_key'] == k].sort_values('arr_day', ascending=False).head(60)
+                st.dataframe(pd.DataFrame({'Đến': h['arr_day'].dt.strftime('%d/%m/%Y'), 'Cảng vụ': h['auth'].map(lambda x: tl.AUTH_LABEL.get(x, x)),
+                                           'Bến': h['terminal'], 'Giờ nằm bến': pd.to_numeric(h['hours_in_port'], errors='coerce').round(0)}),
+                             hide_index=True, height=360)
+
+    ts = get_econdb(ed.stamp()).get('term_services', pd.DataFrame())
+    codes = term_codes(level, auth, term)
+    if len(ts) and codes:
+        x = ts[[(s_, c_) in set(codes) for s_, c_ in zip(ts['scope'], ts['terminal'])]]
+        tname = {(lc, c): t for lc, mp in ed.TERMINAL_MAP.items() for c, t in mp.items()}
+        with ui.card('Tuyến dịch vụ có tên của hãng (EconDB, theo bến)', unit='TEU thông qua', key=f'{K}_svnamed', periods=PER, default='1Y', end=LAST,
+                     help='EconDB công bố sản lượng theo TÊN tuyến dịch vụ của hãng cho từng bến: chỉ 8 tuyến lớn nhất mỗi bến, phần còn lại gộp "Others".') as cd:
+            y = x[(x['date'] >= pd.Timestamp(cd.d0)) & (x['date'] <= pd.Timestamp(cd.d1))]
+            if y.empty: cd.empty('Chưa có số liệu tuyến dịch vụ theo bến trong khoảng ngày này.')
+            else:
+                y = y.assign(ben=[tname.get((s_, c_), c_) for s_, c_ in zip(y['scope'], y['terminal'])])
+                named = y[y['service'] != 'Others']; tot = max(y['value'].sum(), 1)
+                top = named.groupby('service')['value'].sum().sort_values(ascending=False)
+                tab = named.pivot_table(index='service', columns='ben', values='value', aggfunc='sum').fillna(0)
+                tab['Tổng'] = tab.sum(axis=1)
+                cd.chart(ui.fig_hbar(top.head(15), unit='TEU', sign=False, nd=0), tab.sort_values('Tổng', ascending=False).round(0), last=LAST,
+                         ten='tuyen_dich_vu_co_ten',
+                         note_text=f'Tuyến có tên chiếm {named["value"].sum() / tot * 100:.0f}% sản lượng các bến trong phạm vi; "Others" (tuyến nhỏ hơn top 8 '
+                                   f'mỗi bến) {(tot - named["value"].sum()) / tot * 100:.0f}%. Bảng tải về: tuyến × bến.')
 
 
 # ================================================================ TRANG 5: DỮ LIỆU

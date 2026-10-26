@@ -120,9 +120,11 @@ def rotations(pc, window_days=WINDOW_DAYS, now=None):
     return pd.DataFrame(rows)
 
 
-def cluster(rot, ops=None, jac=JACCARD):
+def cluster(rot, ops=None, jac=JACCARD, names=None):
     """gom tàu thành dịch vụ: tập cảng vòng tuyến giống nhau (Jaccard >= jac), tham lam theo cụm lớn trước.
-    ops: dict imo -> hãng đã biết. -> (svc: 1 dòng/dịch vụ, rot có cột service_id)"""
+    ops: dict imo -> hãng đã biết. names: dict mmsi -> TÊN tuyến dịch vụ EconDB (trang tàu, 26/10/2026): tàu có tên -> dịch vụ = tên đó;
+    tàu chưa có tên -> theo cụm vòng cảng, cụm mà >= 1/2 tàu có tên cùng mang tên X thì gán X; còn lại giữ mã cụm Sxxx.
+    -> (svc: 1 dòng/dịch vụ, rot có cột service_id, service_name)"""
     if rot is None or rot.empty: return pd.DataFrame(), rot
     ops = ops or {}
     rot = rot.copy()
@@ -140,6 +142,15 @@ def cluster(rot, ops=None, jac=JACCARD):
         if best is not None and bj >= jac: assign[ps] = best
         else: assign[ps] = len(centers); centers.append(ps)
     rot['service_id'] = rot['pset'].map(lambda s: f'S{assign[s] + 1:03d}')
+    names = names or {}
+    rot['service_name'] = rot['mmsi'].map(lambda m: names.get(int(m)) if pd.notna(m) else None)
+    named = rot.dropna(subset=['service_name'])
+    cl_name = {}
+    for sid_, g in named.groupby('service_id'):
+        top_, n_ = Counter(g['service_name']).most_common(1)[0]
+        if n_ >= max(1, (rot['service_id'] == sid_).sum() / 2): cl_name[sid_] = top_
+    rot['service_name'] = rot['service_name'].fillna(rot['service_id'].map(cl_name))
+    rot['service_id'] = rot['service_name'].fillna(rot['service_id'])
     svc = []
     for sid, g in rot.groupby('service_id'):
         pos = Counter(); order = {}
@@ -157,13 +168,20 @@ def cluster(rot, ops=None, jac=JACCARD):
             for x, nm in zip(r.ports, r.route.split(' – ')): name_of.setdefault(x, nm)
         known = Counter(o for o in g['operator_known'] if o)
         top, n_top = (known.most_common(1)[0] if known else ('', 0))
-        svc.append({'service_id': sid, 'route': ' – '.join(name_of.get(x, x) for x in core),
+        svc.append({'service_id': sid, 'service_name': g['service_name'].dropna().iloc[0] if g['service_name'].notna().any() else '', 'route': ' – '.join(name_of.get(x, x) for x in core),
                     'vn_ports': ', '.join(name_of.get(x, x) for x in core if str(x).startswith('VN')),
                     'n_vessels': len(g), 'n_known': sum(known.values()), 'operator': top,
                     'operator_share': n_top / sum(known.values()) if known else None,
                     'operators': ', '.join(f'{o} ({n})' for o, n in known.most_common(4)),
                     'vessels': ', '.join(sorted(g['ship'].astype(str))[:12]), 'last_call': g['last_call'].max()})
     return pd.DataFrame(svc).sort_values('n_vessels', ascending=False), rot
+
+
+def service_names(vs):
+    """vessel_services.parquet (econdb.pull_vessel_services) -> dict mmsi -> tên tuyến dịch vụ"""
+    if vs is None or len(vs) == 0 or 'service' not in vs: return {}
+    v = vs.dropna(subset=['service'])
+    return {int(m): str(n).strip() for m, n in zip(v['mmsi'], v['service']) if pd.notna(m) and str(n).strip()}
 
 
 def infer_operator(svc, rot, share=INFER_SHARE, min_known=2):

@@ -28,7 +28,9 @@ Kéo về kho chia sẻ store/econdb/ (cùng thư mục store/ của app -> đ�
 Locode của EconDB CÓ DẤU CÁCH ('VN HPH').
 """
 import argparse
+import html
 import os
+import re
 import sys
 import time
 
@@ -248,8 +250,47 @@ def pull(only=None, log=print):
                 if n_err: errs.append(f'portcalls: {n_err} tàu lỗi')
         except Exception as e:  # noqa: BLE001
             errs.append(f'vessels/portcalls: {str(e)[:150]}')
+    if want and 'vservices' in want:      # CHỈ chạy khi gọi rõ --only vservices: web EconDB chặn 403 sau ~1.750 trang tàu (26/10/2026)
+        try: errs += pull_vessel_services(log=log)
+        except Exception as e: errs.append(f'vservices: {str(e)[:150]}')  # noqa: BLE001,E701
     for e in errs: log('  LOI ' + e)
     return c.n, errs
+
+
+# 26/10/2026 PV2: TÊN TUYẾN DỊCH VỤ từng tàu - API v1 không có; trang tàu công khai econdb.com/maritime/vessels/<mmsi>/ ghi trong mô tả:
+# "<TÊN> is a 10,000 TEU container ship operated by Ocean Network Express on the PS7 service. ..." -> vessel_services.parquet
+SVC_DESC = re.compile(r'is an? ([\d,]+) TEU container ship operated by (.+?)(?: on the (.+?) service)?\.')
+VSVC_MAX = 100                # mỗi lượt (gọi tay) tối đa 100 tàu, nghỉ 3 s/trang; KHÔNG chạy theo lịch: web EconDB trả 403 khi quét nhiều
+
+
+def pull_vessel_services(max_n=None, log=print):
+    """tàu có lượt ghé toàn cầu (vessel_portcalls) -> tên tuyến dịch vụ + hãng + TEU theo trang tàu EconDB (không cần key)"""
+    pc = _read('vessel_portcalls.parquet')
+    if pc.empty: return ['vservices: chưa có vessel_portcalls']
+    ships = pc.sort_values('start').drop_duplicates('mmsi', keep='last')[['mmsi', 'ship_imo', 'ship_name']]
+    old = _read('vessel_services.parquet')
+    if len(old):
+        ships = ships.merge(old[['mmsi', 'fetched']], on='mmsi', how='left').sort_values('fetched', na_position='first')
+    max_n = max_n or VSVC_MAX
+    w = requests.Session(); w.headers['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/126'
+    rows, errs = [], 0
+    for r in ships.head(max_n).itertuples():
+        try:
+            t = w.get(f'{WEB}/maritime/vessels/{int(r.mmsi)}/', timeout=40).text
+            d = [html.unescape(x) for x in re.findall(r'content="([^"]*container ship[^"]*)"', t)]
+            m = SVC_DESC.search(d[0]) if d else None
+            rows.append({'mmsi': int(r.mmsi), 'imo': r.ship_imo, 'ship': r.ship_name, 'teu': float(m.group(1).replace(',', '')) if m else None,
+                         'operator': m.group(2) if m else None, 'service': (m.group(3) or None) if m else None,
+                         'desc': d[0][:300] if d else None, 'fetched': pd.Timestamp.now().floor('min')})
+        except Exception:  # noqa: BLE001
+            errs += 1
+        time.sleep(3)
+    if rows:
+        new = pd.DataFrame(rows)
+        out = pd.concat([old[~old['mmsi'].isin(new['mmsi'])], new], ignore_index=True) if len(old) else new
+        out.to_parquet(os.path.join(DIR, 'vessel_services.parquet'), index=False)
+        log(f'vservices: {len(new)} tàu, {new["service"].notna().sum()} có tên tuyến; tổng {len(out)} tàu, {out["service"].notna().sum()} có tên')
+    return [f'vservices: {errs} tàu lỗi'] if errs else []
 
 
 PORTCALLS_MAX = 1500
@@ -343,7 +384,8 @@ def _read(name):
 
 def load():
     """dict các bảng + chữ ký mtime (để app làm khoá cache)."""
-    return {k: _read(f'{k}.parquet') for k in ('series', 'calls', 'schedule', 'ports', 'vessels', 'vessel_portcalls', 'term_services', 'terminals')}
+    return {k: _read(f'{k}.parquet') for k in ('series', 'calls', 'schedule', 'ports', 'vessels', 'vessel_portcalls', 'term_services', 'terminals',
+                                              'vessel_services')}
 
 
 def stamp():
@@ -352,7 +394,7 @@ def stamp():
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument('--only', default='', help='ports,traffic,dwell,capacity,partner,terminals,peers,p2p,global,calls,schedule,vessels,portcalls')
+    ap.add_argument('--only', default='', help='ports,traffic,dwell,capacity,partner,terminals,peers,p2p,global,calls,schedule,vessels,portcalls,vservices')
     ap.add_argument('--portcalls-max', type=int, default=None,
                     help='số tàu tối đa kéo lượt ghé (~0,8 s/tàu); mặc định 500 (ghé VN gần nhất trước), thứ Hai 2500')
     a = ap.parse_args(argv)

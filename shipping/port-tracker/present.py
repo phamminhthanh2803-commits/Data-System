@@ -110,7 +110,7 @@ def main(argv=None) -> int:
                 try:
                     if op and str(op) != 'nan': ops[int(float(imo))] = op
                 except (TypeError, ValueError): pass
-            svc, rot = svm.cluster(svm.rotations(pc), ops)
+            svc, rot = svm.cluster(svm.rotations(pc), ops, names=svm.service_names(ed.load().get('vessel_services')))
             size += write(svc, 'services.parquet') + write(rot.drop(columns=['pset'], errors='ignore').assign(ports=rot['ports'].map(' '.join)), 'rotations.parquet')
             log(f'dịch vụ: {len(svc)}')
     except Exception as e:  # noqa: BLE001

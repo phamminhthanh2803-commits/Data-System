@@ -247,7 +247,7 @@ def get_services(estamp, mstamp):
         try:
             if op and str(op) != 'nan': ops[int(float(imo))] = op
         except (TypeError, ValueError): pass
-    svc, rot = svm.cluster(svm.rotations(pc), ops)
+    svc, rot = svm.cluster(svm.rotations(pc), ops, names=svm.service_names(E.get('vessel_services')))
     return svc, rot, E.get('vessels', pd.DataFrame())
 
 
@@ -894,7 +894,8 @@ def svc_label(svc):
     for r in svc.itertuples():
         ports = [x for x in str(r.route).split(' – ') if x]
         rt = ' – '.join(ports[:4]) + (f' … (+{len(ports) - 4})' if len(ports) > 4 else '')
-        out[r.service_id] = f'{r.service_id} · {r.operator or "chưa rõ hãng"} · {rt}'
+        nm = getattr(r, 'service_name', '') or ''
+        out[r.service_id] = (f'{nm} · {r.operator or "chưa rõ hãng"} · {rt}' if nm else f'{r.service_id} (chưa có tên) · {r.operator or "chưa rõ hãng"} · {rt}')
     return out
 
 
@@ -973,13 +974,14 @@ def page_lanes(level, auth, term, K):
         d = per(cd.d0, cd.d1); g = by_svc(d)
         tb = d.groupby(['service_id', 'terminal']).size().reset_index(name='n').sort_values('n', ascending=False)
         terms = {k_: ', '.join(f'{t} ({n})' for t, n in zip(x['terminal'].head(4), x['n'].head(4))) for k_, x in tb.groupby('service_id')}
-        t = g.join(si[['operator', 'operators', 'route', 'vn_ports', 'n_vessels']], how='left')
+        t = g.join(si[[c for c in ('service_name', 'operator', 'operators', 'route', 'vn_ports', 'n_vessels') if c in si]], how='left')
         t['ben'] = t.index.map(terms)
         t = t.reset_index().rename(columns={'service_id': 'Mã', 'operator': 'Hãng chính', 'operators': 'Các hãng (số tàu)', 'route': 'Vòng cảng',
                                             'vn_ports': 'Cảng VN trên vòng', 'ben': 'Bến ghé (lượt)', 'n_vessels': 'Tàu trong dịch vụ',
                                             'ships': 'Tàu đã ghé', 'calls': 'Lượt cập bến', 'teu': 'TEU danh nghĩa', 'last': 'Lượt cuối'})
         t['Lượt cuối'] = pd.to_datetime(t['Lượt cuối']).dt.strftime('%d/%m/%Y')
-        cols = ['Mã', 'Hãng chính', 'Vòng cảng', 'Bến ghé (lượt)', 'Lượt cập bến', 'TEU danh nghĩa', 'Tàu đã ghé', 'Tàu trong dịch vụ',
+        t['Tuyến dịch vụ'] = [n if isinstance(n, str) and n else f'{m} (chưa có tên)' for n, m in zip(t.get('service_name', pd.Series('', index=t.index)), t['Mã'])]
+        cols = ['Tuyến dịch vụ', 'Hãng chính', 'Vòng cảng', 'Bến ghé (lượt)', 'Lượt cập bến', 'TEU danh nghĩa', 'Tàu đã ghé', 'Tàu trong dịch vụ',
                 'Các hãng (số tàu)', 'Cảng VN trên vòng', 'Lượt cuối']
         cd.table(t[cols].round(0), ten='dich_vu_ghe', height=420)
 
@@ -987,7 +989,7 @@ def page_lanes(level, auth, term, K):
         one = st.selectbox('Dịch vụ', order, key=f'{K}_svsel', format_func=lambda x: lab.get(x, x)) if order else None
         if one in si.index:
             r = si.loc[one]
-            ui.note(f"<b>{one}</b> · hãng chính <b>{r['operator'] or 'chưa rõ'}</b>" + (f" ({r['operators']})" if r['operators'] else '')
+            ui.note(f"<b>{lab.get(one, one).split(' · ')[0]}</b> · hãng chính <b>{r['operator'] or 'chưa rõ'}</b>" + (f" ({r['operators']})" if r['operators'] else '')
                     + f" · {int(r['n_vessels'])} tàu · vòng cảng: {r['route']}")
             rv = rot[rot['service_id'] == one].copy(); rv['imo_n'] = pd.to_numeric(rv['imo'], errors='coerce')
             mm = mst.assign(imo_n=pd.to_numeric(mst['imo'], errors='coerce')).dropna(subset=['imo_n'])

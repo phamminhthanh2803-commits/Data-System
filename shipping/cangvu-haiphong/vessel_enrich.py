@@ -337,7 +337,8 @@ def service_layer(master, pc):
     rot = sv.rotations(pc)
     if rot.empty: return
     ops = {int(float(m['imo'])): m['operator'] for m in master.values() if m.get('imo') and m.get('operator')}
-    svc, rot = sv.cluster(rot, ops)
+    fs = os.path.join(ECONDB_DIR, 'vessel_services.parquet')       # tên tuyến dịch vụ từng tàu (econdb.py --only vservices, 26/10/2026)
+    svc, rot = sv.cluster(rot, ops, names=sv.service_names(pd.read_parquet(fs)) if os.path.exists(fs) else None)
     inf = sv.infer_operator(svc, rot)
     by_imo = {}
     for m in master.values():

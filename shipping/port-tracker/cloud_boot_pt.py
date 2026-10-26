@@ -41,7 +41,7 @@ def _present_inc(years_back=2):
 # 21/10/2026: KHÔNG kéo store/** thô nữa (app không còn nạp SQLite / ghép chuyến) - chỉ bản dựng sẵn + EconDB nhỏ + số công bố
 PULL = [('port-tracker', _present_inc() + ['/store/econdb/series.parquet', '/store/econdb/calls.parquet', '/store/econdb/schedule.parquet',
                                            '/store/econdb/ports.parquet', '/store/econdb/vessels.parquet', '/store/econdb/terminals.parquet',
-                                           '/store/econdb/vessel_portcalls.parquet', '/store/econdb/term_services.parquet',   # trang Tuyến dịch vụ (26/10)
+                                           '/store/econdb/vessel_portcalls.parquet', '/store/econdb/term_services.parquet', '/store/econdb/vessel_services.parquet',   # trang Tuyến dịch vụ (26/10)
                                            '/nowcast_targets.csv', '/nowcast_blocks.csv']),
         ('vessel-itinerary', ['/data/port_pairs_nm.csv']),                      # cache hải lý (bản đồ lộ trình 1 tàu)
         ('vimawa-sanluong', ['/data/vimawa_sanluong.csv'])]                     # biểu 28-T Cục Hàng hải: tham chiếu trang Sản lượng

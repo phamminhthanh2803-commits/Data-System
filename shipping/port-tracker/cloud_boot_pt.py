@@ -34,7 +34,7 @@ def _present_inc(years_back=2):
     y = time.localtime().tm_year
     yrs = [f'/store/present/{k}_{x}.parquet' for x in range(y - years_back, y + 1) for k in ('calls', 'visits')]
     return ['/store/present/meta.json'] + [f'/store/present/{n}.parquet' for n in
-            ('lanes', 'patterns', 'legs', 'services', 'rotations', 'master', 'events_recent')] + yrs
+            ('lanes', 'patterns', 'legs', 'services', 'rotations', 'master', 'events_recent', 'season_cap')] + yrs
 
 
 # (thư mục trên Drive dưới shipping/, include) -> kéo về HUB/<thư mục>

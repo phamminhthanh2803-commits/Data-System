@@ -1051,6 +1051,21 @@ def _norm(x): return ''.join(ch for ch in str(x).upper() if ch.isalnum())
 
 
 # ---- mô hình ước/dự báo (nowcast.py)
+def nc_capsi(auth):
+    """mùa vụ SỨC CHỞ nhiều năm của cảng vụ (present/season_cap.parquet, pipeline dựng từ lịch tàu 2019+); chưa có file -> tính từ lượt đã nạp"""
+    f = os.path.join(PRESENT_DIR, 'season_cap.parquet'); key = (auth, os.path.getmtime(f) if os.path.exists(f) else 0, LAST)
+    cache = st.session_state.setdefault('_capsi', {})
+    if key in cache: return cache[key]
+    si = None
+    if os.path.exists(f):
+        d = pd.read_parquet(f); d = d[d['auth'] == auth]
+        if len(d) == 12: si = d.set_index('thang')['si'].astype(float)
+    if si is None:
+        v = nc_visits(); si = nw.cap_season(nw.features(v if auth == 'VN' else v[v['auth'] == auth], LAST))
+    cache[key] = si
+    return si
+
+
 def nc_visits():
     """luôn dùng lượt cập bến tàu container, không theo bộ lọc Loại tàu"""
     return visits[visits['is_container']]
@@ -1126,7 +1141,7 @@ def nc_term(auth, term, E, ra):
         members = [x.strip() for x in grp.split('+')]
         fg = ft if len(members) == 1 else nw.features(va[va['terminal'].map(nw.nfc).isin([nw.nfc(x) for x in members])], LAST)   # nhóm: biến gộp các bến
         mt = nw.own_min_train(fg, pub)                            # 7–8 tháng trùng (Cái Mép) vẫn tự hồi quy, backtest ít điểm
-        res = nw.run(fg, pub, min_train=mt, seasonal_ref=nw.season_ref(T, auth), force=force, prior=prior,
+        res = nw.run(fg, pub, min_train=mt, seasonal_ref=nw.season_ref(T, auth), force=force, prior=prior, capsi=nc_capsi(auth),
                      blocks=nw.block_list(nw.load_blocks(), auth, grp, pub)) if mt else None
         if res is not None:
             if len(members) > 1 and len(ts): ts = nw.terminal_series(E['series'], lcs, ed.TERMINAL_MAP, members[0], TODAY)
@@ -1140,7 +1155,7 @@ def nc_term(auth, term, E, ra):
     # 0b) bến KHÔNG có / thiếu số công bố -> HỆ SỐ CHUNG rút từ các bến đã có số công bố (cùng cảng vụ, không đủ thì toàn quốc)
     pooled = pools.get(cls) or pools.get('chung')
     if pooled is not None:
-        res = nw.apply_pooled(ft, pooled, pub if len(pub) else None, port)
+        res = nw.apply_pooled(ft, pooled, pub if len(pub) else None, port, capsi=nc_capsi(auth))
         if res is not None:
             cache[key] = {'res': res, 'econ': ts, 'cls': cls,
                           'src': (f'số công bố ({pub.index.min():%m/%Y}–{pub.index.max():%m/%Y}); ' if len(pub) else 'chưa có số công bố; ')
@@ -1149,7 +1164,7 @@ def nc_term(auth, term, E, ra):
             return cache[key]
     # 1) bến có mã terminal EconDB (TERMINAL_MAP) -> throughput từng terminal từ 2022 -> TỰ hồi quy cho chính nó
     if len(ts):
-        res = nw.run(ft, ts, min_train=nw.MIN_TRAIN_TERM, seasonal_ref=port, force=force, prior=None)
+        res = nw.run(ft, ts, min_train=nw.MIN_TRAIN_TERM, seasonal_ref=port, force=force, prior=None, capsi=nc_capsi(auth))
         if res is not None:
             codes = ', '.join(k for lc in lcs for k, t in ed.TERMINAL_MAP.get(lc, {}).items() if nw.nfc(term) in nw._members(t))
             cache[key] = {'res': res, 'src': f'throughput terminal EconDB ({codes})'}
@@ -1159,7 +1174,7 @@ def nc_term(auth, term, E, ra):
     if matched is None or matched.empty: return None
     port = nw.econdb_monthly(E['series'], lcs)
     act, sh = nw.terminal_actual(port, matched, term, c)
-    res = nw.run(ft, act, min_train=nw.MIN_TRAIN_TERM, seasonal_ref=port, force=force) if len(act) >= nw.MIN_TRAIN_TERM + 3 else None
+    res = nw.run(ft, act, min_train=nw.MIN_TRAIN_TERM, seasonal_ref=port, force=force, capsi=nc_capsi(auth)) if len(act) >= nw.MIN_TRAIN_TERM + 3 else None
     view = None
     if res is None and ra is not None:
         d = ra['data']; full_sh = sh[sh.index.isin(act.index)]
@@ -1247,7 +1262,7 @@ def nc_published_total(auth, name):
         r = nc_split_cm(v, pub_all, cut, auth, name) if cut else None          # tách Cái Mép: phần còn lại học + fit được cả trước mốc cắt
         if r is None:
             f = nw.features(v, LAST); mt = nw.own_min_train(f, pub)
-            r = nw.run(f, pub, min_train=mt, seasonal_ref=nw.season_ref(T, auth), prior=nw.self_prior(f, pub),
+            r = nw.run(f, pub, min_train=mt, seasonal_ref=nw.season_ref(T, auth), prior=nw.self_prior(f, pub), capsi=nc_capsi(auth),
                        blocks=nw.block_list(nw.load_blocks(), auth, name, pub_all)) if mt else None
         cache[key] = None if r is None else {
             'd': r['data'], 'res': r,
@@ -1352,8 +1367,9 @@ def nc_split_cm(v, pub, cut, auth=None, name=None):
         cm_w = _window_sum(T, B, 'HCM', cm_terms, W)
         if cm_w is not None and 0 < cm_w < tot: b_cm.append((W, cm_w)); b_rest.append((W, tot - cm_w))
     sref = nw.season_ref(T, 'HCM')                                  # mùa vụ: chuỗi VPA cảng vụ (không lấy chuỗi riêng từng phần)
-    r_rest = nw.run(f_rest, rest_act, min_train=mt_r, seasonal_ref=sref, prior=nw.self_prior(f_rest, rest_act), blocks=b_rest)
-    r_cm = nw.run(f_cm, cm_fit, min_train=mt_c, seasonal_ref=sref, prior=nw.self_prior(f_cm, cm_fit), blocks=b_cm)
+    csi = nc_capsi('HCM')
+    r_rest = nw.run(f_rest, rest_act, min_train=mt_r, seasonal_ref=sref, prior=nw.self_prior(f_rest, rest_act), blocks=b_rest, capsi=csi)
+    r_cm = nw.run(f_cm, cm_fit, min_train=mt_c, seasonal_ref=sref, prior=nw.self_prior(f_cm, cm_fit), blocks=b_cm, capsi=csi)
     if r_rest is None or r_cm is None: return None
     # phần Cái Mép trước mốc cắt: thực tế VPA làm cả fit/backtest (chỉ để cộng ra đường tổng, không tính sai số)
     pre = [m for m in r_rest['data'].index if m not in r_cm['data'].index and m in cm_act.index]
@@ -1652,7 +1668,7 @@ def page_volume(level, auth, term, K):
                 if adjs:
                     note += (' Ước/dự báo đã nhân hệ số hiệu chỉnh theo sai số 3 tháng có số gần nhất ('
                              + ', '.join(f'×{x:.2f}'.replace('.', ',') for x in adjs[:5]) + ') - độ đầy hàng của tàu thay đổi theo thời gian.'
-                             + ' Mùa vụ tháng dự báo theo chuỗi VPA cấp cảng vụ năm trước (cảng vụ đang tăng/giảm mạnh thì theo toàn quốc).')
+                             + ' Mùa vụ tháng dự báo = TB của VPA cấp cảng vụ năm trước và mùa vụ sức chở tàu ghé cảng vụ nhiều năm (lịch tàu từ 2019).')
                 if r.get('best') == nw.ENS or any(p_ and p_.get('best') == nw.ENS for p_ in (r.get('parts') or {}).values()):
                     note += (' Số ước = TB 3 cách: hồi quy lịch tàu, TB thực tế 3 tháng gần nhất × mùa vụ, hiệu suất khai thác (TEU / sức chở)'
                              ' 3 tháng × mùa vụ hiệu suất × sức chở tháng đích'

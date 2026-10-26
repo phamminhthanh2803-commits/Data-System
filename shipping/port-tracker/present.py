@@ -123,6 +123,24 @@ def main(argv=None) -> int:
         if len(e): ev.append(e.assign(plan_date=d.strftime('%Y-%m-%d')))
     if ev: size += write(pd.concat(ev, ignore_index=True), 'events_recent.parquet')
 
+    # 4b. mùa vụ SỨC CHỞ nhiều năm theo cảng vụ (dự báo sản lượng, nowcast.cap_season): đọc lượt cập bến MỌI năm đã có trong present/
+    try:
+        import nowcast as nw
+        fs = sorted(f for f in os.listdir(OUT) if f.startswith('visits_') and f.endswith('.parquet'))
+        vv = pd.concat([pd.read_parquet(os.path.join(OUT, f)) for f in fs], ignore_index=True)
+        for c in vv.columns:
+            if isinstance(vv[c].dtype, pd.CategoricalDtype): vv[c] = vv[c].astype(object)
+        vv = vv[vv['is_container'].astype(bool)]; lastv = vv['arr_day'].max(); rows = []
+        for au in sorted(vv['auth'].dropna().unique().tolist()) + ['VN']:
+            sub = vv if au == 'VN' else vv[vv['auth'] == au]
+            si = nw.cap_season(nw.features(sub, lastv))
+            if si is not None:
+                rows += [{'auth': au, 'thang': int(m), 'si': float(x), 'tu': str(sub['arr_day'].min().date()), 'den': str(lastv.date())} for m, x in si.items()]
+        if rows: size += write(pd.DataFrame(rows), 'season_cap.parquet')
+        log(f'mùa vụ sức chở: {len(rows) // 12} phạm vi')
+    except Exception as e:  # noqa: BLE001
+        log(f'  ! mùa vụ sức chở lỗi: {str(e)[:150]}')
+
     # 5. meta
     cov = ld.coverage(); ss = ld.store_status()
     last = calls.loc[calls['arr_day'].notna(), 'arr_day'].max()

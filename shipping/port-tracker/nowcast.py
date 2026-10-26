@@ -235,6 +235,37 @@ def _with_blocks(tr, cols, B, upto=None, lo=None):
     return X, y
 
 
+SEAS_CLIP = (0.7, 1.35)
+
+
+def cap_season(feat, min_years=2):
+    """chỉ số MÙA VỤ SỨC CHỞ tàu ghé (lịch tàu cảng vụ, HP/HCM từ 2019): sức chở tháng / TB trượt tâm 12 tháng, trung vị theo tháng
+    dương lịch, chuẩn hoá TB = 1 -> Series 1..12; None nếu < min_years năm có tỷ lệ. Lịch tàu dài hơn nhiều so với số VPA (từ 2024–2025)."""
+    if feat is None or feat.empty: return None
+    s = feat.loc[~feat['partial'], 'teu']; s = s[s > 0]
+    r = (s / s.rolling(12, center=True, min_periods=12).mean()).dropna(); r = r[(r > 0.4) & (r < 2.5)]
+    if r.index.year.nunique() < min_years: return None
+    si = r.groupby(r.index.month).median()
+    return si / si.mean() if len(si) == 12 else None
+
+
+def _ly_ratio(ref, m, months):
+    if ref is None or not len(ref): return None
+    a = ref.get(ly(m)); b = [ref.get(ly(x)) for x in months]
+    if a is None or pd.isna(a) or any(v is None or pd.isna(v) for v in b) or np.mean(b) <= 0: return None
+    return float(np.clip(a / np.mean(b), *SEAS_CLIP))
+
+
+def season_factor(m, months, sref=None, capsi=None):
+    """mùa vụ tháng m so TB các tháng months (26/10/2026): TB của (a) VPA năm trước (chuỗi sref, chỉ 1 năm) và (b) mùa vụ sức chở
+    nhiều năm (capsi, cấp cảng vụ); có 1 dùng 1, không có -> 1. Backtest dự báo thuần 1.585 điểm: tháng Tết 18,7 -> 15,5%, các h đều tốt nhất."""
+    v = [x for x in (_ly_ratio(sref, m, months),) if x is not None]
+    if capsi is not None and len(capsi) == 12:
+        den = float(np.mean([capsi[pd.Timestamp(x).month] for x in months]))
+        if den > 0: v.append(float(np.clip(capsi[pd.Timestamp(m).month] / den, *SEAS_CLIP)))
+    return float(np.mean(v)) if v else 1.0
+
+
 def _sf(ref, m, months, clip=(0.7, 1.35)):
     """chỉ số mùa vụ tháng m so TB các tháng months, lấy từ năm trước của chuỗi ref; thiếu số -> 1"""
     if ref is None or not len(ref): return 1.0
@@ -243,7 +274,7 @@ def _sf(ref, m, months, clip=(0.7, 1.35)):
     return float(np.clip(a / np.mean(b), *clip))
 
 
-def _ens_bt(y, teu, sref=None):
+def _ens_bt(y, teu, sref=None, capsi=None):
     """2 thành phần phụ của TỔ HỢP cho backtest, chỉ dùng số tới tháng trước: TB 3 tháng × mùa vụ sản lượng,
     hiệu suất khai thác TB 3 tháng × mùa vụ hiệu suất × sức chở tháng đó"""
     lf = (y / teu).replace([np.inf, -np.inf], np.nan)
@@ -251,13 +282,13 @@ def _ens_bt(y, teu, sref=None):
     for i, m in enumerate(y.index):
         P = y.index[max(0, i - 3):i]
         if len(P) < 3: ma3.append(np.nan); util.append(np.nan); continue
-        ma3.append(float(y[P].mean()) * _sf(sref, m, P))
+        ma3.append(float(y[P].mean()) * season_factor(m, P, sref, capsi))
         util.append(float(lf[P].mean()) * _sf(lf, m, P) * float(teu[m]))
     ma3 = pd.Series(ma3, index=y.index); util = pd.Series(util, index=y.index)
     return ma3, util.fillna(ma3)
 
 
-def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=None, blocks=None):
+def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=None, blocks=None, capsi=None):
     """feat: features(); actual: Series tháng -> TEU thực tế. Trả về dict hoặc None nếu không đủ dữ liệu.
     data: bảng tháng (actual, modeled, backtest, nowcast, forecast, lo, hi, kind) ; mape: {mô hình: %}; best, coef, cols."""
     if feat.empty or actual is None or actual.empty: return None
@@ -284,7 +315,7 @@ def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=
     auto = min(MODELS, key=lambda c: 0.5 * mape[c] + 0.5 * mape_recent[c])
     reg = force if force in MODELS else auto                       # force: PV2 chọn tay mô hình hồi quy cho bến (khi đó không tổ hợp)
     sref = seasonal_ref if seasonal_ref is not None and len(seasonal_ref) else actual
-    ma3, util = _ens_bt(train['actual'], train['teu'], sref)
+    ma3, util = _ens_bt(train['actual'], train['teu'], sref, capsi)
     bt[UTIL] = util.reindex(bt.index).fillna(bt[auto])
     bt[ENS] = pd.concat([bt[auto], ma3.reindex(bt.index), bt[UTIL]], axis=1).mean(axis=1)
     for c in (UTIL, ENS): mape[c] = _m(bt, c); mape_recent[c] = _m(bt.tail(RECENT_BT), c)
@@ -305,7 +336,7 @@ def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=
     # khoảng = ± sai số PHÂN VỊ 80% của backtest (16/10/2026: ± MAPE chỉ trùm 33/68 tháng công bố mới = 49%)
     err = float(np.quantile(np.abs(bt[best] / bt['actual'] - 1), BAND_Q))
 
-    data, seas = _assemble(feat, actual, cols, coef, err, seasonal_ref, bt[best], adj=adj, ens=best == ENS)
+    data, seas = _assemble(feat, actual, cols, coef, err, seasonal_ref, bt[best], adj=adj, ens=best == ENS, capsi=capsi)
     return {'data': data, 'mape': mape, 'mape_recent': mape_recent, 'fit_err': fit_err, 'fits': fits, 'auto': auto, 'best': best, 'reg': reg, 'cols': cols, 'adj': adj,
             'coef': dict(zip(cols, coef)), 'backtest': bt, 'n_bt': len(bt),
             'n_train': len(train), 'seasonal': seas, 'dwt_per_teu': feat.attrs.get('dwt_per_teu'),
@@ -406,7 +437,7 @@ def save_targets(auth, terminal, rows):
     out['month'] = out['month'].dt.strftime('%Y-%m'); out.to_csv(TARGETS, index=False, encoding='utf-8')
 
 
-def _assemble(feat, actual, cols, coef, err, seasonal_ref=None, bt_series=None, adj=1.0, ens=False):
+def _assemble(feat, actual, cols, coef, err, seasonal_ref=None, bt_series=None, adj=1.0, ens=False, capsi=None):
     """dựng bảng tháng (thực tế / nowcast / dự báo / khoảng) từ hệ số đã có; dùng cho run() và hệ số chung"""
     data = feat.join(actual.rename('actual'), how='left')
     scale = (data['days_month'] / data['days_obs'].clip(lower=1)).where(data['partial'], 1.0)
@@ -427,15 +458,12 @@ def _assemble(feat, actual, cols, coef, err, seasonal_ref=None, bt_series=None, 
 
     # dự báo thuần (không cần biến tháng đích): biến = TB 3 tháng trọn gần nhất (B) × mùa vụ; mùa vụ từ chuỗi THỰC TẾ năm trước
     # = thực tế(tháng đích - 1 năm) / TB thực tế(B - 1 năm), chặn 0,7–1,35 (không lấy từ biến vì có thể gãy do đổi phạm vi)
+    # 26/10/2026: + mùa vụ SỨC CHỞ nhiều năm (capsi, lịch tàu cảng vụ từ 2019) -> TB 2 nguồn (season_factor)
     full = feat[~feat['partial']]; B = full.index[-3:]; base = full.loc[B, cols].mean()
 
     sref = seasonal_ref if seasonal_ref is not None and len(seasonal_ref) else actual     # mùa vụ: chuỗi cảng mượt hơn chuỗi bến
 
-    def _seas(tm, ref_months):
-        ly_, lyb = ly(tm), [ly(x) for x in ref_months]
-        if ly_ in sref.index and all(x in sref.index for x in lyb) and sref.loc[lyb].mean() > 0:
-            return float(np.clip(sref.loc[ly_] / sref.loc[lyb].mean(), 0.7, 1.35))
-        return 1.0
+    def _seas(tm, ref_months): return season_factor(tm, ref_months, sref, capsi)     # VPA năm trước + mùa vụ sức chở nhiều năm
 
     def forecast(tm):
         seas = _seas(tm, B)
@@ -529,12 +557,12 @@ def pooled_by_class(pairs, window=POOL_WINDOW):
     return out
 
 
-def apply_pooled(feat, pooled, actual=None, seasonal_ref=None):
+def apply_pooled(feat, pooled, actual=None, seasonal_ref=None, capsi=None):
     """ước/dự báo 1 bến bằng hệ số chung; actual = số công bố ngắn của bến (nếu có) chỉ để vẽ"""
     if feat.empty or pooled is None or not (feat['teu'] > 0).any(): return None
     actual = actual if actual is not None else pd.Series(dtype=float)
     cols = pooled['cols']; coef = np.array([pooled['coef'][c] for c in cols]); err = pooled['err']
-    data, seas = _assemble(feat, actual, cols, coef, err, seasonal_ref, None)
+    data, seas = _assemble(feat, actual, cols, coef, err, seasonal_ref, None, capsi=capsi)
     label = f"hệ số {pooled.get('label', 'chung')} ({pooled['n_terms']} bến công bố)"
     return {'data': data, 'mape': {label: err * 100}, 'mape_recent': {label: err * 100}, 'best': label, 'cols': cols, 'coef': pooled['coef'],
             'backtest': None, 'n_bt': 0, 'n_train': pooled['n_months'], 'seasonal': seas, 'dwt_per_teu': feat.attrs.get('dwt_per_teu'), 'pooled': True}

@@ -247,7 +247,9 @@ def get_services(estamp, mstamp):
         try:
             if op and str(op) != 'nan': ops[int(float(imo))] = op
         except (TypeError, ValueError): pass
-    svc, rot = svm.cluster(svm.rotations(pc), ops, names=svm.service_names(E.get('vessel_services')))
+    import carrier_services as cs_
+    rot0 = svm.rotations(pc)
+    svc, rot = svm.cluster(rot0, ops, names={**svm.service_names(E.get('vessel_services')), **svm.names_for_rotations(rot0, cs_.load(), ops)})
     return svc, rot, E.get('vessels', pd.DataFrame())
 
 

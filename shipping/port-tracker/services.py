@@ -184,6 +184,29 @@ def service_names(vs):
     return {int(m): str(n).strip() for m, n in zip(v['mmsi'], v['service']) if pd.notna(m) and str(n).strip()}
 
 
+def names_for_rotations(rot, cs, ops=None):
+    """lịch tàu công khai của hãng (carrier_services.csv: carrier, service_code, service_name, vessel, imo) -> dict mmsi -> nhãn tuyến
+    'CODE (Hãng)'. Ghép theo IMO rồi tên tàu chuẩn hoá. Tàu có ở nhiều nguồn (thuê slot / chia tàu) -> ưu tiên nguồn của chính hãng khai
+    thác tàu (ops: imo -> hãng), rồi nguồn khác Hải An, cuối cùng Hải An."""
+    if cs is None or len(cs) == 0 or rot is None or rot.empty: return {}
+    ops = ops or {}
+    cs = cs.assign(k_imo=pd.to_numeric(cs.get('imo'), errors='coerce'), k_nm=cs['vessel'].map(norm_name))
+    out = {}
+    for r in rot.itertuples():
+        imo = pd.to_numeric(pd.Series([r.imo]), errors='coerce').iloc[0]
+        c = cs[(cs['k_imo'] == imo)] if pd.notna(imo) and imo > 0 else cs.iloc[0:0]
+        if c.empty: c = cs[cs['k_nm'] == norm_name(r.ship)]
+        if c.empty: continue
+        op = (ops.get(int(imo)) if pd.notna(imo) and imo > 0 else '') or ''
+        def rank(row):
+            car = str(row['carrier']).lower()
+            return (0 if op and (op.lower() in car or car.split(' (')[0] in op.lower()) else 1, 1 if 'hai an' in car else 0)
+        best = min((row for _, row in c.iterrows()), key=rank)
+        code = str(best['service_code']).strip()
+        if code and code.lower() != 'nan': out[int(r.mmsi)] = f"{code} ({str(best['carrier']).split(' (')[0]})"
+    return out
+
+
 def infer_operator(svc, rot, share=INFER_SHARE, min_known=2):
     """imo -> (hãng suy theo dịch vụ, mã dịch vụ) cho tàu chưa rõ hãng"""
     if svc is None or svc.empty: return {}

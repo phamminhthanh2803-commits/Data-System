@@ -338,7 +338,14 @@ def service_layer(master, pc):
     if rot.empty: return
     ops = {int(float(m['imo'])): m['operator'] for m in master.values() if m.get('imo') and m.get('operator')}
     fs = os.path.join(ECONDB_DIR, 'vessel_services.parquet')       # tên tuyến dịch vụ từng tàu (econdb.py --only vservices, 26/10/2026)
-    svc, rot = sv.cluster(rot, ops, names=sv.service_names(pd.read_parquet(fs)) if os.path.exists(fs) else None)
+    nm = sv.service_names(pd.read_parquet(fs)) if os.path.exists(fs) else {}
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'port-tracker'))
+        import carrier_services as cs_
+        nm.update(sv.names_for_rotations(rot, cs_.load(), ops))          # tên tuyến theo lịch tàu công khai của hãng (26/10/2026)
+    except Exception as e:  # noqa: BLE001
+        log(f'  ! tên tuyến lịch tàu hãng: {str(e)[:120]}')
+    svc, rot = sv.cluster(rot, ops, names=nm)
     inf = sv.infer_operator(svc, rot)
     by_imo = {}
     for m in master.values():

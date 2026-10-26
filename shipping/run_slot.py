@@ -39,6 +39,7 @@ STEPS = [
     Step("AM", "itinerary", "vessel-itinerary/vessel_itinerary.py",
          extra_args=("--all", "--since", "2025-01-01", "--no-png"), when=True),                        # lo trinh tung tau + chang + vong tuyen
     Step("AM", "port-tracker", "port-tracker/pt_update.py", when=True),                                # ghep du lieu cang vu LIEN TUC cho app Port Tracker -> store/ parquet (cloud: 11 cang vu; laptop: PT_AUTHS=HCM)
+    Step("AM", "carrier-svc", "port-tracker/carrier_services.py", when=True),                    # 26/10/2026: ten tuyen dich vu tung tau tu lich tau cong khai cua hang (Hai An, Yang Ming; COSCO thu Hai) -> store/carrier_services.csv
     Step("AM", "pt-present", "port-tracker/present.py", when=True),                              # 21/10/2026: dung san du lieu trinh bay cho app (chuyen/luot/chang/dich vu) -> store/present/
     Step("AM", "vimawa", "vimawa-sanluong/vimawa_sanluong.py", when=True),                              # bieu 28-T Cuc Hang hai (vimawa.gov.vn/vi/thong-ke): san luong qua cang toan quoc, tham chieu trang San luong
     Step("AM", "alibra", "Alibra-scraper/run.ps1", kind="ps1", when=is_mon,

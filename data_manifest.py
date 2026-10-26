@@ -197,6 +197,9 @@ STEP_FOLDERS: dict[str, list] = {
     # shipping PM
     "bcti":             [("shipping/BCTI-scraper", "rw", None)],
     "port-tracker-pm":  [("shipping/port-tracker", "rw", None)],
+    # 26/10/2026: ten tuyen dich vu theo lich tau hang (carrier_services.py): doc lich Hai An + bang tau dung san, ghi store/carrier_services.csv
+    "carrier-svc":      [("shipping/port-tracker", "rw", ["store/carrier_services.csv", "store/present/master.parquet"]),
+                         ("hah", "r", ["haian-voyages.csv"])],
     # 21/10/2026: dung ban trinh bay store/present (present.py) - can store/ + bang tau + bang ben HCM + cache hai ly
     "pt-present":       [("shipping/port-tracker", "rw", None), ("shipping/cangvu-haiphong", "r", ["data/vessel_master.csv"]),
                          ("shipping/cangvu-hcm", "r", ["terminals_hcm.csv"]), ("shipping/vessel-itinerary", "r", ["data/port_pairs_nm.csv"])],

@@ -62,7 +62,11 @@ NAIVE = 'Naive: tháng trước'
 # (3) độ đầy hàng TB 3 tháng (thực tế / sức chở) × sức chở tháng đích. Bến nhỏ/sà lan lịch tàu kém đại diện (PTSC, Bến Nghé, Tân Cảng 189,
 # Đà Nẵng...) -> hồi quy lệch, 2 cách kia kéo lại. Backtest ngoài mẫu 07/2025–09/2026 (32 phạm vi, 440 điểm): MAPE 14,8% -> 13,1%,
 # T4–T9/2026 13,2 -> 10,9%; trọng số chọn riêng từng bến không hơn trọng số đều.
-ENS = 'T: tổ hợp (hồi quy + TB 3 tháng + độ đầy hàng 3 tháng)'
+ENS = 'T: tổ hợp (hồi quy + TB 3 tháng + hiệu suất khai thác)'
+# 26/10/2026 PV2: mô hình ĐƠN GIẢN "hiệu suất khai thác" = TEU VPA / TEU danh nghĩa (sức chở tàu ghé) TB 3 tháng có số gần nhất
+# × mùa vụ của chính hiệu suất (tháng đích năm trước / TB 3 tháng tương ứng năm trước, chặn 0,7–1,35) × sức chở tháng đích.
+# Mùa vụ hiệu suất theo CHÍNH bến tốt nhất (backtest 13,0% vs 13,1% không mùa vụ; theo cảng vụ 13,6%; hiệu suất TB 12 tháng 16,6%).
+UTIL = 'U: hiệu suất khai thác (TEU / sức chở 3 tháng × mùa vụ)'
 # 23/10/2026: hiệu chỉnh theo sai số gần nhất - độ đầy hàng của tàu (TEU công bố / sức chở) đổi theo thời gian (HP 0,63 nửa đầu 2026 ->
 # 0,82 T9/2026), hệ số cố định đoán lệch có hệ thống. Ước/dự báo × TB(thực tế / mô hình) của BIAS_K tháng có số gần nhất, chặn BIAS_CLIP.
 # Backtest 360 điểm / 28 phạm vi: MAPE 15,6 -> 14,2% (2026: 15,8 -> 13,4%; T8-T9/2026: 20,5 -> 15,4%).
@@ -231,11 +235,26 @@ def _with_blocks(tr, cols, B, upto=None, lo=None):
     return X, y
 
 
-def _ens_bt(y, teu):
-    """2 thành phần phụ của TỔ HỢP cho backtest, chỉ dùng số tới tháng trước: TB 3 tháng, độ đầy hàng TB 3 tháng × sức chở tháng đó"""
-    ma3 = y.shift(1).rolling(3).mean()
-    lf3 = (y / teu).replace([np.inf, -np.inf], np.nan).shift(1).rolling(3).mean() * teu
-    return ma3, lf3.fillna(ma3)
+def _sf(ref, m, months, clip=(0.7, 1.35)):
+    """chỉ số mùa vụ tháng m so TB các tháng months, lấy từ năm trước của chuỗi ref; thiếu số -> 1"""
+    if ref is None or not len(ref): return 1.0
+    a = ref.get(ly(m)); b = [ref.get(ly(x)) for x in months]
+    if a is None or pd.isna(a) or any(v is None or pd.isna(v) for v in b) or np.mean(b) <= 0: return 1.0
+    return float(np.clip(a / np.mean(b), *clip))
+
+
+def _ens_bt(y, teu, sref=None):
+    """2 thành phần phụ của TỔ HỢP cho backtest, chỉ dùng số tới tháng trước: TB 3 tháng × mùa vụ sản lượng,
+    hiệu suất khai thác TB 3 tháng × mùa vụ hiệu suất × sức chở tháng đó"""
+    lf = (y / teu).replace([np.inf, -np.inf], np.nan)
+    ma3, util = [], []
+    for i, m in enumerate(y.index):
+        P = y.index[max(0, i - 3):i]
+        if len(P) < 3: ma3.append(np.nan); util.append(np.nan); continue
+        ma3.append(float(y[P].mean()) * _sf(sref, m, P))
+        util.append(float(lf[P].mean()) * _sf(lf, m, P) * float(teu[m]))
+    ma3 = pd.Series(ma3, index=y.index); util = pd.Series(util, index=y.index)
+    return ma3, util.fillna(ma3)
 
 
 def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=None, blocks=None):
@@ -264,9 +283,11 @@ def run(feat, actual, min_train=MIN_TRAIN, seasonal_ref=None, force=None, prior=
     mape_recent = {c: _m(rec, c) for c in list(MODELS) + [NAIVE]}
     auto = min(MODELS, key=lambda c: 0.5 * mape[c] + 0.5 * mape_recent[c])
     reg = force if force in MODELS else auto                       # force: PV2 chọn tay mô hình hồi quy cho bến (khi đó không tổ hợp)
-    ma3, lf3 = _ens_bt(train['actual'], train['teu'])
-    bt[ENS] = pd.concat([bt[auto], ma3.reindex(bt.index), lf3.reindex(bt.index)], axis=1).mean(axis=1)
-    mape[ENS] = _m(bt, ENS); mape_recent[ENS] = _m(bt.tail(RECENT_BT), ENS)
+    sref = seasonal_ref if seasonal_ref is not None and len(seasonal_ref) else actual
+    ma3, util = _ens_bt(train['actual'], train['teu'], sref)
+    bt[UTIL] = util.reindex(bt.index).fillna(bt[auto])
+    bt[ENS] = pd.concat([bt[auto], ma3.reindex(bt.index), bt[UTIL]], axis=1).mean(axis=1)
+    for c in (UTIL, ENS): mape[c] = _m(bt, c); mape_recent[c] = _m(bt.tail(RECENT_BT), c)
     best = reg if force in MODELS else ENS
     # fit TRONG MẪU của từng mô hình (hệ số cuối) trên mọi tháng có biến -> đối chiếu 'model fit' như biểu đồ PV2
     scale_all = (feat['days_month'] / feat['days_obs'].clip(lower=1)).where(feat['partial'], 1.0)
@@ -400,7 +421,8 @@ def _assemble(feat, actual, cols, coef, err, seasonal_ref=None, bt_series=None, 
     A3 = act_ok.index[-3:]; ens = ens and len(A3) == 3
     if ens:
         ma3 = float(act_ok.loc[A3, 'actual'].mean())
-        lfv = (act_ok.loc[A3, 'actual'] / act_ok.loc[A3, 'teu']).replace([np.inf, -np.inf], np.nan).dropna()
+        lf_hist = (act_ok['actual'] / act_ok['teu']).replace([np.inf, -np.inf], np.nan)     # hiệu suất khai thác theo tháng
+        lfv = lf_hist.loc[A3].dropna()
         lf3 = float(lfv.mean()) if len(lfv) else None
 
     # dự báo thuần (không cần biến tháng đích): biến = TB 3 tháng trọn gần nhất (B) × mùa vụ; mùa vụ từ chuỗi THỰC TẾ năm trước
@@ -428,7 +450,7 @@ def _assemble(feat, actual, cols, coef, err, seasonal_ref=None, bt_series=None, 
         trộn với dự báo thuần như hồi quy"""
         if not ens: return reg_v
         f_, _ = forecast(tm)
-        alt = [ma3 * _seas(tm, A3)] + ([w * lf3 * teu_v + (1 - w) * f_] if lf3 and teu_v > 0 else [])
+        alt = [ma3 * _seas(tm, A3)] + ([w * lf3 * _sf(lf_hist, tm, A3) * teu_v + (1 - w) * f_] if lf3 and teu_v > 0 else [])
         return float(np.mean([reg_v] + alt))
 
     for tm in data.index[nc.values]:

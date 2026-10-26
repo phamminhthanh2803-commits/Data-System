@@ -1654,7 +1654,8 @@ def page_volume(level, auth, term, K):
                              + ', '.join(f'×{x:.2f}'.replace('.', ',') for x in adjs[:5]) + ') - độ đầy hàng của tàu thay đổi theo thời gian.'
                              + ' Mùa vụ tháng dự báo theo chuỗi VPA cấp cảng vụ năm trước (cảng vụ đang tăng/giảm mạnh thì theo toàn quốc).')
                 if r.get('best') == nw.ENS or any(p_ and p_.get('best') == nw.ENS for p_ in (r.get('parts') or {}).values()):
-                    note += (' Số ước = TB 3 cách: hồi quy lịch tàu, TB thực tế 3 tháng gần nhất × mùa vụ, độ đầy hàng 3 tháng × sức chở tháng đích'
+                    note += (' Số ước = TB 3 cách: hồi quy lịch tàu, TB thực tế 3 tháng gần nhất × mùa vụ, hiệu suất khai thác (TEU / sức chở)'
+                             ' 3 tháng × mùa vụ hiệu suất × sức chở tháng đích'
                              ' (backtest: sai số thấp hơn từng cách riêng, nhất là bến nhỏ/sà lan).')
             fig = fig_nowcast(dd, m['res']['best'] if m['res'] else '', blocks=(m['res'] or {}).get('blocks'))
             econ = m.get('econ')
@@ -1768,6 +1769,9 @@ def page_volume(level, auth, term, K):
                     rows.append({'Mô hình': k, 'Đang dùng': '✔' if k == r['best'] else ('tự động' if k == r.get('auto') else ''),
                                  'MAPE backtest (%)': r['mape'].get(k), '6 tháng gần (%)': (r.get('mape_recent') or {}).get(k),
                                  'Fit trong mẫu (%)': (r.get('fit_err') or {}).get(k)})
+                if nw.UTIL in r['mape']:
+                    rows.append({'Mô hình': nw.UTIL, 'Đang dùng': 'trong tổ hợp' if r['best'] == nw.ENS else '', 'MAPE backtest (%)': r['mape'][nw.UTIL],
+                                 '6 tháng gần (%)': (r.get('mape_recent') or {}).get(nw.UTIL)})
                 if nw.ENS in r['mape']:
                     rows.append({'Mô hình': nw.ENS, 'Đang dùng': '✔' if r['best'] == nw.ENS else '', 'MAPE backtest (%)': r['mape'][nw.ENS],
                                  '6 tháng gần (%)': (r.get('mape_recent') or {}).get(nw.ENS)})

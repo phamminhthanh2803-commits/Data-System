@@ -103,7 +103,7 @@ def main(argv=None) -> int:
     size += write(master[[c for c in MASTER_COLS if c in master.columns]], 'master.parquet')
     try:
         import econdb as ed, services as svm
-        pc = ed.load().get('vessel_portcalls')
+        pc = ed.load(('vessel_portcalls',)).get('vessel_portcalls')
         if pc is not None and len(pc):
             ops = {}
             for imo, op in zip(master['imo'], master['operator']):
@@ -112,7 +112,7 @@ def main(argv=None) -> int:
                 except (TypeError, ValueError): pass
             import carrier_services as cs_
             rot0 = svm.rotations(pc)
-            nm = {**svm.service_names(ed.load().get('vessel_services')), **svm.names_for_rotations(rot0, cs_.load(), ops)}   # lịch tàu hãng ưu tiên
+            nm = {**svm.service_names(ed.load(('vessel_services',)).get('vessel_services')), **svm.names_for_rotations(rot0, cs_.load(), ops)}   # lịch tàu hãng ưu tiên
             svc, rot = svm.cluster(rot0, ops, names=nm)
             log(f'tên tuyến (lịch tàu hãng): {len(nm)} tàu')
             size += write(svc, 'services.parquet') + write(rot.drop(columns=['pset'], errors='ignore').assign(ports=rot['ports'].map(' '.join)), 'rotations.parquet')

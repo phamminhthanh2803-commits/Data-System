@@ -220,8 +220,15 @@ def freshness():
 
 
 def itinerary_module():
-    sys.path.insert(0, ITI)
+    """vessel_itinerary (thư mục vessel-itinerary bên cạnh). 29/10/2026: Streamlit (Cloud) chỉ nạp lại module trong thư mục app khi có
+    code mới -> module ngoài này bị giữ bản CŨ trong bộ nhớ (lỗi "module 'vessel_itinerary' has no attribute 'Econ'") -> tự reload
+    khi file đổi."""
+    import importlib
+    if ITI not in sys.path: sys.path.insert(0, ITI)
     import vessel_itinerary as vi
+    mt = os.path.getmtime(vi.__file__)
+    if getattr(vi, '_loaded_mtime', None) != mt or not hasattr(vi, 'Econ'):
+        vi = importlib.reload(vi); vi._loaded_mtime = mt
     return vi
 
 

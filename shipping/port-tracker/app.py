@@ -239,7 +239,7 @@ def get_services(estamp, mstamp):
         rot = _p_cached('rotations', VER)
         if len(rot): rot['ports'] = rot['ports'].fillna('').str.split(' ').map(tuple)
         return _p_cached('services', VER), rot, ed.load().get('vessels', pd.DataFrame())
-    E = ed.load(); pc = E.get('vessel_portcalls')
+    E = ed.load(('vessel_portcalls', 'vessel_services', 'vessels')); pc = E.get('vessel_portcalls')
     if pc is None or pc.empty: return pd.DataFrame(), pd.DataFrame(), E.get('vessels', pd.DataFrame())
     m = tl.load_master()
     ops = {}
@@ -405,6 +405,12 @@ def fig_heat(hm, xs, ys, xlab):
     fig.update_layout(height=max(260, 28 * len(ys) + 120), hovermode='closest', margin=dict(l=6, r=6, t=10, b=6),
                       xaxis=dict(tickangle=-35, title=xlab, tickfont=dict(size=11)), yaxis=dict(autorange='reversed', tickfont=dict(size=12, color=TOK['ink'])))
     return fig
+
+
+@vcache(show_spinner=False, max_entries=1)
+def get_term_services(estamp):
+    f = os.path.join(ld.STORE, 'econdb', 'term_services.parquet')
+    return pd.read_parquet(f) if os.path.exists(f) else pd.DataFrame()
 
 
 @st.cache_resource(show_spinner=False, max_entries=1)
@@ -782,7 +788,7 @@ def ship_detail(key, name, K):
                     'khoảng thời gian EconDB chưa phủ.')
             srows = pd.DataFrame(vi.stop_rows({'ship_key': key, 'ship': name}, stops))[
                 ['seq', 'port', 'precision', 'terminal', 'arrive', 'depart', 'hours_in_port', 'moves', 'inferred', 'source', 'raw_name']]
-            srows['hours_in_port'] = pd.to_numeric(srows['hours_in_port'], errors='coerce')
+            for c_ in ('hours_in_port', 'moves'): srows[c_] = pd.to_numeric(srows[c_], errors='coerce')
             fig = fig_route_map(stops[-60:], dist)
             if fig is not None: st.plotly_chart(fig, width='stretch', config={'displayModeBar': False}, key=f'{K}_map')
             st.dataframe(srows, width='stretch', hide_index=True, height=300); dl_row(srows, f'lo_trinh_{ui.slug(key)}', f'{K}_stops')
@@ -1088,7 +1094,7 @@ def page_lanes(level, auth, term, K):
             ui.note(f"<b>{nm.get(k, k)}</b> · IMO {m.get('imo') or '–'} · hãng {m.get('operator') or '–'} · {fmt_int(m.get('teu'))} TEU · "
                     + (f"dịch vụ <b>{lab.get(sv_, sv_)}</b> — vòng cảng {si.loc[sv_, 'route']}" if sv_ in si.index
                        else 'chưa ghép được dịch vụ (tàu chưa có lượt ghé toàn cầu trong EconDB)'))
-            pc = get_econdb(ed.stamp()).get('vessel_portcalls', pd.DataFrame())
+            pc = iti_econ(ed.stamp()).pc                       # bản dùng chung (cache_resource), không sao chép
             mm_ = pd.to_numeric(pd.Series([m.get('mmsi')]), errors='coerce').iloc[0]
             im_ = pd.to_numeric(pd.Series([m.get('imo')]), errors='coerce').iloc[0]
             g = pd.DataFrame()
@@ -1109,7 +1115,7 @@ def page_lanes(level, auth, term, K):
                                            'Bến': h['terminal'], 'Giờ nằm bến': pd.to_numeric(h['hours_in_port'], errors='coerce').round(0)}),
                              hide_index=True, height=360)
 
-    ts = get_econdb(ed.stamp()).get('term_services', pd.DataFrame())
+    ts = get_term_services(ed.stamp())
     codes = term_codes(level, auth, term)
     if len(ts) and codes:
         x = ts[[(s_, c_) in set(codes) for s_, c_ in zip(ts['scope'], ts['terminal'])]]

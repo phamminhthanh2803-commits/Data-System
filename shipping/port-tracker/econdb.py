@@ -382,10 +382,14 @@ def _read(name):
     return pd.read_parquet(f) if os.path.exists(f) else pd.DataFrame()
 
 
-def load():
+# 29/10/2026: app gọi load() qua st.cache_data (trả BẢN SAO mỗi lần) -> chỉ nạp bảng nhẹ; bảng nặng (vessel_portcalls ~113k lượt,
+# term_services, vessel_services) chỉ khi gọi rõ: load(('vessel_portcalls',)) - tránh nhân bản trong RAM Streamlit Cloud
+LIGHT = ('series', 'calls', 'schedule', 'ports', 'vessels', 'terminals')
+
+
+def load(names=None):
     """dict các bảng + chữ ký mtime (để app làm khoá cache)."""
-    return {k: _read(f'{k}.parquet') for k in ('series', 'calls', 'schedule', 'ports', 'vessels', 'vessel_portcalls', 'term_services', 'terminals',
-                                              'vessel_services')}
+    return {k: _read(f'{k}.parquet') for k in (names or LIGHT)}
 
 
 def stamp():

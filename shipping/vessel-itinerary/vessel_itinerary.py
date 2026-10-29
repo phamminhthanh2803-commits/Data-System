@@ -135,11 +135,16 @@ class Econ:
         fp = os.path.join(econ_dir, 'ports.parquet')
         po = pd.read_parquet(fp) if os.path.exists(fp) else pd.DataFrame(columns=['locode', 'lon', 'lat'])
         self.geo = {r.locode: (float(r.lon), float(r.lat)) for r in po.itertuples() if r.lon == r.lon}
-        self.by_mmsi, self.by_imo = {}, {}
+        self.by_mmsi, self.by_imo = {}, {}             # mmsi -> (dòng đầu, dòng cuối) trong pc đã sắp; imo -> mmsi
         if len(self.pc):
-            self.pc = self.pc.sort_values('start')
-            for k, g in self.pc.groupby('mmsi'): self.by_mmsi[int(k)] = g
-            for k, g in self.pc[self.pc['ship_imo'] > 0].groupby('ship_imo'): self.by_imo[int(k)] = g
+            keep = [c for c in ('start', 'end', 'ship_name', 'ship_imo', 'locode', 'port_name', 'import_count', 'export_count', 'mmsi') if c in self.pc]
+            self.pc = self.pc[keep].sort_values(['mmsi', 'start']).reset_index(drop=True)
+            for c in ('ship_name', 'locode', 'port_name'): self.pc[c] = self.pc[c].astype('category')     # 25 -> 6 MB (app online 1 GB)
+            mm = self.pc['mmsi'].to_numpy()
+            cut = [0] + [i for i in range(1, len(mm)) if mm[i] != mm[i - 1]] + [len(mm)]
+            for i0, i1 in zip(cut[:-1], cut[1:]): self.by_mmsi[int(mm[i0])] = (i0, i1)
+            for im, m in zip(self.pc['ship_imo'], self.pc['mmsi']):
+                if im == im and im > 0: self.by_imo[int(im)] = int(m)
 
     def port(self, locode, name):
         """(tên nút, lon, lat): cảng VN -> nút cảng vụ; cảng ngoài -> TÊN CẢNG viết hoa + toạ độ EconDB (thiếu -> None)"""
@@ -151,13 +156,19 @@ class Econ:
         lon, lat = self.geo.get(locode, (None, None))
         return str(name or locode).strip().upper(), lon, lat
 
-    def stops(self, mmsi=None, imo=None, dfrom=None, dto=None):
-        g = None
-        for k, d in ((mmsi, self.by_mmsi), (imo, self.by_imo)):
+    def calls_of(self, mmsi=None, imo=None):
+        """lượt ghé toàn cầu của 1 tàu (theo mmsi, không có thì IMO) -> DataFrame sắp theo thời gian (None nếu không có)"""
+        for k, is_imo in ((mmsi, False), (imo, True)):
             try: k = int(float(k))
             except (TypeError, ValueError): continue
-            if k > 0 and k in d: g = d[k]; break
-        if g is None: return []
+            if is_imo: k = self.by_imo.get(k, -1)
+            if k > 0 and k in self.by_mmsi:
+                i0, i1 = self.by_mmsi[k]; return self.pc.iloc[i0:i1]
+        return None
+
+    def stops(self, mmsi=None, imo=None, dfrom=None, dto=None):
+        g = self.calls_of(mmsi, imo)
+        if g is None or g.empty: return []
         out = []
         for r in g.itertuples():
             t = r.start.to_pydatetime()

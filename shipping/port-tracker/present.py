@@ -115,7 +115,9 @@ def main(argv=None) -> int:
             nm = {**svm.service_names(ed.load(('vessel_services',)).get('vessel_services')), **svm.names_for_rotations(rot0, cs_.load(), ops)}   # lịch tàu hãng ưu tiên
             svc, rot = svm.cluster(rot0, ops, names=nm)
             log(f'tên tuyến (lịch tàu hãng): {len(nm)} tàu')
-            size += write(svc, 'services.parquet') + write(rot.drop(columns=['pset'], errors='ignore').assign(ports=rot['ports'].map(' '.join)), 'rotations.parquet')
+            rot = rot.drop(columns=['pset'], errors='ignore').assign(ports=rot['ports'].map(' '.join))
+            if 'seq' in rot: rot['seq'] = rot['seq'].map(' '.join)
+            size += write(svc, 'services.parquet') + write(rot, 'rotations.parquet')
             log(f'dịch vụ: {len(svc)}')
     except Exception as e:  # noqa: BLE001
         log(f'  ! dịch vụ EconDB lỗi: {str(e)[:150]}')

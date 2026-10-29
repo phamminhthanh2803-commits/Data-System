@@ -436,10 +436,15 @@ def fig_route_map(stops, dist, loop=False, height=520):
     pts = [x for x in stops if x.get('lon') is not None and x.get('lat') is not None]
     if len(pts) < 2: return None
     seq = pts + ([pts[0]] if loop else [])
-    lon, lat = [], []
+    lon, lat, miss = [], [], 0
     for a, b in zip(seq[:-1], seq[1:]):
         if a['port'] == b['port']: continue
-        for x, y in dist.path(a, b): lon.append(x); lat.append(y)
+        pth = dist.path(a, b, straight=False)             # chưa có đường biển tính sẵn -> không vẽ (tránh đường thẳng cắt qua lục địa)
+        if not pth: miss += 1; continue
+        for (x0, y0), (x1, y1) in zip(pth[:-1], pth[1:]):    # chèn điểm mỗi ~1,5 độ: Plotly nối 2 điểm bằng cung trắc địa, đoạn dài
+            n_ = max(1, int(max(abs(x1 - x0), abs(y1 - y0)) / 1.5))   # sẽ cong khỏi đường biển của searoute (cắt qua đất liền)
+            for j in range(n_): lon.append(x0 + (x1 - x0) * j / n_); lat.append(y0 + (y1 - y0) * j / n_)
+        lon.append(pth[-1][0]); lat.append(pth[-1][1])
         lon.append(None); lat.append(None)
     fig = go.Figure(go.Scattergeo(lon=lon, lat=lat, mode='lines', line=dict(width=1.6, color=TOK['brown']), hoverinfo='skip', showlegend=False))
     agg = {}
@@ -471,6 +476,8 @@ def fig_route_map(stops, dist, loop=False, height=520):
                     showocean=True, oceancolor='#eaf1f5', lakecolor='#eaf1f5', coastlinecolor='#c9c2b8', projection_rotation=dict(lon=c_lon),
                     center=dict(lon=c_lon, lat=(max(la_) + min(la_)) / 2), projection_scale=max(1.0, min(8.0, 300 / span)))
     fig.update_layout(height=height, margin=dict(l=0, r=0, t=0, b=0), meta='no_labels no_partial')
+    if miss: fig.add_annotation(text=f'{miss} chặng chưa có đường biển tính sẵn (không vẽ)', x=0.01, y=0.01, xref='paper', yref='paper',
+                                showarrow=False, font=dict(size=11, color=TOK['ink2']), xanchor='left', yanchor='bottom')
     return fig
 
 

@@ -328,15 +328,30 @@ def stops_for_ship(hp_calls, hcm_calls, geo, other_calls=None, econ=None):
 
 
 # ---------------------------------------------------------------- distances
-PATH_MAX = 80
+PATH_TOL = 0.03          # độ lệch tối đa (độ) khi rút gọn đường đi: ~3 km, giữ mọi điểm ngoặt (eo Malacca, Suez, mũi bán đảo)
+PATH_VER = '2'           # 29/10/2026: rút gọn Douglas-Peucker thay lấy mẫu cách đều (bản 1 làm đường cắt qua đất liền) -> tính lại
+
+
+def _rdp(pts, tol):
+    """Douglas-Peucker (lặp, không đệ quy): bỏ điểm lệch < tol khỏi đoạn nối 2 điểm giữ lại"""
+    if len(pts) < 3: return list(pts)
+    keep = [False] * len(pts); keep[0] = keep[-1] = True; stack = [(0, len(pts) - 1)]
+    while stack:
+        i0, i1 = stack.pop(); (x0, y0), (x1, y1) = pts[i0], pts[i1]
+        dx, dy = x1 - x0, y1 - y0; n = (dx * dx + dy * dy) ** 0.5 or 1e-12
+        best, bi = -1.0, None
+        for i in range(i0 + 1, i1):
+            d = abs(dy * (pts[i][0] - x0) - dx * (pts[i][1] - y0)) / n
+            if d > best: best, bi = d, i
+        if bi is not None and best > tol:
+            keep[bi] = True; stack += [(i0, bi), (bi, i1)]
+    return [p for p, k in zip(pts, keep) if k]
 
 
 def _pack(coords):
-    """đường đi searoute -> chuỗi 'lon lat;...' rút gọn <= PATH_MAX điểm (giữ 2 đầu)"""
+    """đường đi searoute -> chuỗi 'lon lat;...' rút gọn Douglas-Peucker (giữ điểm ngoặt, 2 đầu)"""
     if not coords: return ''
-    step = max(1, -(-len(coords) // PATH_MAX))
-    pts = coords[::step] + ([coords[-1]] if (len(coords) - 1) % step else [])
-    return ';'.join(f'{x:.2f} {y:.2f}' for x, y in pts)
+    return ';'.join(f'{x:.3f} {y:.3f}' for x, y in _rdp([tuple(c[:2]) for c in coords], PATH_TOL))
 
 
 def unpack_path(s):
@@ -348,7 +363,7 @@ class Dist:
     def __init__(self):
         rows = read_csv(PAIRS_CSV)
         self.cache = {(r['from'], r['to']): (float(r['nm']) if r['nm'] else None) for r in rows}
-        self.paths = {(r['from'], r['to']): r.get('path', '') for r in rows if r.get('path')}
+        self.paths = {(r['from'], r['to']): r.get('path', '') for r in rows if r.get('path') and r.get('pv') == PATH_VER}
         self.dirty = False; self.sr = None
 
     def _sr(self):
@@ -375,17 +390,18 @@ class Dist:
         if not self._sr(): return None
         return self._calc(a, b, k)
 
-    def path(self, a, b):
-        """[(lon, lat), ...] trên biển; chưa có trong cache và máy có searoute -> tính; không được -> đường thẳng 2 đầu"""
+    def path(self, a, b, straight=True):
+        """[(lon, lat), ...] trên biển; chưa có trong cache và máy có searoute -> tính; không được -> đường thẳng 2 đầu
+        (straight=False: trả [] để app KHÔNG vẽ đường thẳng xuyên lục địa)"""
         if a['lon'] is None or b['lon'] is None: return []
         k = (a['port'], b['port'])
         if k not in self.paths and self._sr(): self._calc(a, b, k)
-        return unpack_path(self.paths.get(k)) or [(a['lon'], a['lat']), (b['lon'], b['lat'])]
+        return unpack_path(self.paths.get(k)) or ([(a['lon'], a['lat']), (b['lon'], b['lat'])] if straight else [])
 
     def save(self):
         if self.dirty:
-            write_csv(PAIRS_CSV, [{'from': k[0], 'to': k[1], 'nm': '' if v is None else v, 'path': self.paths.get(k, '')}
-                                  for k, v in sorted(self.cache.items())], ['from', 'to', 'nm', 'path'])
+            write_csv(PAIRS_CSV, [{'from': k[0], 'to': k[1], 'nm': '' if v is None else v, 'path': self.paths.get(k, ''),
+                                   'pv': PATH_VER if self.paths.get(k) else ''} for k, v in sorted(self.cache.items())], ['from', 'to', 'nm', 'path', 'pv'])
 
 
 def legs_from_stops(stops, dist):
@@ -553,6 +569,20 @@ def main():
         else:
             all_stops.extend(srows); all_legs.extend(lrows)
             if n % 500 == 0: log(f'  ... {n}/{len(keys)} tau')
+    if a.all:
+        svp = os.path.join(os.path.dirname(ROT_PARQUET), 'services.parquet')
+        if os.path.exists(svp):
+            import pandas as pd
+            n0 = len(dist.paths)
+            for r in pd.read_parquet(svp).itertuples():
+                codes = [c for c in str(getattr(r, 'route_codes', '') or '').split(' ') if c]; names = str(r.route).split(' – ')
+                pts = []
+                for i, c in enumerate(codes):
+                    p_, lo, la = econ.port(c.replace('_', ' '), names[i] if i < len(names) else c)
+                    pts.append({'port': p_, 'lon': lo, 'lat': la})
+                for x, y in zip(pts, pts[1:] + pts[:1]):
+                    if x['port'] != y['port']: dist.path(x, y)
+            log(f'đường biển vòng dịch vụ: +{len(dist.paths) - n0} cặp')
     dist.save()
 
     if a.all:

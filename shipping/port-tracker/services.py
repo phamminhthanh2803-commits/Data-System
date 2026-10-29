@@ -113,7 +113,8 @@ def rotations(pc, window_days=WINDOW_DAYS, now=None):
         name_of = dict(zip(g['locode'], g['port_name']))
         last = g.iloc[-1]
         rows.append({'mmsi': mm, 'imo': g['ship_imo'].dropna().iloc[-1] if g['ship_imo'].notna().any() else None, 'ship': last['ship_name'],
-                     'ports': tuple(reg), 'route': ' – '.join(name_of.get(x, x) for x in reg),
+                     'ports': tuple(reg), 'seq': tuple(h['locode']),          # seq: trình tự ghé THẬT 1 chu kỳ (giữ cảng ghé lặp)
+                     'route': ' – '.join(name_of.get(x, x) for x in reg),
                      'vn_ports': ', '.join(name_of.get(x, x) for x in reg if str(x).startswith('VN')),
                      'n_calls': len(g), 'last_call': last['start'], 'last_port': last['port_name'], 'cycle_days': cyc,
                      'teu_moves': float(g[['import_count', 'export_count']].fillna(0).sum().sum())})
@@ -161,7 +162,12 @@ def cluster(rot, ops=None, jac=JACCARD, names=None):
         # vì mỗi tàu bắt đầu ở một điểm khác nhau của vòng. Cảng lõi tàu đại diện không ghé -> xếp theo TB vị trí, nối cuối.
         cs = set(core)
         rep_ = max(g.itertuples(), key=lambda r: (len(cs & set(r.ports)) / len(cs | set(r.ports)), r.n_calls))
-        seq = [x for x in rep_.ports if x in cs]
+        # 29/10/2026 PV2 "vẽ đúng thứ tự": theo trình tự ghé thật của tàu đại diện trong 1 chu kỳ, GIỮ cảng ghé 2 lần trong vòng
+        # (vd Singapore lượt đi + lượt về); bỏ ghé liền nhau trùng cảng và cảng cuối trùng cảng đầu (vòng khép)
+        seq = [x for x in (getattr(rep_, 'seq', None) or rep_.ports) if x in cs]
+        seq = [x for i, x in enumerate(seq) if i == 0 or x != seq[i - 1]]
+        for k_ in range(len(seq) // 2, 0, -1):            # cửa sổ dư hơn 1 chu kỳ -> đuôi lặp lại đầu vòng: cắt bỏ
+            if len(seq) > k_ + 1 and seq[-k_:] == seq[:k_]: seq = seq[:-k_]; break
         core = seq + sorted([x for x in core if x not in seq], key=lambda x: sum(order[x]) / len(order[x]))
         name_of = {}
         for r in g.itertuples():
@@ -169,7 +175,7 @@ def cluster(rot, ops=None, jac=JACCARD, names=None):
         known = Counter(o for o in g['operator_known'] if o)
         top, n_top = (known.most_common(1)[0] if known else ('', 0))
         svc.append({'service_id': sid, 'route_codes': ' '.join(str(x).replace(' ', '_') for x in core), 'service_name': g['service_name'].dropna().iloc[0] if g['service_name'].notna().any() else '', 'route': ' – '.join(name_of.get(x, x) for x in core),
-                    'vn_ports': ', '.join(name_of.get(x, x) for x in core if str(x).startswith('VN')),
+                    'vn_ports': ', '.join(dict.fromkeys(name_of.get(x, x) for x in core if str(x).startswith('VN'))),
                     'n_vessels': len(g), 'n_known': sum(known.values()), 'operator': top,
                     'operator_share': n_top / sum(known.values()) if known else None,
                     'operators': ', '.join(f'{o} ({n})' for o, n in known.most_common(4)),

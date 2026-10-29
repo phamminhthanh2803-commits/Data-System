@@ -11,7 +11,12 @@ Ghép theo ship_key thành chuỗi ĐIỂM DỪNG theo thời gian:
   ở HCM liền kề thì gộp vào chuyến thật. Hai điểm dừng thật cùng cảng cách nhau <= 2 ngày cũng gộp.
 Toạ độ: ports_geo.csv (regex -> cảng, lon, lat, precision = port | country | inland). Tên nước ngoài ở HP đa số chỉ ở
   mức QUỐC GIA (CHINA, KOREA...) -> đặt ở cảng đại diện, precision=country (đọc bản đồ phải hiểu là gần đúng).
-Khoảng cách chặng: thư viện searoute (tuyến biển chuẩn, hải lý), cache data/port_pairs_nm.csv.
+29/10/2026: + LƯỢT GHÉ TOÀN CẦU EconDB (port-tracker/store/econdb/vessel_portcalls.parquet: đúng cảng, giờ đến/rời, TEU xếp dỡ;
+  ~1.750 tàu container ghé VN, 12 tháng) ghép theo IMO/MMSI của tàu: thay các điểm SUY RA mức quốc gia từ HP trong khoảng thời gian
+  EconDB phủ; lượt EconDB ở cảng VN trùng chuyến cảng vụ (cùng cảng/vùng, lệch <= 2 ngày) gộp vào chuyến cảng vụ (giữ bến, giờ cảng vụ).
+  vessel_route_pattern thêm tuyến dịch vụ (rotations dựng sẵn của port-tracker).
+Khoảng cách chặng: thư viện searoute (tuyến biển chuẩn, hải lý), cache data/port_pairs_nm.csv (+ cột path: đường đi trên biển
+  rút gọn <= 80 điểm, để app vẽ bản đồ khi máy online không có searoute).
 Vẽ bản đồ: dùng engine D:/shipping/vessel-route-app/route.py (PNG 300 DPI + timeline).
 
 Chạy:
@@ -65,6 +70,12 @@ NODE_GEO = {'HAI PHONG': (106.80, 20.80), 'HO CHI MINH': (106.78, 10.70), 'CAI M
 MERGE_GAP = timedelta(days=2)
 OTHER = {}
 UNKNOWN = '(ngoai vung du lieu)'          # điểm giả: tàu rời cảng rồi quay lại đúng cảng đó, không rõ đã ghé đâu
+ECON_DIR = os.environ.get('ECONDB_DIR') or os.path.join(HUB, 'port-tracker', 'store', 'econdb')
+ROT_PARQUET = os.path.join(HUB, 'port-tracker', 'store', 'present', 'rotations.parquet')
+# cảng VN của EconDB (locode) -> nút cảng trùng tên với chuyến cảng vụ (để gộp)
+VN_LOCODE_NODE = {'VN HPH': 'HAI PHONG', 'VN SGN': 'HO CHI MINH', 'VN VUT': 'CAI MEP', 'VN PHU': 'CAI MEP', 'VN DAD': 'DA NANG',
+                  'VN DNA': 'DONG NAI', 'VN UIH': 'QUY NHON', 'VN C8Q': 'CHU LAI', 'VN NGH': 'NGHI SON'}
+VN_EXTRA_GEO = {'QUY NHON': (109.23, 13.77)}
 
 
 def log(*a): print(datetime.now().strftime('%H:%M:%S'), *a, flush=True)
@@ -105,13 +116,58 @@ class Geo:
         raw = (raw or '').strip().upper()
         if raw in self.cache: return self.cache[raw]
         res = None
+        plain = skey(raw)                                    # bỏ dấu: tên tiếng Việt từ cảng vụ khác ("HẢI PHÒNG", "NGHI SƠN - THANH HÓA")
         for rx, r in self.rules:
-            if rx.search(raw):
+            if rx.search(raw) or rx.search(plain):
                 res = (r['port'], float(r['lon']), float(r['lat']), r['precision']); break
         if res is None:
             res = (raw, None, None, 'unmapped'); self.unmapped[raw] += 1
         self.cache[raw] = res
         return res
+
+
+class Econ:
+    """lượt ghé toàn cầu EconDB theo tàu (mmsi / IMO) -> điểm dừng THẬT (đúng cảng, giờ đến/rời, TEU xếp dỡ)"""
+    def __init__(self, econ_dir=ECON_DIR):
+        import pandas as pd
+        f = os.path.join(econ_dir, 'vessel_portcalls.parquet')
+        self.pc = pd.read_parquet(f) if os.path.exists(f) else pd.DataFrame()
+        fp = os.path.join(econ_dir, 'ports.parquet')
+        po = pd.read_parquet(fp) if os.path.exists(fp) else pd.DataFrame(columns=['locode', 'lon', 'lat'])
+        self.geo = {r.locode: (float(r.lon), float(r.lat)) for r in po.itertuples() if r.lon == r.lon}
+        self.by_mmsi, self.by_imo = {}, {}
+        if len(self.pc):
+            self.pc = self.pc.sort_values('start')
+            for k, g in self.pc.groupby('mmsi'): self.by_mmsi[int(k)] = g
+            for k, g in self.pc[self.pc['ship_imo'] > 0].groupby('ship_imo'): self.by_imo[int(k)] = g
+
+    def port(self, locode, name):
+        """(tên nút, lon, lat): cảng VN -> nút cảng vụ; cảng ngoài -> TÊN CẢNG viết hoa + toạ độ EconDB (thiếu -> None)"""
+        if locode in VN_LOCODE_NODE:
+            n = VN_LOCODE_NODE[locode]
+            ll = (NODE_GEO.get(n) or next(((x[1], x[2]) for x in AUTH_NODE.values() if x[0] == n), None) or VN_EXTRA_GEO.get(n)
+                  or self.geo.get(locode, (None, None)))
+            return n, ll[0], ll[1]
+        lon, lat = self.geo.get(locode, (None, None))
+        return str(name or locode).strip().upper(), lon, lat
+
+    def stops(self, mmsi=None, imo=None, dfrom=None, dto=None):
+        g = None
+        for k, d in ((mmsi, self.by_mmsi), (imo, self.by_imo)):
+            try: k = int(float(k))
+            except (TypeError, ValueError): continue
+            if k > 0 and k in d: g = d[k]; break
+        if g is None: return []
+        out = []
+        for r in g.itertuples():
+            t = r.start.to_pydatetime()
+            if (dfrom and t < dfrom) or (dto and t > dto): continue
+            p, lon, lat = self.port(r.locode, r.port_name)
+            moves = (r.import_count or 0) + (r.export_count or 0)
+            out.append({'t': t, 'port': p, 'lon': lon, 'lat': lat, 'precision': 'port' if lon is not None else 'unmapped', 'terminal': '',
+                        'arrive': t, 'depart': r.end.to_pydatetime() if r.end == r.end else None, 'inferred': 0, 'source': 'EconDB',
+                        'raw_name': r.locode, 'moves': int(moves) if moves == moves else ''})
+        return out
 
 
 # ---------------------------------------------------------------- build stops
@@ -164,8 +220,8 @@ def other_stops(calls, geo):
     return out
 
 
-def stops_for_ship(hp_calls, hcm_calls, geo, other_calls=None):
-    """Trả về list điểm dừng đã sắp theo thời gian và gộp trùng."""
+def stops_for_ship(hp_calls, hcm_calls, geo, other_calls=None, econ=None):
+    """Trả về list điểm dừng đã sắp theo thời gian và gộp trùng. econ = điểm dừng EconDB của tàu (Econ.stops)."""
     raw = []
     for c in hp_calls:
         arr, dep = pdt(c['arrival']), pdt(c['departure'])
@@ -204,6 +260,19 @@ def stops_for_ship(hp_calls, hcm_calls, geo, other_calls=None):
                         'depart': dep if i == len(real) - 1 else None, 'inferred': 0, 'source': 'CVHCM',
                         'raw_name': bs[0], 'status': c['status']})
     if other_calls: raw.extend(other_stops(other_calls, geo))
+    if econ:
+        lo, hi = econ[0]['t'] - MERGE_GAP, econ[-1]['t'] + MERGE_GAP
+        raw = [s for s in raw if not (s['inferred'] and lo <= s['t'] <= hi)]          # EconDB phủ -> bỏ điểm suy ra mức quốc gia
+        real = [s for s in raw if not s['inferred']]
+        for e in econ:
+            same = [s for s in real if abs((s['t'] - e['t']).total_seconds()) <= MERGE_GAP.total_seconds()
+                    and (s['port'] == e['port'] or (REGION.get(s['port']) and REGION.get(s['port']) == REGION.get(e['port'])))]
+            if same:                                     # chuyến cảng vụ đã có (bến, giờ chính xác) -> ghi thêm nguồn + TEU xếp dỡ
+                s = min(same, key=lambda x: abs((x['t'] - e['t']).total_seconds()) + (0 if x['port'] == e['port'] else 1e7))
+                if 'EconDB' not in s['source']: s['source'] += '+EconDB'
+                s['moves'] = e.get('moves', '')
+                continue
+            raw.append(e)
     raw.sort(key=lambda s: s['t'])
     # điểm SUY RA (origin/destination của HP) nằm cùng vùng cảng với một chuyến THẬT liền kề (HCM/Cái Mép/Vũng Tàu)
     # -> bỏ điểm suy ra, giữ chuyến thật (vd HP ghi "đi HO CHI MINH" nhưng tàu thật ghé Cái Mép rồi mới vào Cát Lái)
@@ -248,31 +317,64 @@ def stops_for_ship(hp_calls, hcm_calls, geo, other_calls=None):
 
 
 # ---------------------------------------------------------------- distances
+PATH_MAX = 80
+
+
+def _pack(coords):
+    """đường đi searoute -> chuỗi 'lon lat;...' rút gọn <= PATH_MAX điểm (giữ 2 đầu)"""
+    if not coords: return ''
+    step = max(1, -(-len(coords) // PATH_MAX))
+    pts = coords[::step] + ([coords[-1]] if (len(coords) - 1) % step else [])
+    return ';'.join(f'{x:.2f} {y:.2f}' for x, y in pts)
+
+
+def unpack_path(s):
+    return [tuple(float(v) for v in p.split()) for p in str(s).split(';') if p.strip()] if s and s == s else []
+
+
 class Dist:
+    """hải lý + đường đi trên biển giữa 2 cảng (searoute), cache data/port_pairs_nm.csv (from, to, nm, path)"""
     def __init__(self):
-        self.cache = {(r['from'], r['to']): (float(r['nm']) if r['nm'] else None) for r in read_csv(PAIRS_CSV)}
+        rows = read_csv(PAIRS_CSV)
+        self.cache = {(r['from'], r['to']): (float(r['nm']) if r['nm'] else None) for r in rows}
+        self.paths = {(r['from'], r['to']): r.get('path', '') for r in rows if r.get('path')}
         self.dirty = False; self.sr = None
+
+    def _sr(self):
+        if self.sr is None:
+            try: import searoute as sr; self.sr = sr
+            except ImportError: self.sr = False            # máy không cài searoute (bản online) -> chặng mới không có hải lý, không sập
+        return self.sr
+
+    def _calc(self, a, b, k):
+        try:
+            f = self._sr().searoute((a['lon'], a['lat']), (b['lon'], b['lat']), units='naut')
+            v = round(float(f['properties'].get('length', 0.0)), 0); co = f['geometry']['coordinates']
+        except Exception:
+            v, co = None, []
+        self.cache[k] = v; self.cache[(k[1], k[0])] = v
+        if co: self.paths[k] = _pack(co); self.paths[(k[1], k[0])] = _pack(co[::-1])
+        self.dirty = True
+        return v
 
     def nm(self, a, b):
         if a['lon'] is None or b['lon'] is None: return None
         k = (a['port'], b['port'])
         if k in self.cache: return self.cache[k]
-        if self.sr is None:
-            try: import searoute as sr; self.sr = sr
-            except ImportError: self.sr = False            # máy không cài searoute (bản online) -> chặng mới không có hải lý, không sập
-        if self.sr is False: return None
-        try:
-            f = self.sr.searoute((a['lon'], a['lat']), (b['lon'], b['lat']), units='naut')
-            v = round(float(f['properties'].get('length', 0.0)), 0)
-        except Exception:
-            v = None
-        self.cache[k] = v; self.cache[(b['port'], a['port'])] = v; self.dirty = True
-        return v
+        if not self._sr(): return None
+        return self._calc(a, b, k)
+
+    def path(self, a, b):
+        """[(lon, lat), ...] trên biển; chưa có trong cache và máy có searoute -> tính; không được -> đường thẳng 2 đầu"""
+        if a['lon'] is None or b['lon'] is None: return []
+        k = (a['port'], b['port'])
+        if k not in self.paths and self._sr(): self._calc(a, b, k)
+        return unpack_path(self.paths.get(k)) or [(a['lon'], a['lat']), (b['lon'], b['lat'])]
 
     def save(self):
         if self.dirty:
-            write_csv(PAIRS_CSV, [{'from': k[0], 'to': k[1], 'nm': '' if v is None else v} for k, v in sorted(self.cache.items())],
-                      ['from', 'to', 'nm'])
+            write_csv(PAIRS_CSV, [{'from': k[0], 'to': k[1], 'nm': '' if v is None else v, 'path': self.paths.get(k, '')}
+                                  for k, v in sorted(self.cache.items())], ['from', 'to', 'nm', 'path'])
 
 
 def legs_from_stops(stops, dist):
@@ -331,7 +433,7 @@ def render_png(ship, stops, out_png, title=None):
 
 
 STOP_FIELDS = ['ship_key', 'ship', 'vessel_class', 'operator', 'teu', 'seq', 'port', 'precision', 'terminal', 'arrive', 'depart',
-               'hours_in_port', 'inferred', 'source', 'raw_name', 'lon', 'lat']
+               'hours_in_port', 'inferred', 'source', 'raw_name', 'lon', 'lat', 'moves']
 LEG_FIELDS = ['ship_key', 'ship', 'vessel_class', 'operator', 'teu', 'seq', 'from', 'to', 'depart', 'arrive', 'days', 'nm',
               'inferred', 'month']
 
@@ -343,7 +445,7 @@ def stop_rows(meta, stops):
         rows.append({**meta, 'seq': i, 'port': s['port'], 'precision': s['precision'], 'terminal': s['terminal'],
                      'arrive': fmt(s['arrive']), 'depart': fmt(s['depart']), 'hours_in_port': hrs, 'inferred': s['inferred'],
                      'source': s['source'], 'raw_name': s['raw_name'], 'lon': s['lon'] if s['lon'] is not None else '',
-                     'lat': s['lat'] if s['lat'] is not None else ''})
+                     'lat': s['lat'] if s['lat'] is not None else '', 'moves': s.get('moves', '')})
     return rows
 
 
@@ -371,7 +473,20 @@ def main():
     dfrom = a.dfrom or a.since or '2019-01-01'; dto = a.dto or '2100-01-01'
 
     hp, hcm = load_calls()
-    geo = Geo(); dist = Dist()
+    geo = Geo(); dist = Dist(); econ = Econ()
+    ids = {r['ship_key']: (r.get('mmsi'), r.get('imo')) for r in read_csv(MASTER_CSV)}
+    svc_of = {}
+    if os.path.exists(ROT_PARQUET):                       # tuyến dịch vụ hiện tại của tàu (port-tracker present)
+        import pandas as pd
+        rt = pd.read_parquet(ROT_PARQUET)
+        nmcol = rt['service_name'] if 'service_name' in rt else pd.Series('', index=rt.index)
+        for mm, im, sid, sn in zip(rt['mmsi'], rt['imo'], rt['service_id'], nmcol):
+            for k in (mm, im):
+                try:
+                    if k and int(float(k)) > 0: svc_of[int(float(k))] = (sid, sn if isinstance(sn, str) else '')
+                except (TypeError, ValueError): pass
+    log(f'EconDB: {len(econ.by_mmsi)} tàu có lượt ghé toàn cầu; tuyến dịch vụ: {len(svc_of)} mã tàu')
+    d0, d1 = pdt(dfrom + ' 00:00'), pdt(dto[:10] + ' 23:59')
     by_hp = defaultdict(list); by_hcm = defaultdict(list); meta = {}
     def in_range(c):
         d = c['arr_date'] or c['dep_date']
@@ -398,17 +513,21 @@ def main():
         mrow = {'ship_key': k, 'ship': m['ship'], 'vessel_class': m.get('vessel_class', ''), 'operator': m.get('operator', ''),
                 'teu': m.get('teu', '')}
         oth = [c for c in OTHER.get(k, []) if dfrom <= (c['arr_date'] or c['dep_date'] or '') <= dto]
-        stops = stops_for_ship(by_hp.get(k, []), by_hcm.get(k, []), geo, other_calls=oth)
+        mm, im = ids.get(k, (None, None))
+        stops = stops_for_ship(by_hp.get(k, []), by_hcm.get(k, []), geo, other_calls=oth, econ=econ.stops(mm, im, d0, d1))
+        sv = next((svc_of[int(float(x))] for x in (mm, im) if x and str(x).replace('.', '', 1).isdigit() and int(float(x)) in svc_of), ('', ''))
         if a.ship and a.last: stops = stops[-a.last:]
         if a.all and len(stops) < a.min_stops: continue
         legs = legs_from_stops(stops, dist)
+        for a_, b_ in zip(stops[:-1], stops[1:]): dist.path(a_, b_)          # đường đi trên biển cho bản đồ app
         srows, lrows = stop_rows(mrow, stops), leg_rows(mrow, legs)
         pat, ports = route_pattern(stops)
         tot_nm = sum(l['nm'] or 0 for l in legs)
         patterns.append({**mrow, 'route_pattern': pat, 'ports_called': ports, 'n_stops': len(stops), 'n_legs': len(legs),
                          'n_hp_calls': sum(1 for s in stops if s['port'] == 'HAI PHONG'),
                          'n_hcm_calls': sum(1 for s in stops if s['port'] in ('HO CHI MINH', 'CAI MEP')),
-                         'total_nm': int(tot_nm), 'first': fmt(stops[0]['t']) if stops else '', 'last': fmt(stops[-1]['t']) if stops else ''})
+                         'total_nm': int(tot_nm), 'first': fmt(stops[0]['t']) if stops else '', 'last': fmt(stops[-1]['t']) if stops else '',
+                         'n_econdb': sum(1 for s in stops if 'EconDB' in s['source']), 'service_id': sv[0], 'service_name': sv[1]})
         if a.ship:
             safe = re.sub(r'[^A-Z0-9]+', '_', k)
             write_csv(os.path.join(OUT, f'{safe}_stops.csv'), srows, STOP_FIELDS)
@@ -430,7 +549,7 @@ def main():
         write_csv(os.path.join(DATA, 'itinerary_legs.csv'), all_legs, LEG_FIELDS)
         write_csv(os.path.join(DATA, 'vessel_route_pattern.csv'), sorted(patterns, key=lambda r: -r['n_stops']),
                   ['ship_key', 'ship', 'vessel_class', 'operator', 'teu', 'route_pattern', 'ports_called', 'n_stops', 'n_legs',
-                   'n_hp_calls', 'n_hcm_calls', 'total_nm', 'first', 'last'])
+                   'n_hp_calls', 'n_hcm_calls', 'total_nm', 'first', 'last', 'n_econdb', 'service_id', 'service_name'])
         lane = defaultdict(lambda: {'legs': 0, 'teu_sum': 0, 'ships': set()})
         for l in all_legs:
             x = lane[(l['month'], l['from'], l['to'], l['operator'] or '(chua ro)')]

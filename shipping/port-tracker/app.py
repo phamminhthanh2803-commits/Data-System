@@ -407,6 +407,67 @@ def fig_heat(hm, xs, ys, xlab):
     return fig
 
 
+@st.cache_resource(show_spinner=False, max_entries=1)
+def iti_econ(estamp):
+    """lượt ghé toàn cầu EconDB theo tàu (vessel_itinerary.Econ) - 1 bản dùng chung mọi phiên"""
+    return tl.itinerary_module().Econ(os.path.join(ld.STORE, 'econdb'))
+
+
+@st.cache_resource(show_spinner=False, max_entries=1)
+def iti_dist(mt):
+    """hải lý + đường đi trên biển giữa 2 cảng (cache port_pairs_nm.csv do bước itinerary tính sẵn)"""
+    return tl.itinerary_module().Dist()
+
+
+def _pairs_mt():
+    f = tl.itinerary_module().PAIRS_CSV
+    return os.path.getmtime(f) if os.path.exists(f) else 0
+
+
+def fig_route_map(stops, dist, loop=False, height=520):
+    """bản đồ lộ trình: đường đi trên biển giữa các điểm dừng liên tiếp (cache searoute; thiếu thì đường thẳng) + điểm dừng
+    (cảng VN cam, cảng ngoài xám; cỡ theo số lượt ghé). loop=True: nối điểm cuối về điểm đầu (vòng tuyến dịch vụ)."""
+    pts = [x for x in stops if x.get('lon') is not None and x.get('lat') is not None]
+    if len(pts) < 2: return None
+    seq = pts + ([pts[0]] if loop else [])
+    lon, lat = [], []
+    for a, b in zip(seq[:-1], seq[1:]):
+        if a['port'] == b['port']: continue
+        for x, y in dist.path(a, b): lon.append(x); lat.append(y)
+        lon.append(None); lat.append(None)
+    fig = go.Figure(go.Scattergeo(lon=lon, lat=lat, mode='lines', line=dict(width=1.6, color=TOK['brown']), hoverinfo='skip', showlegend=False))
+    agg = {}
+    for x in pts:
+        k = x['port']; a = agg.setdefault(k, {'lon': x['lon'], 'lat': x['lat'], 'n': 0, 'last': '', 'term': set(), 'moves': 0})
+        a['n'] += 1; t = x.get('arrive') or x.get('t')
+        if t: a['last'] = max(a['last'], t.strftime('%Y-%m-%d'))
+        if x.get('terminal'): a['term'].update(t_ for t_ in str(x['terminal']).split('|') if t_)
+        try: a['moves'] += int(float(x.get('moves') or 0))
+        except (TypeError, ValueError): pass
+    names = list(agg)
+    vn = [n for n in names if agg[n]['lon'] and 102 <= agg[n]['lon'] <= 110 and 8 <= agg[n]['lat'] <= 23.5]
+    for grp, col in ((vn, TOK['orange']), ([n for n in names if n not in vn], TOK['gray'])):
+        if not grp: continue
+        fig.add_trace(go.Scattergeo(
+            lon=[agg[n]['lon'] for n in grp], lat=[agg[n]['lat'] for n in grp], mode='markers+text', text=grp, textposition='top center',
+            textfont=dict(size=10, color=TOK['ink2']), showlegend=False,
+            marker=dict(size=[min(7 + 2.5 * agg[n]['n'], 22) for n in grp], color=col, line=dict(width=0.6, color='white')),
+            customdata=[[agg[n]['n'], agg[n]['last'], ', '.join(sorted(agg[n]['term']))[:60], agg[n]['moves']] for n in grp],
+            hovertemplate='<b>%{text}</b><br>%{customdata[0]} lượt · ghé cuối %{customdata[1]}<br>%{customdata[2]}'
+                          '<br>TEU xếp dỡ (EconDB) %{customdata[3]:,.0f}<extra></extra>'))
+    lo_ = [agg[n]['lon'] for n in names]; la_ = [agg[n]['lat'] for n in names]
+    seg = [(x1, x2) for x1, x2 in zip(lon[:-1], lon[1:]) if x1 is not None and x2 is not None]
+    if any(abs(x2 - x1) > 180 for x1, x2 in seg) or any(abs(x) > 180 for x in lon if x is not None):   # đường vắt qua kinh tuyến 180 (searoute ghi kinh độ > 180)
+        lo_ = [x + 360 if x < 0 else x for x in lo_]
+    c_lon = (max(lo_) + min(lo_)) / 2; c_lon = c_lon - 360 if c_lon > 180 else c_lon
+    span = max(max(lo_) - min(lo_), (max(la_) - min(la_)) * 1.6, 8)
+    fig.update_geos(projection_type='natural earth', showcountries=True, countrycolor='#d9d4cc', showland=True, landcolor='#f3efe8',
+                    showocean=True, oceancolor='#eaf1f5', lakecolor='#eaf1f5', coastlinecolor='#c9c2b8', projection_rotation=dict(lon=c_lon),
+                    center=dict(lon=c_lon, lat=(max(la_) + min(la_)) / 2), projection_scale=max(1.0, min(8.0, 300 / span)))
+    fig.update_layout(height=height, margin=dict(l=0, r=0, t=0, b=0), meta='no_labels no_partial')
+    return fig
+
+
 def fig_gantt(g):
     g = g.copy(); g['Cảng vụ'] = g['auth'].map(tl.AUTH_LABEL); g['ben'] = g['first_berth'].replace('', '(chưa rõ bến)')
     fig = px.timeline(g, x_start='arrival', x_end='departure', y='ben', color='Cảng vụ', color_discrete_sequence=ui.PALETTE,
@@ -704,28 +765,27 @@ def ship_detail(key, name, K):
         rec = lambda d: d.assign(arrival=d['arrival'].dt.strftime('%Y-%m-%d %H:%M').fillna(''), departure=d['departure'].dt.strftime('%Y-%m-%d %H:%M').fillna(''))[
             ['ship', 'ship_key', 'arrival', 'departure', 'origin', 'destination', 'berths', 'first_berth', 'status']].fillna('').to_dict('records')
         oth = w[~w['auth'].isin(['HP', 'HCM'])]
-        stops = vi.stops_for_ship(rec(w[w['auth'] == 'HP']), rec(w[w['auth'] == 'HCM']), vi.Geo(), other_calls=rec(oth.assign(ship=oth['auth'])) if len(oth) else None)
+        try:                                              # 29/10/2026: + lượt ghé toàn cầu EconDB (đúng cảng ngoài, giờ, TEU xếp dỡ)
+            econ = iti_econ(ed.stamp()).stops(m.get('mmsi'), m.get('imo'), pd.Timestamp(cd.d0).to_pydatetime(),
+                                              (pd.Timestamp(cd.d1) + pd.Timedelta(days=2)).to_pydatetime())
+        except Exception:  # noqa: BLE001
+            econ = []
+        stops = vi.stops_for_ship(rec(w[w['auth'] == 'HP']), rec(w[w['auth'] == 'HCM']), vi.Geo(),
+                                  other_calls=rec(oth.assign(ship=oth['auth'])) if len(oth) else None, econ=econ)
         st.markdown('**Lộ trình trong khung ngày trên**')
         if not stops: ui.note('Không có điểm dừng trong khoảng ngày này.')
         else:
-            dist = vi.Dist(); legs = vi.legs_from_stops(stops, dist); dist.save()
-            nm = sum(l['nm'] or 0 for l in legs)
-            ui.note(f'{len(stops)} điểm dừng, {len(legs)} chặng, khoảng {fmt_int(nm)} hải lý. Dấu ~ là điểm suy từ cảng đi/đến ghi ở Hải Phòng; '
-                    'cảng nước ngoài đa số chỉ ở mức quốc gia nên vị trí và hải lý là gần đúng.')
+            dist = iti_dist(_pairs_mt()); legs = vi.legs_from_stops(stops, dist)
+            nm = sum(l['nm'] or 0 for l in legs); n_e = sum(1 for x in stops if 'EconDB' in x['source'])
+            ui.note(f'{len(stops)} điểm dừng ({n_e} có lượt ghé toàn cầu EconDB: đúng cảng, giờ đến/rời, TEU xếp dỡ), {len(legs)} chặng, '
+                    f'khoảng {fmt_int(nm)} hải lý. Điểm có dấu ~ suy từ cảng đi/đến ghi ở Hải Phòng (mức quốc gia, gần đúng) - chỉ còn ở '
+                    'khoảng thời gian EconDB chưa phủ.')
             srows = pd.DataFrame(vi.stop_rows({'ship_key': key, 'ship': name}, stops))[
-                ['seq', 'port', 'precision', 'terminal', 'arrive', 'depart', 'hours_in_port', 'inferred', 'source', 'raw_name']]
+                ['seq', 'port', 'precision', 'terminal', 'arrive', 'depart', 'hours_in_port', 'moves', 'inferred', 'source', 'raw_name']]
             srows['hours_in_port'] = pd.to_numeric(srows['hours_in_port'], errors='coerce')
-            a, b = st.columns([3, 2])
-            with a:
-                st.dataframe(srows, width='stretch', hide_index=True, height=340); dl_row(srows, f'lo_trinh_{ui.slug(key)}', f'{K}_stops')
-            with b:
-                if st.button('🗺️ Vẽ bản đồ lộ trình', key=f'{K}_map', width='stretch'):
-                    png = os.path.join(tempfile.gettempdir(), f'tracker_{key.replace(" ", "_")}.png')
-                    with st.spinner('Đang tính tuyến biển và vẽ…'): ok = vi.render_png(name, stops[-40:], png)
-                    if ok:
-                        st.image(png)
-                        with open(png, 'rb') as f: st.download_button('⤓ Tải PNG', f.read(), file_name=os.path.basename(png), key=f'{K}_png')
-                    else: st.warning('Không đủ điểm có toạ độ để vẽ.')
+            fig = fig_route_map(stops[-60:], dist)
+            if fig is not None: st.plotly_chart(fig, width='stretch', config={'displayModeBar': False}, key=f'{K}_map')
+            st.dataframe(srows, width='stretch', hide_index=True, height=300); dl_row(srows, f'lo_trinh_{ui.slug(key)}', f'{K}_stops')
     with ui.card('Toàn bộ chuyến của tàu', unit='mọi cảng vụ, mọi thời gian', key=f'{K}_allcalls', controls=False) as cd:
         cols = ['auth', 'arrival', 'departure', 'origin', 'first_berth', 'berths', 'destination', 'hours_in_port', 'status', 'agent']
         cd.table(sc.sort_values('date', ascending=False)[cols].reset_index(drop=True), ten=f'chuyen_{key}', height=380)
@@ -1002,6 +1062,15 @@ def page_lanes(level, auth, term, K):
             show = rv[['ship', 'Hãng', 'TEU', 'last_port', 'last_call', 'arr_day', 'auth', 'terminal']].rename(columns={
                 'ship': 'Tàu', 'last_port': 'Cảng ghé cuối (toàn cầu)', 'last_call': 'Ngày', 'arr_day': 'Cập bến VN cuối', 'auth': 'Cảng vụ', 'terminal': 'Bến'})
             for c in ('Ngày', 'Cập bến VN cuối'): show[c] = pd.to_datetime(show[c]).dt.strftime('%d/%m/%Y')
+            codes = [c_ for c_ in str(r.get('route_codes', '') or '').split(' ') if c_]
+            if len(codes) >= 2:
+                ec = iti_econ(ed.stamp()); names = str(r['route']).split(' – ')
+                pts = []
+                for i_, c_ in enumerate(codes):
+                    p_, lo_, la_ = ec.port(c_.replace('_', ' '), names[i_] if i_ < len(names) else c_)
+                    pts.append({'port': p_, 'lon': lo_, 'lat': la_})
+                fig = fig_route_map(pts, iti_dist(_pairs_mt()), loop=True, height=440)
+                if fig is not None: st.plotly_chart(fig, width='stretch', config={'displayModeBar': False}, key=f'{K}_svmap')
             cd.table(show.sort_values('Tàu').reset_index(drop=True), ten=f'tau_dich_vu_{one}', height=min(420, 60 + 36 * len(show)))
             d = per(cd.d0, cd.d1); d = d[d['service_id'] == one]
             if len(d):

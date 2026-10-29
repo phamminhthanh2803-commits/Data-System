@@ -168,7 +168,7 @@ def cluster(rot, ops=None, jac=JACCARD, names=None):
             for x, nm in zip(r.ports, r.route.split(' – ')): name_of.setdefault(x, nm)
         known = Counter(o for o in g['operator_known'] if o)
         top, n_top = (known.most_common(1)[0] if known else ('', 0))
-        svc.append({'service_id': sid, 'service_name': g['service_name'].dropna().iloc[0] if g['service_name'].notna().any() else '', 'route': ' – '.join(name_of.get(x, x) for x in core),
+        svc.append({'service_id': sid, 'route_codes': ' '.join(str(x).replace(' ', '_') for x in core), 'service_name': g['service_name'].dropna().iloc[0] if g['service_name'].notna().any() else '', 'route': ' – '.join(name_of.get(x, x) for x in core),
                     'vn_ports': ', '.join(name_of.get(x, x) for x in core if str(x).startswith('VN')),
                     'n_vessels': len(g), 'n_known': sum(known.values()), 'operator': top,
                     'operator_share': n_top / sum(known.values()) if known else None,

@@ -186,7 +186,10 @@ STEP_FOLDERS: dict[str, list] = {
                          ("shipping/cangvu-toanquoc", "r", None),
                          ("shipping/port-tracker", "r", ["store/econdb/vessels.parquet", "store/econdb/vessel_portcalls.parquet"])],
     "itinerary":        [("shipping/vessel-itinerary", "rw", None), ("shipping/cangvu-haiphong", "r", None),
-                         ("shipping/cangvu-hcm", "r", None), ("shipping/cangvu-toanquoc", "r", None)],
+                         ("shipping/cangvu-hcm", "r", None), ("shipping/cangvu-toanquoc", "r", None),
+                         # 29/10/2026: lượt ghé toàn cầu EconDB + tuyến dịch vụ (bước econdb chạy trước; rotations của pt-present lượt trước)
+                         ("shipping/port-tracker", "r", ["store/econdb/vessel_portcalls.parquet", "store/econdb/ports.parquet",
+                                                         "store/present/rotations.parquet"])],
     "vimawa":           [("shipping/vimawa-sanluong", "rw", None)],   # data/ + raw/ (file goc + cache OCR) 16/10/2026
     "alibra":           [("shipping/Alibra-scraper", "rw", None)],
     "port-tracker":     [("shipping/port-tracker", "rw", None)],

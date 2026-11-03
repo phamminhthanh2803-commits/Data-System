@@ -6,6 +6,7 @@ Trai phieu (phat hanh, co cau & lai suat, gia & duong cong loi suat) · Tin tuc.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from datetime import date
@@ -640,6 +641,39 @@ def _duong_cong(ctx):
 LOAI_TEN = {"quy": "Quý", "soat_xet": "Soát xét", "kiem_toan": "Kiểm toán", "khac": "Khác"}
 PV_TEN = {"hop_nhat": "Hợp nhất", "rieng": "Riêng", "cong_ty_me": "Công ty mẹ", "khong_ro": "—"}
 SAN = ["HOSE", "HNX", "UPCOM"]
+PN_TOG = {"Phân ngành": ["Cấp 2", "Cấp 1", "Cấp 3"]}          # 03/11/2026: cùng phân ngành ICB Vietcap như trang Hiệu suất
+UOC = "~"                                                    # gio_dang "~" = ngày ước (bctc_scan: CafeF migrate / file đăng bù)
+UOC_TIP = "Ngày ước = cuối kỳ + hạn nộp (quý 30 / bán niên 45 / năm 90 ngày): nguồn không còn ngày đăng gốc (CafeF chuyển hệ thống 03/2023, file đăng bù)"
+KY_RE = re.compile(r"\d{4}(Q[1-4]|H1|FY)")
+
+
+def _pn(c):
+    return (int(str(c.toggle.get("Phân ngành", "Cấp 2"))[-1]), True)
+
+
+def _nganh_map(pn) -> pd.Series:
+    """mã -> ngành theo phân ngành của app (ICB Vietcap cấp pn[0], tách Vingroup); mã chưa có ICB -> nhóm TradingView."""
+    s = dl.nganh_ma(pn)
+    try:
+        s = dl.meta(pn)["nhom"].combine_first(s)
+    except Exception:  # noqa: BLE001
+        pass
+    return s
+
+
+def _ky_sort(ky: str):
+    """Khoá sắp kỳ mới -> cũ: (năm, tháng cuối kỳ, quý trước soát xét trước kiểm toán)."""
+    m = KY_RE.fullmatch(str(ky))
+    if not m:
+        return (0, 0, 9)
+    p = m.group(1)
+    return (int(str(ky)[:4]), {"Q1": 3, "Q2": 6, "Q3": 9, "Q4": 12, "H1": 6, "FY": 12}[p], {"FY": 0, "H1": 1}.get(p, 2))
+
+
+def _ngay_html(ngay, gio, small=True) -> str:
+    if str(gio) == UOC:
+        return f'<span title="{UOC_TIP}" style="color:var(--ink-3)">~{ngay:%d/%m/%Y}</span>'
+    return f'{ngay:%d/%m/%Y}' + (f' <small style="color:var(--ink-3)">{gio}</small>' if small and gio else "")
 
 
 def _ky_hien_hanh(today: pd.Timestamp) -> str:
@@ -648,23 +682,39 @@ def _ky_hien_hanh(today: pd.Timestamp) -> str:
     return f"{today.year - 1}Q4" if q == 0 else f"{today.year}Q{q}"
 
 
-@st.cache_data(show_spinner=False)
+BCTC_COLS = ["symbol", "exchange", "ten_dn", "ky", "loai", "pham_vi", "ngay_cong_bo", "gio_dang", "tieu_de", "url_pdf", "url_nguon", "nguon",
+             "nguon_khac", "url_pdf_khac"]
+BCTC_CAT = ["ten_dn", "ky", "loai", "pham_vi", "gio_dang", "url_nguon", "nguon", "nguon_khac", "Loại", "Phạm vi"]   # không groupby các cột này
+
+
+def _bctc_pq() -> str:
+    return os.path.join(os.path.dirname(dl.reg_path("bctc_congbo")), "bctc_congbo_latest.parquet")
+
+
+@st.cache_resource(show_spinner="Đang nạp lịch sử công bố BCTC ...", max_entries=1)
 def _bctc_df(mt: float) -> pd.DataFrame:
     """bctc_congbo đã chuẩn hoá: ngày Timestamp, tên loại/phạm vi, bỏ trùng chéo nguồn (CafeF + Vietstock + HOSE cùng mã/kỳ/loại/phạm vi
-    -> giữ bản sớm nhất; file đã gộp sẵn từ bctc_scan, cột nguon_khac/url_pdf_khac = các nguồn khác cũng có file)."""
-    d = dl.load("bctc_congbo")
+    -> giữ bản sớm nhất; file đã gộp sẵn từ bctc_scan, cột nguon_khac/url_pdf_khac = các nguồn khác cũng có file).
+    03/11/2026: lịch sử từ 2000 (~160k dòng) -> đọc parquet (nhanh 4x) + cột category (RAM 220 -> ~80 MB), cache_resource (không chép
+    mỗi lần chạy lại; mọi chỗ dùng chỉ lọc / assign ra bảng mới, KHÔNG sửa tại chỗ)."""
+    pq = _bctc_pq()
+    try:
+        d = pd.read_parquet(pq, columns=BCTC_COLS) if os.path.exists(pq) else dl.load("bctc_congbo")
+    except Exception:  # noqa: BLE001 - parquet thiếu cột / hỏng -> CSV
+        d = dl.load("bctc_congbo")
     if d is None or d.empty:
         return pd.DataFrame()
     d = d.copy()
-    for c in ("symbol", "exchange", "ten_dn", "ky", "loai", "pham_vi", "tieu_de", "url_pdf", "url_nguon", "nguon", "gio_dang",
-              "nguon_khac", "url_pdf_khac"):
-        d[c] = d[c].fillna("").astype(str) if c in d else ""
+    for c in BCTC_COLS:
+        if c != "ngay_cong_bo":
+            d[c] = d[c].fillna("").astype(str) if c in d else ""
     d["ngay_cong_bo"] = pd.to_datetime(d["ngay_cong_bo"], errors="coerce")
     d = d.dropna(subset=["ngay_cong_bo"])
     d = d.sort_values(["ngay_cong_bo", "gio_dang"]).drop_duplicates(["symbol", "ky", "loai", "pham_vi"], keep="first")
     d["Loại"] = d["loai"].map(LOAI_TEN).fillna(d["loai"])
     d["Phạm vi"] = d["pham_vi"].map(PV_TEN).fillna(d["pham_vi"])
-    return d.sort_values(["ngay_cong_bo", "gio_dang"], ascending=False).reset_index(drop=True)
+    d = d.sort_values(["ngay_cong_bo", "gio_dang"], ascending=False).reset_index(drop=True)
+    return d.astype({c: "category" for c in BCTC_CAT})
 
 
 _NGUON_BADGE = {"cafef": ("CafeF", "#e8f1fb", "#1f5fa8"), "vietstock": ("Vietstock", "#e6f4ea", "#1e7a3b"), "hose": ("HOSE", "#fdf3ec", "#b3551c")}
@@ -690,16 +740,19 @@ def _bctc_badge(nguon: str, url_nguon: str, nguon_khac: str = "", url_pdf_khac: 
 
 
 def _bctc_html(t: pd.DataFrame, limit: int = 400) -> str:
+    co_ng = "Ngành" in t.columns
     h = ['<div class="gn-tblwrap" style="max-height:560px;overflow:auto"><table class="gn-tbl"><thead><tr>'
-         '<th>Ngày</th><th>Mã · tên</th><th style="text-align:left">Sàn</th><th style="text-align:left">Kỳ</th>'
+         '<th>Ngày</th><th>Mã · tên</th>' + ('<th style="text-align:left">Ngành</th>' if co_ng else "") +
+         '<th style="text-align:left">Sàn</th><th style="text-align:left">Kỳ</th>'
          '<th style="text-align:left">Loại</th><th style="text-align:left">Phạm vi</th><th style="text-align:left">Tiêu đề</th><th>File</th></tr></thead><tbody>']
-    tt = t.head(limit).rename(columns={"Loại": "loai_t", "Phạm vi": "pv_t"})
+    tt = t.head(limit).rename(columns={"Loại": "loai_t", "Phạm vi": "pv_t", "Ngành": "nganh_t"})
     for r in tt.itertuples(index=False):
         link = (f'<a href="{r.url_pdf}" target="_blank" rel="noopener">PDF</a>' if str(r.url_pdf).startswith("http") else "—")
         src = _bctc_badge(r.nguon, r.url_nguon, getattr(r, "nguon_khac", ""), getattr(r, "url_pdf_khac", ""))
         ten = str(r.ten_dn)[:38]
-        h.append(f'<tr><td>{r.ngay_cong_bo:%d/%m/%Y} <small style="color:var(--ink-3)">{r.gio_dang}</small></td>'
-                 f'<td><b>{r.symbol}</b> <small>{ten}</small></td><td style="text-align:left">{r.exchange}</td>'
+        ng = f'<td style="text-align:left"><small>{str(r.nganh_t)[:28]}</small></td>' if co_ng else ""
+        h.append(f'<tr><td>{_ngay_html(r.ngay_cong_bo, r.gio_dang)}</td>'
+                 f'<td><b>{r.symbol}</b> <small>{ten}</small></td>{ng}<td style="text-align:left">{r.exchange}</td>'
                  f'<td style="text-align:left"><b>{r.ky}</b></td><td style="text-align:left">{r.loai_t}</td>'
                  f'<td style="text-align:left">{r.pv_t}</td>'
                  f'<td style="text-align:left;white-space:normal;min-width:260px">{str(r.tieu_de)[:90]}</td><td>{link} <small>{src}</small></td></tr>')
@@ -710,9 +763,11 @@ def _bctc_html(t: pd.DataFrame, limit: int = 400) -> str:
 
 
 def _bctc_export(t: pd.DataFrame) -> pd.DataFrame:
-    out = t[["ngay_cong_bo", "gio_dang", "symbol", "exchange", "ten_dn", "ky", "Loại", "Phạm vi", "tieu_de", "url_pdf", "url_nguon", "nguon",
-             "nguon_khac", "url_pdf_khac"]].copy()
-    out.columns = ["Ngày", "Giờ", "Mã", "Sàn", "Tên DN", "Kỳ", "Loại", "Phạm vi", "Tiêu đề", "PDF", "Nguồn (trang)", "Nguồn", "Nguồn khác", "PDF nguồn khác"]
+    cols = ["ngay_cong_bo", "gio_dang", "symbol", "exchange", "ten_dn"] + (["Ngành"] if "Ngành" in t.columns else []) +         ["ky", "Loại", "Phạm vi", "tieu_de", "url_pdf", "url_nguon", "nguon", "nguon_khac", "url_pdf_khac"]
+    out = t[cols].copy()
+    out = out.astype({c: str for c in cols if out[c].dtype.name == "category"})
+    out.columns = ["Ngày", "Giờ", "Mã", "Sàn", "Tên DN"] + (["Ngành"] if "Ngành" in t.columns else []) +         ["Kỳ", "Loại", "Phạm vi", "Tiêu đề", "PDF", "Nguồn (trang)", "Nguồn", "Nguồn khác", "PDF nguồn khác"]
+    out["Giờ"] = out["Giờ"].replace(UOC, "ước")
     return out.set_index("Ngày")
 
 
@@ -723,22 +778,24 @@ def _bctc_moi(ctx):
         ui.card_empty("BCTC mới công bố", "", f"Chưa có <code>{path}</code> — chạy <code>python D:\\bctc\\bctc-scan\\bctc_scan.py --full</code> "
                       "(bước <b>bctc-scan</b> AM/PM) hoặc kéo dữ liệu cloud về.", key="bctc_trong")
         return
-    d = _bctc_df(dl._raw_mt(path))
+    d = _bctc_df(max(dl._raw_mt(path), dl._raw_mt(_bctc_pq()) if os.path.exists(_bctc_pq()) else 0.0))
     if d.empty:
         ui.card_empty("BCTC mới công bố", "", "File rỗng — chạy lại bctc_scan.py --full.", key="bctc_trong")
         return
     today = pd.Timestamp.now().normalize()
     ky_hh = _ky_hien_hanh(today)
     try:
-        meta = dl.meta()
-        tong = meta["exchange"].value_counts()
+        san_ma = dl.meta()["exchange"]
     except Exception:  # noqa: BLE001
-        tong = pd.Series(dtype=int)
+        san_ma = pd.Series(dtype=str)
+    tong = san_ma.value_counts()
     tong = {s: int(tong.get(s, 0)) for s in SAN}
     tong_all = sum(tong.values()) or 1
     pub = d[(d["loai"] == "quy") & (d["ky"] == ky_hh)]
-    n_hh = pub["symbol"].nunique()
-    n_san = pub.groupby("exchange")["symbol"].nunique()
+    # tử số cùng tập với mẫu số: mã đang niêm yết, sàn theo danh sách niêm yết (sàn ghi trong file BCTC có thể cũ -> >100%)
+    pub_ny = pub[pub["symbol"].isin(san_ma.index)]
+    n_hh = pub_ny["symbol"].nunique() if len(san_ma) else pub["symbol"].nunique()
+    n_san = pub_ny["symbol"].drop_duplicates().map(san_ma).value_counts()
     hom_nay = d[d["ngay_cong_bo"] == today]
     tuan = d[d["ngay_cong_bo"] >= today - pd.Timedelta(days=today.weekday())]
     kpi = [(f"Đã công bố {ky_hh}", f"{n_hh}/{tong_all}", f"{n_hh / tong_all * 100:.1f}% DN niêm yết", 0)]
@@ -754,10 +811,13 @@ def _bctc_moi(ctx):
                  help="3 nguồn gộp (bước bctc-scan AM 10:30 + PM 18:30): CafeF FileBCTC.ashx + Vietstock GetDocument + HOSE api.hsx.vn (chỉ mã HOSE). "
                       "Mỗi BCTC (mã/kỳ/loại/phạm vi) giữ 1 dòng với ngày+giờ công bố SỚM NHẤT; badge = nguồn sớm nhất (bấm mở trang nguồn), "
                       "PDF = file của nguồn đó, '+Ca/+Vi/+HO' = nguồn khác cũng có file (bấm mở PDF đó). Kỳ: 2026Q3 quý · 2026H1 soát xét bán niên · "
-                      "2025FY kiểm toán năm. Phạm vi '—' = công ty không có công ty con (BCTC duy nhất).",
-                 key="bctc_moi_nhat", periods=["1W", "1M", "3M", "All"], default="1M") as c:
+                      "2025FY kiểm toán năm. Phạm vi '—' = công ty không có công ty con (BCTC duy nhất). Ngành = phân ngành ICB Vietcap "
+                      "(nút Cấp 1/2/3, tách Vingroup) như trang Hiệu suất. Ngày '~' = ngày ước (file cũ không còn ngày đăng gốc).",
+                 key="bctc_moi_nhat", periods=["1W", "1M", "3M", "1Y", "3Y", "All"], default="1M", toggles=PN_TOG, end=today) as c:
+        d = d.assign(**{"Ngành": d["symbol"].map(_nganh_map(_pn(c))).fillna("Chưa phân ngành")})
         with c.body():
-            f1, f2, f3, f4, f5 = st.columns([1.1, 1.3, 1.2, 1.2, 1])
+            f0, f1, f2, f3, f4, f5 = st.columns([1.6, 1.0, 1.2, 1.1, 1.1, 1])
+            nganh = f0.multiselect("Ngành", sorted(d["Ngành"].unique()), default=[], key=f"bctc_nganh_{_pn(c)[0]}", placeholder="Tất cả")
             san = f1.multiselect("Sàn", SAN, default=[], key="bctc_san", placeholder="Tất cả")
             kys = sorted(d["ky"].unique(), reverse=True)
             ky = f2.multiselect("Kỳ", kys, default=[], key="bctc_ky", placeholder="Tất cả")
@@ -765,6 +825,8 @@ def _bctc_moi(ctx):
             pv = f4.multiselect("Phạm vi", list(PV_TEN.values()), default=[], key="bctc_pv", placeholder="Tất cả")
             ma = f5.text_input("Tìm mã", "", key="bctc_ma", placeholder="FPT, VNM…").strip().upper()
         t = d[(d["ngay_cong_bo"] >= c.d0) & (d["ngay_cong_bo"] <= c.d1)]
+        if nganh:
+            t = t[t["Ngành"].isin(nganh)]
         if san:
             t = t[t["exchange"].isin(san)]
         if ky:
@@ -789,7 +851,7 @@ def _bctc_moi(ctx):
     with ui.card("Tiến độ công bố theo ngày", f"cột: số file/ngày · đường: luỹ kế % DN đã công bố BCTC quý {ky_hh}",
                  help="Cột = số BCTC (mọi kỳ, mọi loại) công bố mỗi ngày (ngày sớm nhất trong 3 nguồn). Đường phải = luỹ kế số DN đã có BCTC quý của kỳ gần nhất "
                       "chia tổng DN niêm yết 3 sàn (theo vn_screener_meta).",
-                 key="bctc_tien_do", periods=["1M", "3M", "6M", "All"], default="3M") as c:
+                 key="bctc_tien_do", periods=["1M", "3M", "6M", "All"], default="3M", end=today) as c:
         t = d[(d["ngay_cong_bo"] >= c.d0) & (d["ngay_cong_bo"] <= c.d1)]
         if t.empty:
             c.empty()
@@ -799,7 +861,7 @@ def _bctc_moi(ctx):
             daily = daily.reindex(idx, fill_value=0)
             daily = daily[daily.index >= pd.Timestamp(c.d0)]
             if len(pub):
-                first = pub.groupby("symbol")["ngay_cong_bo"].min()
+                first = pub_ny.groupby("symbol")["ngay_cong_bo"].min()
                 cum = first.value_counts().sort_index().cumsum().reindex(daily.index, method="ffill").fillna(0)
                 daily = daily.to_frame()
                 daily[f"Luỹ kế % DN {ky_hh}"] = cum / tong_all * 100
@@ -812,8 +874,63 @@ def _bctc_moi(ctx):
             c.chart(fig, daily, ten="Tien do cong bo BCTC", last=d["ngay_cong_bo"].max(),
                     note_text=f"{ky_hh}: {n_hh} DN đã công bố ({n_hh / tong_all * 100:.1f}%) · mới nhất {d['ngay_cong_bo'].max():%d/%m/%Y}")
 
-    # ---- (d) theo ma
-    with ui.card("Theo mã", "lịch sử công bố BCTC của 1 doanh nghiệp", key="bctc_theo_ma", controls=False) as c:
+    # ---- (d) theo nganh (03/11/2026): % DN da cong bo 1 ky theo nganh + danh sach DN trong nganh
+    with ui.card("Theo ngành", "% DN trong ngành đã công bố BCTC của kỳ đã chọn",
+                 help="Mẫu số = mã đang niêm yết trên sàn đã chọn (vn_screener_meta) chia theo phân ngành ICB Vietcap của app (Cấp 1/2/3, "
+                      "tách Vingroup). Tử số = mã có ít nhất 1 file BCTC đúng kỳ (Quý: 2026Q3 · Soát xét bán niên: 2026H1 · Kiểm toán năm: 2025FY). "
+                      "Kỳ cũ: mẫu số vẫn là danh sách niêm yết hiện tại nên tỷ lệ chỉ để tham khảo. Bảng dưới: từng DN của ngành đã chọn, "
+                      "ngày công bố sớm nhất theo phạm vi (bấm ngày mở PDF), DN chưa công bố xếp cuối theo vốn hoá.",
+                 key="bctc_theo_nganh", toggles=PN_TOG, controls=False) as c:
+        pn = _pn(c)
+        nmap = _nganh_map(pn)
+        kys_n = sorted([k for k in d["ky"].unique() if KY_RE.fullmatch(k)], key=_ky_sort, reverse=True)
+        try:
+            m = dl.meta(pn)
+        except Exception:  # noqa: BLE001
+            m = pd.DataFrame(columns=["exchange"])
+        with c.body():
+            g1, g2, g3 = st.columns([1.0, 2.0, 1.4])
+            kk = "bctc_ng_ky"
+            if kk not in st.session_state or st.session_state[kk] not in kys_n:
+                st.session_state[kk] = ky_hh if ky_hh in kys_n else (kys_n[0] if kys_n else "")
+            ky_n = g1.selectbox("Kỳ", kys_n, key=kk)
+            san_n = g3.multiselect("Sàn", SAN, default=[], key="bctc_ng_san", placeholder="Cả 3 sàn")
+            uni = m[m["exchange"].isin(san_n or SAN)].copy()
+            uni["nganh"] = uni.index.to_series().map(nmap).fillna("Chưa phân ngành")
+            pub_k = d[(d["ky"] == ky_n) & (d["loai"] != "khac")]
+            uni["da"] = uni.index.isin(set(pub_k["symbol"]))
+            g = uni.groupby("nganh")["da"].agg(["sum", "size"])
+            g["pct"] = g["sum"] / g["size"] * 100
+            g = g.sort_values(["pct", "size"], ascending=[False, False])
+            ds_ng = list(g.index)
+            kn = f"bctc_ng_nganh_{pn[0]}"
+            if kn not in st.session_state or st.session_state[kn] not in ds_ng:
+                st.session_state[kn] = "Ngân hàng" if "Ngân hàng" in ds_ng else (ds_ng[0] if ds_ng else None)
+            ng_chon = g2.selectbox("Ngành", ds_ng, key=kn,
+                                   format_func=lambda x: f"{x} · {int(g.loc[x, 'sum'])}/{int(g.loc[x, 'size'])} DN")
+        if g.empty:
+            c.empty()
+        else:
+            tong = g[["sum", "size"]].sum()
+            s = g["pct"].copy()
+            s.index = [f"{k} ({int(g.loc[k, 'sum'])}/{int(g.loc[k, 'size'])})" for k in g.index]
+            s.loc[f"Toàn thị trường ({int(tong['sum'])}/{int(tong['size'])})"] = tong["sum"] / max(1, tong["size"]) * 100
+            fig = ui.fig_hbar(s, "% DN đã công bố", sign=False, color=ui.TOK["orange"], highlight=s.index[-1], nd=0)
+            if fig is not None:
+                fig.update_xaxes(range=[0, 112])
+            # tải về = toàn bộ DN mọi ngành (cột Ngành) × ngày/PDF theo phạm vi của kỳ đã chọn
+            c.chart(fig, g, ten=f"BCTC {ky_n} theo nganh", df_export=_nganh_export(uni, pub_k),
+                    note_text=f"{ky_n}: {int(tong['sum'])}/{int(tong['size'])} DN ({tong['sum'] / max(1, tong['size']) * 100:.1f}%) đã công bố · "
+                              f"phân ngành ICB cấp {pn[0]} · {', '.join(san_n) if san_n else 'cả 3 sàn'} · tải về = mọi DN, mọi ngành")
+            if ng_chon:
+                c.markdown(_nganh_html(uni[uni["nganh"] == ng_chon], pub_k, ng_chon, ky_n))
+
+    # ---- (e) theo ma: lich su theo ky (ma tran pham vi) hoac danh sach file
+    with ui.card("Theo mã", "lịch sử công bố BCTC của 1 doanh nghiệp", key="bctc_theo_ma",
+                 help="Lịch sử từ 2000 (bctc_scan --since): Vietstock có từ ~2002, HOSE từ 2010, CafeF đủ kỳ nhưng file trước 03/2023 không còn "
+                      "ngày đăng gốc. 'Theo kỳ' = mỗi dòng 1 kỳ, cột = phạm vi (bấm ngày mở PDF); 'Danh sách file' = mọi file. "
+                      "Ngày '~' = ngày ước (cuối kỳ + hạn nộp).",
+                 toggles={"Kiểu": ["Theo kỳ", "Danh sách file"]}, controls=False) as c:
         with c.body():
             ds = sorted(d["symbol"].unique())
             k = "bctc_ma_chon"
@@ -823,13 +940,108 @@ def _bctc_moi(ctx):
             m1 = c1.selectbox("Mã", ds, key=k)
             h = d[d["symbol"] == m1]
             ten = h["ten_dn"].iloc[0] if len(h) else ""
-            c2.markdown(f'<div class="gn-title" style="margin-top:28px"><h3>{m1}</h3><span class="unit">{ten} · {h["exchange"].iloc[0] if len(h) else ""} · '
-                        f'{len(h)} file · {h["ky"].nunique()} kỳ · mới nhất {h["ngay_cong_bo"].max():%d/%m/%Y}</span></div>', unsafe_allow_html=True)
+            ng1 = h["Ngành"].iloc[0] if len(h) and "Ngành" in h else ""
+            kq = [x for x in h["ky"].unique() if KY_RE.fullmatch(x)]
+            tu = min(kq, key=_ky_sort) if kq else "—"
+            c2.markdown(f'<div class="gn-title" style="margin-top:28px"><h3>{m1}</h3><span class="unit">{ten} · {h["exchange"].iloc[0] if len(h) else ""}'
+                        f'{" · " + ng1 if ng1 else ""} · {len(h)} file · {h["ky"].nunique()} kỳ (từ {tu}) · '
+                        f'mới nhất {h["ngay_cong_bo"].max():%d/%m/%Y}</span></div>', unsafe_allow_html=True)
         if h.empty:
             c.empty()
-        else:
-            c.markdown(_bctc_html(h, limit=200))
+        elif c.toggle.get("Kiểu") == "Danh sách file":
+            c.markdown(_bctc_html(h, limit=1000))
             c.export(_bctc_export(h), ten=f"BCTC {m1}")
+        else:
+            c.markdown(_ky_matrix_html(h))
+            c.export(_bctc_export(h), ten=f"BCTC {m1}")
+
+
+PV_COT = [("hop_nhat", "Hợp nhất"), ("cong_ty_me", "Công ty mẹ / Riêng"), ("khong_ro", "Không tách phạm vi")]
+
+
+def _pv_cot(pv: str) -> str:
+    return "cong_ty_me" if pv in ("cong_ty_me", "rieng") else pv
+
+
+def _o_file(r) -> str:
+    """1 ô: ngày (link PDF, tooltip = tiêu đề) + 2 chữ đầu nguồn sớm nhất."""
+    ngay = _ngay_html(r.ngay_cong_bo, r.gio_dang, small=False)
+    if str(r.url_pdf).startswith("http"):
+        tip = str(r.tieu_de)[:120].replace('"', "'")
+        ngay = f'<a href="{r.url_pdf}" target="_blank" rel="noopener" title="{tip}">{ngay}</a>'
+    src = _NGUON_BADGE.get(str(r.nguon), (str(r.nguon),))[0]
+    return f'{ngay} <small style="color:var(--ink-3)">{src[:2]}</small>'
+
+
+def _cell(f: pd.DataFrame) -> str:
+    if f.empty:
+        return '<td style="text-align:left"><span style="color:var(--ink-3)">—</span></td>'
+    return '<td style="text-align:left">' + "<br>".join(_o_file(r) for r in f.sort_values(["ngay_cong_bo", "gio_dang"]).itertuples(index=False)) + "</td>"
+
+
+def _ky_matrix_html(h: pd.DataFrame) -> str:
+    """Lịch sử 1 mã: dòng = kỳ (mới -> cũ), cột = phạm vi; file loại 'khác' (giải trình, công văn...) gom cột cuối."""
+    h = h.assign(_pv=h["pham_vi"].map(_pv_cot))
+    kys = sorted(h["ky"].unique(), key=_ky_sort, reverse=True)
+    xx = h[h["loai"] != "khac"]
+    co = [p for p, _ in PV_COT if (xx["_pv"] == p).any()]
+    co_khac = (h["loai"] == "khac").any()
+    rows = ['<div class="gn-tblwrap" style="max-height:620px;overflow:auto"><table class="gn-tbl"><thead><tr><th>Kỳ</th>'
+            '<th style="text-align:left">Loại</th>' + "".join(f'<th style="text-align:left">{t}</th>' for p, t in PV_COT if p in co) +
+            ('<th style="text-align:left">Khác</th>' if co_khac else "") + "</tr></thead><tbody>"]
+    for ky in kys:
+        x = h[h["ky"] == ky]
+        b = x[x["loai"] != "khac"]
+        loai = ", ".join(sorted(b["Loại"].unique())) if len(b) else "—"
+        cells = "".join(_cell(b[b["_pv"] == p]) for p in co) + (_cell(x[x["loai"] == "khac"]) if co_khac else "")
+        rows.append(f'<tr><td><b>{ky or "?"}</b></td><td style="text-align:left">{loai}</td>{cells}</tr>')
+    rows.append("</tbody></table></div>")
+    return "".join(rows)
+
+
+def _nganh_html(u: pd.DataFrame, pub_k: pd.DataFrame, nganh: str, ky: str) -> str:
+    """DN trong 1 ngành × phạm vi cho 1 kỳ: đã công bố (sớm -> muộn) rồi chưa công bố (vốn hoá lớn -> nhỏ)."""
+    p = pub_k[pub_k["symbol"].isin(u.index)]
+    p = p.assign(_pv=p["pham_vi"].map(_pv_cot))
+    co = [q for q, _ in PV_COT if (p["_pv"] == q).any()] or ["hop_nhat"]
+    first = p.groupby("symbol")["ngay_cong_bo"].min()
+    ten = p.groupby("symbol")["ten_dn"].first().astype(str).replace("", None).combine_first(dl.icb().get("ten", pd.Series(dtype=str)))
+    cap =u["market_cap_basic"] if "market_cap_basic" in u else pd.Series(index=u.index, dtype=float)
+    da = first.sort_values().index.tolist()
+    chua = cap.reindex([s for s in u.index if s not in first.index]).sort_values(ascending=False, na_position="last").index.tolist()
+    rows = [f'<div class="gn-note" style="margin:6px 0">{nganh} · {ky}: <b>{len(da)}/{len(u)}</b> DN đã công bố</div>'
+            '<div class="gn-tblwrap" style="max-height:560px;overflow:auto"><table class="gn-tbl"><thead><tr><th>Mã · tên</th>'
+            '<th style="text-align:left">Sàn</th><th>Vốn hoá (tỷ)</th>' +
+            "".join(f'<th style="text-align:left">{t}</th>' for q, t in PV_COT if q in co) + "</tr></thead><tbody>"]
+    for sym in da + chua:
+        f = p[p["symbol"] == sym]
+        tn = str(ten.get(sym, "") if pd.notna(ten.get(sym, "")) else "")[:34]
+        vh = cap.get(sym)
+        vh = ui.fmt_vn(vh / 1e9, 0) if pd.notna(vh) else "—"
+        cells = ("".join(_cell(f[f["_pv"] == q]) for q in co) if len(f) else
+                 f'<td style="text-align:left;color:var(--ink-3)" colspan="{len(co)}">Chưa công bố</td>')
+        rows.append(f'<tr><td><b>{sym}</b> <small>{tn}</small></td><td style="text-align:left">{u.loc[sym, "exchange"]}</td>'
+                    f'<td>{vh}</td>{cells}</tr>')
+    rows.append("</tbody></table></div>")
+    return "".join(rows)
+
+
+def _nganh_export(u: pd.DataFrame, pub_k: pd.DataFrame) -> pd.DataFrame:
+    p = pub_k[pub_k["symbol"].isin(u.index)]
+    p = p.assign(_pv=p["pham_vi"].map(_pv_cot))
+    out = pd.DataFrame(index=u.index)
+    out.index.name = "Mã"
+    out["Ngành"] = u["nganh"]
+    out["Sàn"] = u["exchange"]
+    if "market_cap_basic" in u:
+        out["Vốn hoá (tỷ)"] = (u["market_cap_basic"] / 1e9).round(0)
+    for q, t in PV_COT:
+        f = p[p["_pv"] == q].sort_values("ngay_cong_bo").drop_duplicates("symbol").set_index("symbol")
+        if len(f):
+            out[f"Ngày {t}"] = f["ngay_cong_bo"].reindex(out.index).dt.strftime("%d/%m/%Y")
+            out[f"PDF {t}"] = f["url_pdf"].reindex(out.index)
+    out["Đã công bố"] = out.index.isin(p["symbol"])
+    return out.sort_values(["Ngành", "Đã công bố"], ascending=[True, False])
 
 
 def tin_tuc(ctx, sub="bctc-moi"):

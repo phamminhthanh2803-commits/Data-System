@@ -9,9 +9,14 @@ r"""bctc_scan.py — QUÉT BÁO CÁO TÀI CHÍNH MỚI CÔNG BỐ của toàn b�
     -> data\bctc_congbo.csv (UTF-8 BOM) + data\bctc_congbo_latest.parquet (bản đầy đủ)
 GỘP theo khoá (symbol, ky, loai, pham_vi): giữ 1 dòng có ngay_cong_bo/gio_dang SỚM NHẤT (nguon + url_pdf + id của nguồn đó);
 dữ liệu cũ trong CSV cũng gộp theo cùng quy tắc (khoá trùng -> giữ ngày sớm nhất, cập nhật nguon_khac).
+NGÀY ƯỚC (03/11/2026): CafeF chuyển hệ thống 02–06/03/2023 -> mọi file cũ có ObjectId mang ngày migrate, không phải ngày đăng.
+Vietstock cũng có file ĐĂNG BÙ hàng loạt (vd FPT BCTC 2002 đăng 15/05/2026). File CafeF có ObjectId trước CAFEF_MIG_END, hoặc file
+bất kỳ nguồn nào đăng muộn hơn cuối kỳ > TRE_BU ngày -> ngay_cong_bo = cuối kỳ + hạn nộp (quý 30 / bán niên 45 / năm 90 ngày),
+gio_dang = "~" (đánh dấu ước). Khi gộp, ngày ước luôn thua ngày thật; feed "mới công bố" không lẫn file cũ đăng bù.
 
     python bctc_scan.py                      # tăng dần: từ (ngày cuối trong CSV − 7) tới nay, tối đa --days 30, --source all
     python bctc_scan.py --full               # lần đầu / dựng lại: 400 ngày
+    python bctc_scan.py --since 2010-01-01   # 03/11/2026: lùi lịch sử tuỳ ý (CafeF Year=0 lấy hết 1 lần; Vietstock/HOSE phân trang)
     python bctc_scan.py --days 60 --symbols FPT,VNM
     python bctc_scan.py --source cafef       # 1 nguồn (cafef | vietstock | hose | both = cafef+vietstock | all)
     python bctc_scan.py --download           # tải PDF về pdf\<ma>\ (mặc định KHÔNG tải)
@@ -58,6 +63,10 @@ COLS = ["id", "nguon", "symbol", "exchange", "ten_dn", "ky", "loai", "pham_vi", 
         "tieu_de", "url_pdf", "url_nguon", "ngay_quet", "nguon_khac", "url_pdf_khac"]
 KEY = ["symbol", "ky", "loai", "pham_vi"]
 SRC_ORDER = {"cafef": 0, "vietstock": 1, "hose": 2}
+CAFEF_MIG_END = pd.Timestamp("2023-03-15")          # ObjectId CafeF trước mốc này = ngày migrate hệ thống, không phải ngày đăng
+UOC = "~"                                           # gio_dang = UOC -> ngay_cong_bo là ngày ước (cuối kỳ + hạn nộp)
+HAN_NOP = {"Q": 30, "H": 45, "F": 90}               # ngày sau cuối kỳ: quý / bán niên / năm (dùng cho ngày ước)
+TRE_BU = 400                                        # đăng muộn hơn cuối kỳ quá số ngày này = đăng bù -> dùng ngày ước
 
 CAFEF = "https://cafef.vn/du-lieu/Ajax/PageNew/FileBCTC.ashx"
 VS_DOC = "https://finance.vietstock.vn/data/GetDocument"
@@ -266,6 +275,34 @@ def ky_hose(typ: str, tm: str, file_name: str = "") -> tuple[str, str]:
     return ky, loai
 
 
+def ky_end(ky: str):
+    """'2026Q3' -> 30/09/2026, '2026H1' -> 30/06/2026, '2025FY' / '2025' -> 31/12/2025; không đọc được -> NaT."""
+    m = re.fullmatch(r"(\d{4})(Q[1-4]|H1|FY)?", str(ky or ""))
+    if not m:
+        return pd.NaT
+    y, p = int(m.group(1)), m.group(2) or "FY"
+    mo = {"Q1": 3, "Q2": 6, "Q3": 9, "Q4": 12, "H1": 6, "FY": 12}[p]
+    return pd.Timestamp(y, mo, 1) + pd.offsets.MonthEnd(0)
+
+
+def ngay_uoc(ky: str):
+    """Ngày công bố ƯỚC = cuối kỳ + hạn nộp (HAN_NOP); NaT nếu không đọc được kỳ."""
+    e = ky_end(ky)
+    if pd.isna(e):
+        return pd.NaT
+    return e + pd.Timedelta(days=HAN_NOP.get(str(ky)[4:5], HAN_NOP["F"]))
+
+
+def ngay_that(ts, ky: str, cafef: bool = False):
+    """(ngày, giờ) để ghi: ngày đăng thật, trừ file đăng bù (> TRE_BU ngày sau cuối kỳ) / CafeF migrate -> (ngày ước, '~')."""
+    e = ky_end(ky)
+    if (cafef and ts < CAFEF_MIG_END) or (pd.notna(e) and ts > e + pd.Timedelta(days=TRE_BU)):
+        u = ngay_uoc(ky)
+        if pd.notna(u) and u < ts:
+            return u, UOC
+    return ts, f"{ts:%H:%M}"
+
+
 # ------------------------------------------------------------------------------------------------ nguồn CafeF
 def cafef_rows(sym: str, years: list[int], since: pd.Timestamp, meta: dict) -> list[dict]:
     hdr = {"Referer": f"https://cafef.vn/du-lieu/hose/{sym.lower()}-tai-lieu.chn", "X-Requested-With": "XMLHttpRequest",
@@ -284,13 +321,17 @@ def cafef_rows(sym: str, years: list[int], since: pd.Timestamp, meta: dict) -> l
                 continue
             seen.add(oid)
             ts = oid_time(oid)
-            if pd.isna(ts) or ts < since:
+            if pd.isna(ts):
                 continue
             name = str(x.get("Name") or "").strip()
             loai = loai_of(name, x.get("Quarter"))
+            ky = ky_cafef(name, x.get("Quarter"), x.get("Year"), loai)
+            ts, gio = ngay_that(ts, ky, cafef=True)
+            if ts < since:
+                continue
             out.append({"id": f"cafef:{oid}", "nguon": "cafef", "symbol": sym, "exchange": meta.get("exchange", ""),
-                        "ten_dn": meta.get("ten", ""), "ky": ky_cafef(name, x.get("Quarter"), x.get("Year"), loai),
-                        "loai": loai, "pham_vi": pham_vi_of(name), "ngay_cong_bo": ts.normalize(), "gio_dang": f"{ts:%H:%M}",
+                        "ten_dn": meta.get("ten", ""), "ky": ky,
+                        "loai": loai, "pham_vi": pham_vi_of(name), "ngay_cong_bo": ts.normalize(), "gio_dang": gio,
                         "nam": x.get("Year"), "quy": x.get("Quarter"), "tieu_de": name, "url_pdf": str(x.get("Link") or ""),
                         "url_nguon": f"https://cafef.vn/du-lieu/hose/{sym.lower()}-tai-lieu.chn"})
     return out
@@ -357,11 +398,14 @@ def vietstock_rows(sym: str, since: pd.Timestamp, meta: dict) -> list[dict]:
                 continue
             title = str(x.get("FullName") or x.get("Title") or "").strip()
             ky, loai = ky_vietstock(title)
+            ts, gio = ngay_that(ts, ky)
+            if ts < since:
+                continue
             url = str(x.get("Url") or "")
             ex = meta.get("exchange") or (re.search(r"/data/(HOSE|HNX|UPCOM)/", url) or [None, ""])[1]
             out.append({"id": f"vietstock:{x.get('FileInfoID')}", "nguon": "vietstock", "symbol": sym, "exchange": ex,
                         "ten_dn": meta.get("ten", ""), "ky": ky, "loai": loai, "pham_vi": pham_vi_of(title),
-                        "ngay_cong_bo": ts.normalize(), "gio_dang": f"{ts:%H:%M}", "nam": ky[:4] if ky else None,
+                        "ngay_cong_bo": ts.normalize(), "gio_dang": gio, "nam": ky[:4] if ky else None,
                         "quy": (ky[5:] if len(ky) > 4 else ""), "tieu_de": title, "url_pdf": url, "url_nguon": VS_PAGE.format(sym=sym)})
         if stop or len(lst) < 50:
             break
@@ -487,10 +531,13 @@ def hose_rows(sym: str, org: int, since: pd.Timestamp, meta: dict) -> list[dict]
             fp = str(x.get("filePath") or "").lstrip("~").lstrip("/")
             doc = (re.search(r"UploadDocuments/(\d+)/", fp) or [None, ""])[1]
             ky, loai = ky_hose(str(x.get("type") or ""), str(x.get("time") or ""), fn)
+            ts, gio = ngay_that(ts, ky)
+            if ts < since:
+                continue
             url = HSX_STATIC + urllib.parse.quote(fp, safe="/") if fp else ""
             out.append({"id": f"hose:{doc}:{fn}"[:200], "nguon": "hose", "symbol": sym, "exchange": meta.get("exchange") or "HOSE",
                         "ten_dn": meta.get("ten", ""), "ky": ky, "loai": loai, "pham_vi": pham_vi_hose(fn),
-                        "ngay_cong_bo": ts.normalize(), "gio_dang": f"{ts:%H:%M}", "nam": ky[:4] if ky else None,
+                        "ngay_cong_bo": ts.normalize(), "gio_dang": gio, "nam": ky[:4] if ky else None,
                         "quy": (ky[5:] if len(ky) > 4 else ""), "tieu_de": f"{x.get('type') or ''} {x.get('time') or ''} · {fn}".strip(" ·"),
                         "url_pdf": url, "url_nguon": HSX_PAGE})
         if stop or len(lst) < 50:
@@ -576,14 +623,20 @@ def merge_sources(entries: pd.DataFrame) -> pd.DataFrame:
     d["ngay_cong_bo"] = pd.to_datetime(d["ngay_cong_bo"], errors="coerce")
     for c in ("symbol", "ky", "loai", "pham_vi", "nguon", "gio_dang", "url_pdf", "ngay_quet"):
         d[c] = d[c].fillna("").astype(str)
+    ke = d["ky"].map(ky_end)                                        # file đăng bù (kể cả dòng cũ trong CSV) -> ngày ước "~"
+    bu = (d["gio_dang"] != UOC) & ke.notna() & (d["ngay_cong_bo"] > ke + pd.Timedelta(days=TRE_BU))
+    if bu.any():
+        d.loc[bu, "ngay_cong_bo"] = d.loc[bu, "ky"].map(ngay_uoc)
+        d.loc[bu, "gio_dang"] = UOC
     pv = d["pham_vi"].replace({"cong_ty_me": "rieng"})            # "riêng" (HOSE) ≡ "công ty mẹ" (CafeF/Vietstock): cùng 1 báo cáo
     d["_k"] = d["symbol"] + "|" + d["ky"].where(d["ky"] != "", d["id"]) + "|" + d["loai"] + "|" + pv
     d["_so"] = d["nguon"].map(SRC_ORDER).fillna(9)
     d["_na"] = d["ngay_cong_bo"].isna()
+    d["_uoc"] = d["gio_dang"] == UOC                               # ngày ước (CafeF migrate) luôn thua ngày thật
     d["_url"] = d["url_pdf"] == ""
-    d = d.sort_values(["_k", "_na", "ngay_cong_bo", "gio_dang", "_url", "_so"], kind="stable")
+    d = d.sort_values(["_k", "_na", "_uoc", "ngay_cong_bo", "gio_dang", "_url", "_so"], kind="stable")
     d = d.drop_duplicates(["_k", "nguon"], keep="first")           # 1 mục / nguồn / khoá: sớm nhất
-    d = d.sort_values(["_k", "_na", "ngay_cong_bo", "gio_dang", "_so"], kind="stable")
+    d = d.sort_values(["_k", "_na", "_uoc", "ngay_cong_bo", "gio_dang", "_so"], kind="stable")
     main = d.drop_duplicates("_k", keep="first").set_index("_k")
     rest = d[d.duplicated("_k", keep="first")].sort_values(["_k", "_so"], kind="stable")
     me = d[d["pham_vi"] == "cong_ty_me"]["_k"].unique()            # nhãn thống nhất: có nguồn ghi "công ty mẹ" -> cong_ty_me
@@ -646,6 +699,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Quét BCTC mới công bố toàn thị trường (CafeF + Vietstock + HOSE, gộp ngày sớm nhất).")
     ap.add_argument("--full", action="store_true", help="lần đầu: 400 ngày, không dùng mốc tăng dần")
     ap.add_argument("--days", type=int, default=30, help="số ngày gần nhất (mặc định 30; --full = 400)")
+    ap.add_argument("--since", default="", help="YYYY-MM-DD: quét từ ngày này (lùi lịch sử, vd 2010-01-01); bỏ qua --days/--full")
     ap.add_argument("--symbols", default="", help="chỉ các mã này, cách nhau bởi dấu phẩy")
     ap.add_argument("--source", choices=["cafef", "vietstock", "hose", "both", "all"], default="all",
                     help="all = CafeF + Vietstock + HOSE (mặc định); both = CafeF + Vietstock")
@@ -657,15 +711,17 @@ def main(argv=None) -> int:
 
     today = pd.Timestamp(dt.datetime.now(VN_TZ).date())
     days = 400 if a.full else a.days
-    since = today - pd.Timedelta(days=days)
+    since = pd.Timestamp(a.since) if a.since else today - pd.Timedelta(days=days)
     syms = [s.strip().upper() for s in a.symbols.split(",") if s.strip()] or None
     old = read_old()
-    if not a.full and not syms and len(old) and old["ngay_cong_bo"].notna().any():
+    if not a.full and not a.since and not syms and len(old) and old["ngay_cong_bo"].notna().any():
         since = max(since, old["ngay_cong_bo"].max().normalize() - pd.Timedelta(days=7))
     uni = universe(syms)
     years = sorted({y for y in range(since.year - (1 if since.month <= 4 else 0), today.year + 1)})
+    if since < CAFEF_MIG_END:
+        years = [0]                                   # CafeF Year=0 = mọi năm trong 1 request (lùi lịch sử)
     log.info("Che do: %s | nguon %s | tu %s (%d ngay) | %d ma | nam CafeF %s | %d luong | curl_cffi=%s | da co %d dong",
-             "FULL" if a.full else "tang dan", "+".join(srcs), since.date(), (today - since).days, len(uni), years, a.threads, HAS_CURL, len(old))
+             "LICH SU" if a.since else ("FULL" if a.full else "tang dan"), "+".join(srcs), since.date(), (today - since).days, len(uni), years, a.threads, HAS_CURL, len(old))
     t0 = time.time()
 
     # ---- HOSE: map mã -> secOrgId (file data\hose_secorg.csv, bổ sung mã thiếu từ tin CBTT)

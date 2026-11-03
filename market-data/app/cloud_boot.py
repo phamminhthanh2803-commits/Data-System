@@ -65,7 +65,7 @@ APP_DATA = [
     ("vsdc-accounts", ["/vsdc_tk_ndt.csv"]),
     ("bond-pivot", ["/data/processed/**"]),
     # hub khac: "<hub>/<thu muc>" -> gdrive:pipeline-data/<hub>/<thu muc> -> <base>/<hub>/<thu muc> (BCTC_ROOT = <base>/bctc)
-    ("bctc/bctc-scan", ["/data/bctc_congbo.csv"]),                         # 13/10/2026: BCTC moi cong bo -> tab Tin tuc
+    ("bctc/bctc-scan", ["/data/bctc_congbo_latest.parquet"]),              # 13/10/2026: BCTC moi cong bo -> tab Tin tuc (03/11: parquet, lich su tu 2000)
 ]
 OTHER_HUBS = ("bctc", "shipping", "hah")
 # phan ban dung san -> file can co (= datalib.PRESENT_FILES) va file goc phai keo neu thieu phan do (thu muc index-fetcher)

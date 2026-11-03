@@ -12,6 +12,7 @@ thường muộn / đăng gộp) + **Vietstock** `data/GetDocument` (`LastUpdate
 cd /d D:\bctc\bctc-scan
 python bctc_scan.py                 :: tăng dần, --source all (CafeF + Vietstock + HOSE): từ (ngày cuối trong CSV − 7) tới nay, tối đa --days 30 (~2 phút)
 python bctc_scan.py --full          :: lần đầu / dựng lại: 400 ngày, 3 nguồn (~6 phút; lần đầu thêm 1–3 phút xây map HOSE secOrgId)
+python bctc_scan.py --since 2000-01-01  :: 03/11/2026: LÙI LỊCH SỬ toàn bộ (CafeF Year=0 1 request/mã; Vietstock ~2002+, HOSE 2010+) ~6 phút
 python bctc_scan.py --days 60 --symbols FPT,VNM
 python bctc_scan.py --source cafef  :: 1 nguồn: cafef | vietstock | hose; both = CafeF + Vietstock; all = cả 3 (mặc định)
 python bctc_scan.py --download      :: tải PDF các dòng MỚI về pdf\<mã>\ (mặc định KHÔNG tải; pdf/ không lên Drive)
@@ -23,6 +24,11 @@ Danh sách mã: `MD_ROOT\index-fetcher\raw\vn_screener_meta.csv` (sàn) + tên D
 **Gộp**: khoá `(symbol, ky, loai, pham_vi)` (`rieng` ≡ `cong_ty_me`), giữ dòng có `ngay_cong_bo` + `gio_dang` sớm nhất (`nguon`, `id`, `url_pdf`,
 `tieu_de` của nguồn đó); nguồn còn lại ghi `nguon_khac` (dấu phẩy) + `url_pdf_khac` (dấu `|`). Dữ liệu cũ trong CSV gộp theo cùng quy tắc,
 nên chạy tăng dần vẫn sửa được ngày sớm hơn cho BCTC đã có.
+
+**Ngày ước `~`** (03/11/2026): CafeF chuyển hệ thống 02–06/03/2023 nên mọi file cũ mang ngày migrate; Vietstock có file **đăng bù**
+hàng loạt (vd FPT BCTC 2002 đăng 15/05/2026). File CafeF có ObjectId trước 15/03/2023, hoặc file bất kỳ nguồn nào đăng muộn hơn cuối kỳ
+> 400 ngày → `ngay_cong_bo` = cuối kỳ + hạn nộp (quý 30 / bán niên 45 / năm 90 ngày), `gio_dang = "~"`. Khi gộp, ngày ước luôn thua
+ngày thật, và feed "mới công bố" không lẫn file cũ đăng bù. App hiện `~dd/mm/yyyy`.
 
 ## Kết quả
 

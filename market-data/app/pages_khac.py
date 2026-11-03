@@ -775,6 +775,14 @@ def _bctc_moi(ctx):
     ui.h2("Báo cáo tài chính mới công bố")
     path = dl.reg_path("bctc_congbo")
     if not os.path.exists(path):
+        try:                                     # 03/11/2026: phien cloud boot truoc ban parquet chi keo CSV -> tu keo file thieu tu Drive
+            import cloud_boot
+            if cloud_boot.is_cloud():
+                with st.spinner("Đang kéo lịch sử công bố BCTC từ Drive ..."):
+                    cloud_boot.pull_folder("bctc/bctc-scan", ["/data/bctc_congbo_latest.parquet"])
+        except Exception:  # noqa: BLE001
+            pass
+    if not os.path.exists(path):
         ui.card_empty("BCTC mới công bố", "", f"Chưa có <code>{path}</code> — chạy <code>python D:\\bctc\\bctc-scan\\bctc_scan.py --full</code> "
                       "(bước <b>bctc-scan</b> AM/PM) hoặc kéo dữ liệu cloud về.", key="bctc_trong")
         return

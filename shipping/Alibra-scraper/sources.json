@@ -54,7 +54,8 @@
       "category": "forward_curve",
       "sheet_id": "2PACX-1vQkGGniHOjjs_0booelgLP3pGwySZLvMLskYlJCxNLcq6uf9EaH50Wcpob87lH7xw",
       "gid": 1196769730,
-      "note": "Forward TCE curves by voyage route (VLCC TD3C, SUEZMAX TD20, etc.)"
+      "optional": true,
+      "note": "Forward TCE curves by voyage route (VLCC TD3C, SUEZMAX TD20, etc.). 04/11/2026: ca sheet tra HTTP 500 tu sau 21/10 (pubhtml cung 500) -> optional, combine.py giu snapshot 21/10"
     }
   ]
 }

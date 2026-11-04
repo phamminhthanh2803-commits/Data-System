@@ -58,7 +58,7 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     log(f"=== fetch start: {today} ===")
-    ok, skipped, failed = 0, 0, 0
+    ok, skipped, failed, failed_opt = 0, 0, 0, 0
 
     for src in cfg["sources"]:
         label = src["label"]
@@ -68,8 +68,13 @@ def main() -> int:
         try:
             data = http_get(url)
         except Exception as e:
-            log(f"   FAILED: {e}")
-            failed += 1
+            # 04/11/2026: nguon "optional" hong chi canh bao (combine.py dung snapshot cu), khong chan ca buoc
+            if src.get("optional"):
+                log(f"   WARN optional source failed (keep last snapshot): {e}")
+                failed_opt += 1
+            else:
+                log(f"   FAILED: {e}")
+                failed += 1
             continue
 
         # Dedupe vs previous snapshot (skip writing if identical content)
@@ -83,7 +88,7 @@ def main() -> int:
         log(f"   wrote {out_path.relative_to(ROOT)} ({len(data)} bytes, sha256={sha256(data)[:12]})")
         ok += 1
 
-    log(f"=== fetch done: wrote={ok} unchanged={skipped} failed={failed} ===")
+    log(f"=== fetch done: wrote={ok} unchanged={skipped} failed={failed} optional_failed={failed_opt} ===")
     return 0 if failed == 0 else 1
 
 

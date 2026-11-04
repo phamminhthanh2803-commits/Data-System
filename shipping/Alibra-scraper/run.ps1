@@ -9,10 +9,13 @@ function Write-Log($msg) {
     Add-Content -Path $logPath -Value $line -Encoding utf8
 }
 
+# 04/11/2026: moi duong dan qua Join-Path, khong viet "\" - GitHub Actions (Linux) chay file nay bang pwsh,
+# o do "\" la ky tu trong ten file -> "Alibra-scraper\fetch.py" khong ton tai (alibra loi moi thu Hai 19/10-02/11).
 # Find python: prefer venv, fall back to py launcher, then python on PATH.
 $python = $null
-if (Test-Path (Join-Path $ScriptDir ".venv\Scripts\python.exe")) {
-    $python = Join-Path $ScriptDir ".venv\Scripts\python.exe"
+$venvPython = Join-Path (Join-Path (Join-Path $ScriptDir ".venv") "Scripts") "python.exe"
+if (Test-Path $venvPython) {
+    $python = $venvPython
 } elseif (Get-Command py -ErrorAction SilentlyContinue) {
     $python = "py"
 } elseif (Get-Command python -ErrorAction SilentlyContinue) {
@@ -26,11 +29,11 @@ Write-Log "==== alibra scraper run ===="
 Write-Log "python: $python"
 
 Write-Log "step 1/2: fetch.py"
-& $python "$ScriptDir\fetch.py"
+& $python (Join-Path $ScriptDir "fetch.py")
 if ($LASTEXITCODE -ne 0) { Write-Log "fetch.py failed (exit $LASTEXITCODE)"; exit $LASTEXITCODE }
 
 Write-Log "step 2/2: combine.py"
-& $python "$ScriptDir\combine.py"
+& $python (Join-Path $ScriptDir "combine.py")
 if ($LASTEXITCODE -ne 0) { Write-Log "combine.py failed (exit $LASTEXITCODE)"; exit $LASTEXITCODE }
 
 Write-Log "==== done ===="

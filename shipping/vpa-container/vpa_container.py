@@ -34,7 +34,12 @@ _PD_STORE = r'D:\pipeline-data\shipping\port-tracker\store'
 if os.path.isdir(_PD_STORE): os.environ.setdefault('PORT_TRACKER_STORE', _PD_STORE)
 COLS = ['year_prev', 'cum_prev', 'cum_cur', 'teu', 'nhap_ngoai', 'xuat_ngoai', 'nhap_noi', 'xuat_noi', 'trung_chuyen', 'teu20', 'rong', 'lanh', 'sa_lan']
 CANG_VU = '__CANG_VU__'           # dòng tổng cảng vụ trong nowcast_targets (cộng các cảng VPA của cảng vụ)
-REGIONS = ('MIỀN BẮC', 'BẮC TRUNG BỘ', 'NAM TRUNG BỘ', 'ĐÔNG NAM BỘ', 'CÁI MÉP', 'ĐỒNG BẰNG', 'TỔNG CỘNG')
+REGIONS = ('MIỀN BẮC', 'BẮC TRUNG BỘ', 'NAM TRUNG BỘ', 'ĐÔNG NAM BỘ', 'CÁI MÉP', 'ĐỒNG BẰNG', 'TỔNG CỘNG',
+           'MIỀN TRUNG', 'TP HCM', 'BR-VT')          # 05/11/2026: 3 vùng cuối là cách chia vùng của báo cáo 2024-2025
+# 05/11/2026: tên cảng ở báo cáo 2024-2025 khác báo cáo 2025-2026 (khớp bằng lũy kế 9T/2025 trùng nhau ở cả 2 file)
+KEY_ALIAS = {'CANG CONTAINER QT HAI PHONG TIL HTIT': 'HTIT', 'CANG CONTAINER QT HATECO HP HHIT': 'HHIT', 'ITC- CORP': 'SP-ITC',
+             'TAN CANG - TCTT TCOT CU': 'TAN CANG - TCTT', 'TRA NOC CT': 'TRA NOC CAN THO'}
+TOTAL_ALL = 'TONG CONG VPA VA CANG KHAC'   # báo cáo 2024-2025: "TỔNG CỘNG" chỉ gồm thành viên VPA; dòng này mới gồm cả cảng (*) như 2025-2026
 
 # tên cảng VPA (đã chuẩn hoá: bỏ dấu, (*), khoảng trắng) -> (cảng vụ, bến trong app Port Tracker)
 PORT_MAP = {
@@ -71,12 +76,15 @@ def read_file(path):
         m = re.match(r'T(\d{1,2})-(\d{4})', ws.title.strip())
         if not m: continue
         mon, yr = int(m.group(1)), int(m.group(2)); region = ''
-        for row in ws.iter_rows(min_row=5, values_only=True):
+        rows_ = [r_ for r_ in ws.iter_rows(min_row=5, values_only=True)]
+        for i_, row in enumerate(rows_):
             name = row[0]
             if name is None or not str(name).strip(): continue
             name = re.sub(r'\s+', ' ', str(name)).strip()
-            up = _norm(name)
+            up = _norm(name); up = KEY_ALIAS.get(up, up)
             if up.startswith('TONG CONG'):                     # dòng toàn quốc: lấy rồi dừng (dưới là ghi chú)
+                for nx in rows_[i_ + 1:i_ + 4]:                 # báo cáo 2024-2025: dòng kế "Tổng cộng VPA và Cảng khác" mới là tổng đầy đủ
+                    if nx[0] and _norm(re.sub(r'\s+', ' ', str(nx[0]))).startswith(TOTAL_ALL): row = nx; break
                 vals = [_num(x) for x in row[1:14]]
                 out.append({'sheet': ws.title, 'year': yr, 'mon': mon, 'region': 'TOÀN QUỐC', 'kind': 'total', 'port': 'TỔNG CỘNG', 'key': 'TONG CONG',
                             **dict(zip(COLS, vals))})
@@ -105,9 +113,10 @@ def read_year_formulas(path):
     for r in range(5, ws.max_row + 1):
         name = ws.cell(r, 1).value
         if name is None or not str(name).strip(): continue
-        up = _norm(re.sub(r'\s+', ' ', str(name)).strip())
+        up = _norm(re.sub(r'\s+', ' ', str(name)).strip()); up = KEY_ALIAS.get(up, up)
         if up.startswith('TONG CONG'):
-            v = _num(vs.cell(r, 2).value)
+            rr = next((x for x in range(r + 1, r + 4) if ws.cell(x, 1).value and _norm(re.sub(r'\s+', ' ', str(ws.cell(x, 1).value))).startswith(TOTAL_ALL)), r)
+            v = _num(vs.cell(rr, 2).value)
             if pd.notna(v) and v > 0: out.append({'key': 'TONG CONG', 'year': yr - 1, 'terms': [v], 'annual': v})
             break
         if any(up.startswith(_norm(x)) for x in REGIONS): continue
@@ -362,6 +371,23 @@ def build(raw):
     return long, year_prev
 
 
+CUM_RATIO = (0.3, 2.5)      # tháng suy từ lũy kế cùng kỳ / trung vị tháng THẬT (sheet tháng) của chính cảng phải nằm trong khoảng này
+
+
+def check_cum(long):
+    """05/11/2026: cột lũy kế cùng kỳ năm trước của VPA đôi khi chép sai (Gemalink 1T2024 = 653.955 = lũy kế 5 tháng; Hải An T6/2024
+    nhảy 2,07 triệu) -> tháng suy từ lũy kế lệch xa mức tháng thật của chính cảng thì BỎ (để công thức cột Năm / phân bổ khối điền)"""
+    ref = long[long['nguon'] == 'thang'].groupby('key')['teu'].median()
+    lk = long['nguon'] == 'luy_ke_cung_ky'
+    r = long['key'].map(ref)
+    bad = lk & r.notna() & (r > 0) & ((long['teu'] < CUM_RATIO[0] * r) | (long['teu'] > CUM_RATIO[1] * r))
+    if bad.any():
+        x = long[bad]
+        print(f'Bỏ {bad.sum()} tháng suy từ lũy kế lệch xa mức tháng thật: ' +
+              ', '.join(f'{p_} {m:%m/%Y} {v:,.0f}' for p_, m, v in zip(x['port'], x['month'], x['teu'])))
+    return long[~bad]
+
+
 def _ym(ms): return ';'.join(pd.Timestamp(m).strftime('%Y-%m') for m in ms)
 
 
@@ -409,43 +435,61 @@ def main(argv=None):
     if not files: sys.exit('ERROR khong co file VPA')
     raw = pd.concat([read_file(f) for f in files], ignore_index=True)
     long, yp = build(raw)
+    long = check_cum(long)
     long, xn = apply_confirmed(long)
     if len(xn): print(f'Số xác nhận (input/so_xac_nhan.csv): {len(xn)} ô khác VPA\n' + xn[['port', 'month', 'cu', 'teu']].to_string(index=False))
     # năm trước từ công thức cột "Năm" (số cứng cộng từng tháng) -> thêm T8–T12 + sửa tháng suy từ lũy kế sai
     form = pd.concat([read_year_formulas(f) for f in files], ignore_index=True)
-    last = raw.sort_values(['year', 'mon']).groupby('key').tail(1)
-    cum = {k: (int(m), float(c)) for k, m, c, y in zip(last['key'], last['mon'], last['cum_prev'], last['year'])
-           if pd.notna(c) and y == form['year'].max() + 1} if len(form) else {}
-    ym, blocks = year_months(form.drop_duplicates('key', keep='last'), long, AllocWeights(), cum) if len(form) else (pd.DataFrame(), pd.DataFrame())
-    if len(ym):
+    # 05/11/2026: nhiều file = nhiều năm công thức (file 2024-2025: cột "Năm 2024"; file 2025-2026: "Năm 2025") -> tách TỪNG năm
+    # (trước gộp chung rồi drop_duplicates theo cảng -> công thức năm sau đè mất năm trước)
+    all_blocks = []
+    for yr0 in (sorted(int(y) for y in form['year'].unique()) if len(form) else []):
+        fy = form[form['year'] == yr0]
+        last = raw[raw['year'] == yr0 + 1].sort_values(['year', 'mon']).groupby('key').tail(1)
+        cum = {k: (int(m), float(c)) for k, m, c in zip(last['key'], last['mon'], last['cum_prev']) if pd.notna(c)}
+        ym, blocks = year_months(fy.drop_duplicates('key', keep='last'), long, AllocWeights(), cum)
+        if not len(ym): continue
+        print(f'== Năm {yr0} (công thức cột "Năm {yr0}")')
         have = set(long.loc[long['kind'] == 'total', 'month'])
         tt = totals_from_ports(_dedup(pd.concat([long, ym], ignore_index=True)), sorted(set(ym['month']) - have))   # bỏ trùng TRƯỚC khi cộng (số xác nhận + công thức cùng tháng)
         fixed = ym.merge(long[long['nguon'] == 'luy_ke_cung_ky'][['key', 'month', 'teu']], on=['key', 'month'], suffixes=('', '_lk'))
         fixed = fixed[(fixed['teu'] - fixed['teu_lk']).abs() > 1]
         long = _dedup(pd.concat([long, ym, tt], ignore_index=True))
-        print(f'Cột năm trước (công thức): {form["key"].nunique()} cảng -> {(ym["nguon"] == "nam_truoc_cong_thuc").sum()} tháng tách được, '
+        print(f'Cột năm trước (công thức): {fy["key"].nunique()} cảng -> {(ym["nguon"] == "nam_truoc_cong_thuc").sum()} tháng tách được, '
               f'{len(blocks)} khối chỉ biết tổng ({(ym["nguon"] == "phan_bo_nam_truoc").sum()} tháng phân bổ để xem); tổng/vùng thêm {tt["month"].nunique() if len(tt) else 0} tháng; '
               f'{len(fixed)} tháng sửa số suy từ lũy kế')
         if len(fixed): print(fixed[['port', 'month', 'teu_lk', 'teu']].to_string(index=False))
-        tc = form[form['key'] == 'TONG CONG']
-        if len(tc) and len(tt):                                      # tổng tháng (cộng cảng) co giãn để 5 tháng đúng bằng ô TỔNG CỘNG năm − T1..T7
-            yr0 = int(tc['year'].iloc[0]); kn = long[(long['key'] == 'TONG CONG') & (long['month'].dt.year == yr0) & (long['nguon'] != 'phan_bo_nam_truoc')]
-            target = float(tc['annual'].iloc[0]) - kn['teu'].sum()
-            mk = (long['key'] == 'TONG CONG') & (long['nguon'] == 'phan_bo_nam_truoc')
-            if mk.any() and long.loc[mk, 'teu'].sum() > 0:
-                f = target / long.loc[mk, 'teu'].sum(); long.loc[mk, 'teu'] *= f
-                print(f'Tổng toàn quốc T{long.loc[mk, "month"].dt.month.min()}–T{long.loc[mk, "month"].dt.month.max()}/{yr0}: cộng cảng × {f:.4f} '
-                      f'= ô TỔNG CỘNG năm − tháng đã biết ({target:,.0f})')
+        tc = fy[fy['key'] == 'TONG CONG']
+        if len(tc):        # 05/11/2026: tổng toàn quốc các tháng KHÔNG có sheet tháng = cộng cảng × k, k để cả năm = ô tổng năm của VPA
+            ann = float(tc['annual'].iloc[0]); yrm = [_me(yr0, m) for m in range(1, 13)]
+            tot = long[(long['key'] == 'TONG CONG') & long['month'].isin(yrm)]
+            fixm = set(tot.loc[tot['nguon'].isin(['thang', 'xac_nhan']), 'month']); free = [m for m in yrm if m not in fixm]
+            pp = long[(long['kind'] == 'port') & long['month'].isin(free)]
+            ps = pp.groupby('month')['teu'].sum().reindex(free)
+            if free and ps.notna().all() and ps.sum() > 0:
+                k = (ann - tot.loc[tot['month'].isin(fixm), 'teu'].sum()) / ps.sum()
+                if 0.7 <= k <= 1.4:
+                    pb = set(pp.loc[pp['nguon'] == 'phan_bo_nam_truoc', 'month'])
+                    meta_t = tot.iloc[0] if len(tot) else None
+                    newt = pd.DataFrame({'key': 'TONG CONG', 'month': free, 'teu': (ps * k).values, 'region': 'TOÀN QUỐC', 'kind': 'total',
+                                         'port': 'TỔNG CỘNG', 'canh_bao': '',
+                                         'nguon': ['phan_bo_nam_truoc' if m in pb else 'nam_truoc_cong_thuc' for m in free]})
+                    long = pd.concat([long[~((long['key'] == 'TONG CONG') & long['month'].isin(free))], newt], ignore_index=True)
+                    print(f'Tổng toàn quốc {len(free)} tháng {yr0} không có sheet tháng: cộng cảng × {k:.4f} = ô tổng năm {ann:,.0f} − tháng có sheet')
+                else:
+                    print(f'  ! tổng toàn quốc {yr0}: hệ số cộng cảng {k:.3f} ngoài 0,7–1,4 -> giữ nguyên')
         if len(tc):
-            yr0 = int(tc['year'].iloc[0]); kn = long[(long['key'] == 'TONG CONG') & (long['month'].dt.year == yr0) & (long['nguon'] != 'phan_bo_nam_truoc')]
+            kn = long[(long['key'] == 'TONG CONG') & (long['month'].dt.year == yr0) & (long['nguon'] != 'phan_bo_nam_truoc')]
             unk = [_me(yr0, m) for m in range(1, 13) if _me(yr0, m) not in set(kn['month'])]
             if unk:
                 blocks = pd.concat([blocks, pd.DataFrame([{'key': 'TONG CONG', 'months': unk, 'teu': float(tc['annual'].iloc[0]) - kn['teu'].sum(),
                                                            'region': 'TOÀN QUỐC', 'kind': 'total', 'port': 'TỔNG CỘNG'}])], ignore_index=True)
-        if len(blocks):
-            bo = blocks.assign(months=blocks['months'].map(_ym))
-            if 'cach_chia' not in bo: bo['cach_chia'] = ''
-            bo[['region', 'port', 'months', 'teu', 'cach_chia']].to_csv(os.path.join(DATA, 'vpa_container_blocks.csv'), index=False, encoding='utf-8-sig')
+        if len(blocks): all_blocks.append(blocks)
+    blocks = pd.concat(all_blocks, ignore_index=True) if all_blocks else pd.DataFrame()
+    if all_blocks:
+        bo = pd.concat(all_blocks, ignore_index=True); bo = bo.assign(months=bo['months'].map(_ym))
+        if 'cach_chia' not in bo: bo['cach_chia'] = ''
+        bo[['region', 'port', 'months', 'teu', 'cach_chia']].to_csv(os.path.join(DATA, 'vpa_container_blocks.csv'), index=False, encoding='utf-8-sig')
     os.makedirs(DATA, exist_ok=True)
     long.drop(columns=['key']).to_csv(os.path.join(DATA, 'vpa_container_long.csv'), index=False, encoding='utf-8-sig')
     w = long.pivot_table(index=['region', 'kind', 'port'], columns='month', values='teu', aggfunc='last')

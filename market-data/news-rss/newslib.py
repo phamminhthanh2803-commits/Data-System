@@ -19,16 +19,30 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-HUB = os.path.dirname(ROOT)                                          # D:\market-data (cloud: /.../market-data)
+HUB = os.path.dirname(ROOT)                                          # code: D:\market-data (cloud: <repo>/market-data)
 CFG = os.path.join(ROOT, "config")
-DATA = os.path.join(ROOT, "data")
 OUT = os.path.join(ROOT, "output")
-ICB_CSV = os.path.join(HUB, "index-fetcher", "raw", "vn_icb_vci.csv")
-MASTER = os.path.join(DATA, "news_master.parquet")                   # 1 dong = 1 bai (id = sha1 url)
-TAGGED = os.path.join(DATA, "news_tagged.parquet")                   # master + cot phan loai (app doc)
-TAGS = os.path.join(DATA, "news_tags.parquet")                       # long: id x nganh (diem, chu de, tu khoa) -> loc/sap theo nganh
-FEED_STATUS = os.path.join(DATA, "feed_status.csv")
+# du lieu ICB nam o cay DU LIEU (MD_ROOT: laptop D:\pipeline-data\market-data / cloud /tmp/...), khong phai cay code
+ICB_CSV = os.path.join(os.environ.get("MD_ROOT") or HUB, "index-fetcher", "raw", "vn_icb_vci.csv")
+if not os.path.exists(ICB_CSV):
+    ICB_CSV = os.path.join(HUB, "index-fetcher", "raw", "vn_icb_vci.csv")
 VN_TZ = timezone(timedelta(hours=7))
+
+
+def set_data_dir(d: str) -> None:
+    """Thu muc kho tin. 11/11/2026: app keo RSS khi mo trang va giu kho trong CACHE cua app (APP_CACHE/news-rss);
+    chay tay CLI mac dinh news-rss\\data (hoac env NEWS_DATA)."""
+    global DATA, MASTER, TAGGED, TAGS, FEED_STATUS, STATE
+    DATA = os.path.normpath(d)
+    MASTER = os.path.join(DATA, "news_master.parquet")               # 1 dong = 1 bai (id = sha1 url)
+    TAGGED = os.path.join(DATA, "news_tagged.parquet")               # master + cot phan loai (app doc)
+    TAGS = os.path.join(DATA, "news_tags.parquet")                   # long: id x nganh (diem, chu de, tu khoa) -> loc/sap theo nganh
+    FEED_STATUS = os.path.join(DATA, "feed_status.csv")
+    STATE = os.path.join(DATA, "phan_loai_state.json")              # hash tu dien lan phan loai truoc
+
+
+# kho mac dinh = cache cua app Market Data (app ghi khi mo trang; CLI / keyword_mining dung chung kho do)
+set_data_dir(os.environ.get("NEWS_DATA") or os.path.join(os.environ.get("APP_CACHE") or os.path.join(HUB, "app", "cache"), "news-rss"))
 
 NGUONG = 3.0             # diem toi thieu de gan 1 nganh
 W_TIEU_DE, W_TOM_TAT = 2.0, 1.0
@@ -111,8 +125,15 @@ def parse_date(s: str):
 
 
 def parse_rss(content: bytes) -> list[dict]:
-    from lxml import etree
-    root = etree.fromstring(content, etree.XMLParser(recover=True, huge_tree=True))
+    try:
+        from lxml import etree
+        root = etree.fromstring(content, etree.XMLParser(recover=True, huge_tree=True))
+    except ImportError:                                               # du phong: thu vien chuan (XML hong -> bo feed)
+        import xml.etree.ElementTree as etree
+        try:
+            root = etree.fromstring(content)
+        except etree.ParseError:
+            return []
     if root is None:
         return []
     out = []

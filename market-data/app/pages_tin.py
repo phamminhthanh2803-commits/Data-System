@@ -8,6 +8,9 @@ from __future__ import annotations
 
 import html
 import os
+import sys
+import threading
+import time
 
 import pandas as pd
 import streamlit as st
@@ -25,10 +28,49 @@ NGUON_MAU = {"CafeF": "#b3551c", "Vietstock": "#1f6fb2", "VnEconomy": "#0f7b6c",
              "Nhịp sống kinh doanh": "#ef6c00", "VietnamPlus": "#37474f"}
 
 
+# 11/11/2026 (PV2): KHONG co kho dung san / lich chay rieng. Mo trang -> neu kho trong cache app cu hon TTL thi keo RSS ngay
+# (57 feed song song ~2 s + phan loai bai moi ~1 s), gop don vao kho cache (lich su = cac lan mo app, xoa bai > KEEP_DAYS ngay);
+# doi tu dien (config\keywords.csv...) -> fetch_rss tu phan loai lai toan bo; cache_resource theo mtime file -> tu nap lai.
+NEWS_CODE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "news-rss")   # <market-data>/news-rss (code)
+NEWS_DATA = os.path.join(dl.CACHE, "news-rss")
+TTL_PHUT = 15
+KEEP_DAYS = 90
+_LOCK = threading.Lock()
+
+
 def _paths():
-    p = dl.reg_path("news_rss")
-    d = os.path.dirname(p)
-    return p, os.path.join(d, "news_tags.parquet"), os.path.join(d, "feed_status.csv"), os.path.join(d, "nganh.csv")
+    d = NEWS_DATA
+    return (os.path.join(d, "news_tagged.parquet"), os.path.join(d, "news_tags.parquet"), os.path.join(d, "feed_status.csv"),
+            os.path.join(d, "nganh.csv"))
+
+
+def _fetcher():
+    if NEWS_CODE not in sys.path:
+        sys.path.insert(0, NEWS_CODE)
+    import fetch_rss
+    import newslib
+    newslib.set_data_dir(NEWS_DATA)
+    return fetch_rss
+
+
+def _lam_moi(force: bool = False) -> str:
+    """Keo RSS neu kho cu hon TTL (hoac force). Chi 1 phien keo 1 luc; phien khac dung kho hien co. Tra thong bao loi ('' = ok)."""
+    p = _paths()[0]
+    tuoi = (time.time() - os.path.getmtime(p)) / 60 if os.path.exists(p) else 1e9
+    if not force and tuoi < TTL_PHUT:
+        return ""
+    if not _LOCK.acquire(blocking=not os.path.exists(p)):           # chua co kho -> doi phien dang keo; co kho -> dung tam kho cu
+        return ""
+    try:
+        if not force and os.path.exists(p) and (time.time() - os.path.getmtime(p)) / 60 < TTL_PHUT:
+            return ""                                                # phien khac vua keo xong
+        with st.spinner("Đang kéo tin RSS mới (57 chuyên mục, 11 báo) ..."):
+            _fetcher().run(fetch=True, keep_days=KEEP_DAYS)
+        return ""
+    except Exception as e:  # noqa: BLE001 - mat mang / nguon loi: dung kho cu
+        return f"{type(e).__name__}: {str(e)[:160]}"
+    finally:
+        _LOCK.release()
 
 
 @st.cache_resource(show_spinner="Đang nạp tin RSS ...", max_entries=1)
@@ -52,17 +94,6 @@ def _news(mt: float):
         order = list(n.sort_values("thu_tu", key=lambda s: s.astype(int))["nganh"])
     order += sorted(set(g["nganh"].astype(str)) - set(order))
     return t, g, order
-
-
-def _pull_cloud():
-    try:
-        import cloud_boot
-        if cloud_boot.is_cloud():
-            with st.spinner("Đang kéo tin RSS từ Drive ..."):
-                cloud_boot.pull_folder("news-rss", ["/data/news_tagged.parquet", "/data/news_tags.parquet", "/data/feed_status.csv",
-                                                    "/data/nganh.csv"])
-    except Exception:  # noqa: BLE001
-        pass
 
 
 def _badge(nguon: str) -> str:
@@ -128,14 +159,18 @@ def _split_count(s: pd.Series, sep="|") -> pd.Series:
 
 
 def tin_nganh(ctx):
-    ui.h2("Tin tức theo ngành — RSS báo kinh tế")
+    h0, h1 = st.columns([5, 1])
+    with h0:
+        ui.h2("Tin tức theo ngành — RSS báo kinh tế")
     p, pt, pf, _ = _paths()
+    loi = _lam_moi(force=h1.button("↻ Kéo tin mới", key="tn_lam_moi", help=f"Tự kéo lại khi mở trang nếu tin cũ hơn {TTL_PHUT} phút"))
     if not os.path.exists(p):
-        _pull_cloud()
-    if not os.path.exists(p):
-        ui.card_empty("Tin theo ngành", "", f"Chưa có <code>{p}</code> — chạy <code>python D:\\market-data\\news-rss\\fetch_rss.py</code> "
-                      "(bước <b>news</b> AM/PM/EOD) hoặc kéo dữ liệu cloud về.", key="tin_rss_trong")
+        ui.card_empty("Tin theo ngành", "", f"Chưa kéo được tin RSS ({loi or 'chưa có kho'}). Bấm <b>↻ Kéo tin mới</b> để thử lại.",
+                      key="tin_rss_trong")
         return
+    cap = pd.Timestamp(os.path.getmtime(p), unit="s", tz="UTC").tz_convert("Asia/Ho_Chi_Minh")
+    ui.note(f"Kéo RSS lúc {cap:%H:%M %d/%m} · tự làm mới khi mở trang nếu cũ hơn {TTL_PHUT} phút · giữ tin {KEEP_DAYS} ngày trong cache app"
+            + (f' · <span style="color:var(--down)">lần kéo vừa rồi lỗi, đang dùng tin cũ: {html.escape(loi)}</span>' if loi else ""))
     t, g, order = _news(max(dl._raw_mt(p), dl._raw_mt(pt)))
     if t.empty:
         ui.card_empty("Tin theo ngành", "", "File rỗng — chạy lại fetch_rss.py.", key="tin_rss_trong")
@@ -164,7 +199,7 @@ def tin_nganh(ctx):
         st.session_state["tn_nganh"] = q if q in opts else TAT_CA
     with ui.card("Tin theo ngành", "chọn ngành → tin tự lọc và sắp xếp",
                  help="Nguồn: 57 chuyên mục RSS của 11 báo (CafeF, Vietstock, VnEconomy, VnExpress, Dân trí, VietnamNet, Tuổi Trẻ, Thanh Niên, "
-                      "VietnamBiz, Nhịp sống KD, VietnamPlus), kéo ở bước news (AM/PM/EOD). Phân loại = từ điển ~1.100 từ khoá theo ngành "
+                      "VietnamBiz, Nhịp sống KD, VietnamPlus), kéo ngay khi mở trang (cache 15 phút, gộp dồn 90 ngày). Phân loại = từ điển ~1.100 từ khoá theo ngành "
                       "(news-rss\\config\\keywords.csv; tiêu đề ×2, tóm tắt ×1) + mã CK nhắc trong bài (mã 3 ký tự / tên DN → ngành ICB cấp 2 Vietcap "
                       "như trang Hiệu suất) + gợi ý chuyên mục RSS; gắn ngành khi điểm ≥ 3, 1 bài có thể thuộc nhiều ngành. "
                       "Sắp xếp: Mới nhất · Liên quan nhất (điểm với ngành đang chọn) · Đáng chú ý (loại tin KQKD/M&A/pháp lý/cổ tức… + có mã CK "

@@ -21,7 +21,7 @@ D:\market-data\
   bond-pivot\            CSDL TPDN từ HNX CBIS (scripts\run_pipeline.py hằng tuần; run_backfill.ps1 đọc PDF, chạy tay khi có backlog)
   vsdc-accounts\         số tài khoản giao dịch NĐT theo tháng từ VSDC (pull_vsdc_accounts.py) -> vsdc_tk_ndt_table2.csv/.xlsx layout Table2 "Số TK mở mới"
   news-rss\              (11/11/2026) tin RSS 11 báo kinh tế (57 chuyên mục) phân loại theo 23 ngành (19 ICB cấp 2 + Vingroup + Vĩ mô/TTCK/Thế giới)
-                         bằng từ điển từ khoá + mã CK (fetch_rss.py) -> app Tin tức › Tin theo ngành; lịch: GitHub Actions news.yml 2 giờ/lần
+                         bằng từ điển từ khoá + mã CK; app kéo khi mở trang Tin tức › Tin theo ngành (cache 15 phút, kho trong app\cache\news-rss)
 ```
 
 ## Lịch chạy (Task Scheduler)

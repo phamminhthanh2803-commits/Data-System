@@ -99,7 +99,6 @@ TRAD = os.path.join(BASE, "transmission-fetcher")
 BOND = os.path.join(BASE, "bond-pivot")
 VSDC = os.path.join(BASE, "vsdc-accounts")
 BCTC = os.path.normpath(os.environ.get("BCTC_ROOT", "D:/bctc"))          # hub bctc (13/10/2026: bctc-scan)
-NEWSD = os.path.join(BASE, "news-rss")                                   # 11/11/2026: tin RSS theo nganh (news-rss\fetch_rss.py)
 CACHE =os.path.normpath(os.environ.get("APP_CACHE") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache"))
 os.makedirs(CACHE, exist_ok=True)                        # APP_CACHE: cloud_boot dat ra /tmp (repo mount tren cloud co the chi doc)
 SRC_CACHE = os.path.normpath(os.environ.get("SRC_CACHE", os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "src")))
@@ -203,11 +202,6 @@ REGISTRY = {
                     os.path.join(BCTC, "bctc-scan", "data", "bctc_congbo_latest.parquet"), "ngay_cong_bo", "symbol",   # 03/11/2026: parquet (lịch sử từ 2000, CSV 72 MB)
                     "1 dòng = 1 file BCTC đăng trên CafeF (dự phòng Vietstock): mã, sàn, kỳ (2026Q3/2026H1/2025FY), loại quý/soát xét/"
                     "kiểm toán, phạm vi hợp nhất/riêng/công ty mẹ, ngày đăng (từ ObjectId CafeF), link PDF; bước bctc-scan AM+PM"),
-    "news_rss": ("Tin tức RSS theo ngành (11 báo kinh tế, 57 chuyên mục)", "Cổ phiếu · Tin doanh nghiệp",
-                 os.path.join(NEWSD, "data", "news_tagged.parquet"), "ngay_gio", "nguon",
-                 "1 dòng = 1 bài RSS (CafeF, Vietstock, VnEconomy, VnExpress, Dân trí, VietnamNet, Tuổi Trẻ, Thanh Niên, VietnamBiz...): "
-                 "tiêu đề, tóm tắt, link, ngành chính + mọi ngành (19 ngành ICB cấp 2 + Vingroup + Vĩ mô / TTCK / Thế giới), chủ đề con, "
-                 "mã CK nhắc tới, loại tin (KQKD, cổ tức, M&A, pháp lý...), điểm liên quan; bước news AM/PM/EOD"),
 }
 
 

@@ -7,7 +7,7 @@ VietnamBiz, Nhịp sống kinh doanh, VietnamPlus), gộp vào kho lịch sử, 
 ```
 news-rss\
   newslib.py           chuẩn hoá tiếng Việt (hoá/hóa, thuỷ/thủy, HTML), đọc RSS, bộ phân loại PhanLoai
-  fetch_rss.py         kéo feed → data\news_master.parquet → phân loại → news_tagged / news_tags (+ feed_status.csv, nganh.csv)
+  fetch_rss.py         run(): kéo feed → news_master.parquet (kho cache app) → phân loại → news_tagged / news_tags (+ feed_status.csv, nganh.csv)
   keyword_mining.py    gợi ý từ khoá: output\keyword_candidates.xlsx (tần suất, đặc trưng theo ngành, lỗ hổng, mã CK + ngữ cảnh)
   danh_sach_nganh.py   output\danh_sach_nganh.xlsx: các danh sách ngành đang dùng trong hệ thống (ICB Vietcap, nhóm TradingView, ngành TPDN)
   config\
@@ -18,8 +18,8 @@ news-rss\
                        khuyến nghị, biến động giá) → điểm "đáng chú ý"
     alias_ma.csv       tên gọi → mã CK (Hòa Phát → HPG…), bo_alias (tên trùng địa danh), can_ngu_canh (mã trùng viết tắt: CPI, VND, SBV…)
     feeds.csv          danh sách feed + goi_y (chuyên mục RSS gợi ý 1 ngành, +1,5 điểm)
-  data\                (Drive: gdrive:pipeline-data/market-data/news-rss/data)
   output\              file Excel soát từ khoá (chỉ ở laptop)
+  (kho tin)            KHÔNG nằm ở đây: cache của app <app>\cache\news-rss\ (laptop D:\market-data\app\cache\news-rss)
 ```
 
 ## Cách phân loại
@@ -30,22 +30,25 @@ tiêu đề 4, tóm tắt 3; bài nhắc > 5 mã ×0,5; mã Vingroup cộng cả
 Khớp nguyên từ (không khớp giữa từ), cụm dài thắng cụm ngắn ("bảo hiểm xã hội" không tính cho ngành Bảo hiểm).
 Điểm đáng chú ý = trọng số loại tin + 1 nếu có mã CK + số báo cùng đưa tin.
 
-## Chạy
+## Chạy — kéo khi dùng app, không có kho dựng sẵn (11/11/2026)
+Mở **Tin tức › Tin theo ngành**: nếu kho trong cache app cũ hơn **15 phút** thì app gọi `fetch_rss.run()` kéo 57 feed song song
+(~2 giây) + phân loại bài mới (~1 giây), **gộp dồn** vào kho cache, xoá bài cũ hơn **90 ngày**. Nút **↻ Kéo tin mới** kéo ngay.
+Chỉ 1 phiên kéo 1 lúc (phiên khác dùng kho hiện có); kéo lỗi (mất mạng) → dùng kho cũ + ghi chú đỏ.
+Sửa từ điển (`config\*.csv`, `newslib.py`) → hash đổi → lần kéo kế tiếp tự **phân loại lại toàn bộ** kho; trang tự nạp lại theo mtime file.
+Không có workflow / bước pipeline / thư mục Drive riêng. Lịch sử = các lần mở app (RSS chỉ giữ 20–100 bài mới nhất mỗi chuyên mục,
+Vietstock 20) — lâu không mở app thì khoảng giữa bị hụt. Streamlit Cloud: cache ở /tmp, mất khi app khởi động lại (kéo lại ~3 giây).
 ```
-python fetch_rss.py                 # kéo + phân loại bài mới (~5 giây)
-python fetch_rss.py --no-fetch      # chỉ phân loại lại (sửa config\*.csv → tự phân loại lại TOÀN BỘ vì đổi hash từ điển)
-python keyword_mining.py            # soát / bổ sung từ khoá → output\keyword_candidates.xlsx
+python fetch_rss.py                 # kéo + phân loại vào kho của app (mặc định <app>\cache\news-rss; --data / env NEWS_DATA để đổi)
+python fetch_rss.py --no-fetch      # chỉ phân loại lại (sau khi sửa config\*.csv)
+python keyword_mining.py            # soát / bổ sung từ khoá trên kho của app → output\keyword_candidates.xlsx
 python danh_sach_nganh.py
 ```
-**Lịch:** GitHub Actions `news.yml` (repo Data-System) **2 giờ/lần 06:15 → 22:15** — RSS chỉ giữ 20–100 bài mới nhất mỗi chuyên mục
-(Vietstock 20) nên chạy 2 lần/ngày sẽ sót tin. Chỉ workflow này ghi `news-rss/data` trên Drive (không có bước news trong Market AM/PM).
-App cloud kéo về mỗi 30 phút (cloud_boot APP_DATA); laptop: `sync_data.py app` (APP_FOLDERS).
 
 ## Bổ sung từ khoá
 1. `python keyword_mining.py` → mở `output\keyword_candidates.xlsx`: sheet **Theo_nganh** (cụm đặc trưng ngành chưa có trong từ điển,
    lift ≥ 3 trên bài gắn ngành qua mã CK), **Chua_phan_loai** (cụm hay gặp ở bài chưa có ngành), **Ma_CK** (mã nhận được + ngữ cảnh
    → mã nhận nhầm thì thêm `can_ngu_canh` vào alias_ma.csv).
-2. Thêm dòng vào `config\keywords.csv` → `python fetch_rss.py --no-fetch` (cloud: chạy tay news.yml với `reclass`).
+2. Thêm dòng vào `config\keywords.csv` → `python fetch_rss.py --no-fetch` (app tự phân loại lại toàn bộ ở lần kéo kế tiếp).
 
 Nguồn đã thử và loại: nld.com.vn (ngừng cập nhật 06/2026), laodong, baodautu, tinnhanhchungkhoan, znews, thoibaotaichinh, vir,
 baochinhphu (404 hoặc rỗng).

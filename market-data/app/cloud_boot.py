@@ -64,7 +64,6 @@ APP_DATA = [
     ("macro-fetcher", ["/macro_vn_master.csv", "/macro_region_master.csv"]),
     ("vsdc-accounts", ["/vsdc_tk_ndt.csv"]),
     ("bond-pivot", ["/data/processed/**"]),
-    ("news-rss", ["/data/news_tagged.parquet", "/data/news_tags.parquet", "/data/feed_status.csv", "/data/nganh.csv"]),   # 11/11/2026 tin RSS theo nganh
     # hub khac: "<hub>/<thu muc>" -> gdrive:pipeline-data/<hub>/<thu muc> -> <base>/<hub>/<thu muc> (BCTC_ROOT = <base>/bctc)
     ("bctc/bctc-scan", ["/data/bctc_congbo_latest.parquet"]),              # 13/10/2026: BCTC moi cong bo -> tab Tin tuc (03/11: parquet, lich su tu 2000)
 ]

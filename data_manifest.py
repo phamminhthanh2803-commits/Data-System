@@ -96,9 +96,6 @@ FOLDERS: dict[str, Folder] = {f.key: f for f in [
     # => sync_data KHONG bao gio day len / xoa thu muc nay.
     Folder("market-data", "app-cache/src", owner="laptop", seed=False,
            note="cache live-first app (stock_daily, foreign_stocks_tail...): data_src --push ghi, sync_data chi keo ve (md-present)"),
-    # 11/11/2026: tin RSS theo nganh - CHI workflow news.yml (2 gio/lan) ghi data/; config/ la code (repo), output/ (keyword_mining) o laptop
-    Folder("market-data", "news-rss", exclude=["config/**", "output/**"],
-           note="kho tin RSS 11 bao + phan loai nganh: data/news_master|news_tagged|news_tags.parquet + feed_status.csv (~3 MB, +~1 MB/thang)"),
     Folder("market-data", "bond-pivot", exclude=["data/raw/pdfs/**", "logs/**", "tessdata/**", "output/**"],
            note="13/10/2026: cloud chay buoc bonds HANG NGAY (Market AM); Drive = data/processed + data/raw/pdf_text (cache OCR 25 MB)"
                 " + ca_bundle + config (~90 MB); PDF tai ve xoa sau OCR nen khong len Drive"),
@@ -222,8 +219,7 @@ APP_FOLDERS = [("market-data/market-valuation", None), ("market-data/index-fetch
                ("market-data/vsdc-accounts", None), ("shipping/VHBS-ConTex", None), ("hah", None),
                ("shipping/cangvu-haiphong", None), ("shipping/cangvu-hcm", None), ("shipping/cangvu-toanquoc", None),
                ("shipping/vessel-itinerary", None), ("shipping/Alibra-scraper", None), ("shipping/BCTI-scraper", None),
-               ("shipping/port-tracker", None), ("bctc/bctc-scan", None),   # bat-dong-san: khong (laptop la chu, app doc kho goc)
-               ("market-data/news-rss", ["data/news_tagged.parquet", "data/news_tags.parquet", "data/feed_status.csv", "data/nganh.csv"])]
+               ("shipping/port-tracker", None), ("bctc/bctc-scan", None)]   # bat-dong-san: khong (laptop la chu, app doc kho goc)
 # realtime: khong nam trong APP_FOLDERS (khong copy ca thu muc) - sync_data.do_app chi keo APP_REALTIME_DAYS ngay gan nhat
 APP_REALTIME_DAYS = 1
 

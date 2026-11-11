@@ -1053,6 +1053,10 @@ def _nganh_export(u: pd.DataFrame, pub_k: pd.DataFrame) -> pd.DataFrame:
 
 
 def tin_tuc(ctx, sub="bctc-moi"):
+    if sub == "tin-nganh":                       # 11/11/2026: tin RSS theo nganh (pages_tin.py)
+        import pages_tin
+        pages_tin.tin_nganh(ctx)
+        return
     if sub == "noi-bo":
         ui.h2("Giao dịch nội bộ")
         ui.callout('Thẻ <b>Giao dịch nội bộ</b> (CafeF GDCoDong, live-first) đặt tại <a href="?trang=ttck/vn/dong-tien&noibo=ma" target="_self">'

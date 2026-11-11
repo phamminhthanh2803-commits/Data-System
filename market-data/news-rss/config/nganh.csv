@@ -1,0 +1,28 @@
+# Danh sach NGANH de phan loai tin (11/11/2026). 19 nganh = ICB Vietcap CAP 2 dung trong app Market Data (mac dinh trang Hieu suat,
+# Dong tien, Tin tuc BCTC: datalib.nganh_ma(PN=(2, True))), ten GIU NGUYEN nhu cot icb2 cua index-fetcher\raw\vn_icb_vci.csv
+# (ma CK trong tin -> nganh qua cot nay). + Vingroup (app tach rieng VIC/VHM/VRE/VPL) + 3 nhom chu de khong phai nganh ICB.
+# loai: icb2 | nhom_app | chu_de.  ma = khoa ngan dung trong keywords.csv / feeds.csv.
+ma,nganh,loai,icb1,thu_tu,mo_ta
+NH,Ngân hàng,icb2,Ngân hàng,1,NHTM: tín dụng lãi suất huy động nợ xấu vốn
+BDS,Bất động sản,icb2,Tài chính,2,nhà ở căn hộ đất nền KCN pháp lý đất đai
+VIN,Vingroup,nhom_app,Tài chính,3,VIC VHM VRE VPL + VinFast Vinpearl (app tách riêng khỏi BĐS)
+DVTC,Dịch vụ tài chính,icb2,Tài chính,4,CTCK quỹ tài chính tiêu dùng tài sản số
+BH,Bảo hiểm,icb2,Tài chính,5,nhân thọ phi nhân thọ
+XDVL,Xây dựng và Vật liệu,icb2,Công nghiệp,6,đầu tư công hạ tầng nhà thầu xi măng VLXD
+CN,Hàng & Dịch vụ Công nghiệp,icb2,Công nghiệp,7,cảng biển vận tải biển logistics sân bay thiết bị điện cơ khí
+TNCB,Tài nguyên Cơ bản,icb2,Nguyên vật liệu,8,thép kim loại khai khoáng than gỗ giấy
+HC,Hóa chất,icb2,Nguyên vật liệu,9,phân bón hoá chất cao su nhựa
+DK,Dầu khí,icb2,Dầu khí,10,giá dầu thượng nguồn lọc dầu xăng dầu
+DIEN,"Điện, nước & xăng dầu khí đốt",icb2,Tiện ích Cộng đồng,11,điện NLTT khí LNG nước
+TPDU,Thực phẩm và đồ uống,icb2,Hàng Tiêu dùng,12,sữa bia đồ uống thủy sản chăn nuôi gạo nông sản đường
+HCN,Hàng cá nhân & Gia dụng,icb2,Hàng Tiêu dùng,13,dệt may da giày trang sức gia dụng
+OTO,Ô tô và phụ tùng,icb2,Hàng Tiêu dùng,14,ô tô xe điện xe máy lốp
+BL,Bán lẻ,icb2,Dịch vụ Tiêu dùng,15,chuỗi bán lẻ điện máy nhà thuốc TMĐT
+DLGT,Du lịch và Giải trí,icb2,Dịch vụ Tiêu dùng,16,hàng không du lịch khách sạn
+TT,Truyền thông,icb2,Dịch vụ Tiêu dùng,17,quảng cáo xuất bản giáo dục truyền hình
+YT,Y tế,icb2,Dược phẩm và Y tế,18,dược phẩm bệnh viện thiết bị y tế
+CNTT,Công nghệ Thông tin,icb2,Công nghệ Thông tin,19,phần mềm AI bán dẫn data center
+VT,Viễn thông,icb2,Viễn thông,20,nhà mạng 5G hạ tầng viễn thông
+VIMO,Vĩ mô & chính sách,chu_de,,21,NHNN lãi suất tỷ giá CPI GDP XNK FDI ngân sách chính sách vàng
+TTCK,Thị trường chứng khoán,chu_de,,22,VN-Index khối ngoại nâng hạng TPDN phái sinh ETF nhận định
+TG,Kinh tế thế giới,chu_de,,23,Fed Phố Wall thuế quan Trung Quốc kinh tế Mỹ

@@ -1,0 +1,255 @@
+# ALIAS MA CK (11/11/2026). Ten ngan DN tu dong lay tu cot ten cua vn_icb_vci.csv (bo tien to Tap doan/TCT; bo ten chi gom tu chung).
+# kieu: alias = them ten goi -> ma (khop PHAN BIET HOA THUONG) | bo_alias = bo 1 ten tu dong de trung |
+#       can_ngu_canh = ma trung viet tat thong dung: chi tinh khi dung sau "ma"/"co phieu"/"HOSE:" hoac nam trong ngoac (HCM)
+ma,alias,kieu
+HPG,Hòa Phát,alias
+HSG,Hoa Sen,alias
+NKG,Thép Nam Kim,alias
+VNM,Vinamilk,alias
+MSN,Masan,alias
+MCH,Masan Consumer,alias
+SAB,Sabeco,alias
+MWG,Thế Giới Di Động,alias
+MWG,Thegioididong,alias
+FRT,FPT Retail,alias
+FRT,Long Châu,alias
+FPT,FPT,alias
+PNJ,PNJ,alias
+NVL,Novaland,alias
+PDR,Phát Đạt,alias
+DXG,Đất Xanh,alias
+KDH,Khang Điền,alias
+NLG,Nam Long,alias
+DIG,DIC Corp,alias
+KBC,Kinh Bắc,alias
+CEO,Tập đoàn CEO,alias
+VHM,Vinhomes,alias
+VRE,Vincom Retail,alias
+VIC,Vingroup,alias
+VPL,Vinpearl,alias
+BCM,Becamex,alias
+VCB,Vietcombank,alias
+CTG,VietinBank,alias
+CTG,Vietinbank,alias
+BID,BIDV,alias
+TCB,Techcombank,alias
+VPB,VPBank,alias
+MBB,MB Bank,alias
+MBB,MBBank,alias
+ACB,ACB,alias
+STB,Sacombank,alias
+HDB,HDBank,alias
+SHB,SHB,alias
+TPB,TPBank,alias
+VIB,VIB,alias
+MSB,MSB,alias
+OCB,OCB,alias
+LPB,LPBank,alias
+SSB,SeABank,alias
+EIB,Eximbank,alias
+NAB,Nam A Bank,alias
+BAB,Bac A Bank,alias
+BAB,BacABank,alias
+ABB,ABBank,alias
+KLB,Kienlongbank,alias
+PGB,PGBank,alias
+VAB,VietABank,alias
+SSI,SSI,alias
+VND,VNDirect,alias
+VND,VNDIRECT,alias
+VCI,Vietcap,alias
+HCM,HSC,alias
+VIX,VIX,alias
+SHS,SHS,alias
+MBS,MBS,alias
+TCX,TCBS,alias
+VPX,VPBankS,alias
+BVH,Bảo Việt,alias
+GAS,PV Gas,alias
+GAS,PV GAS,alias
+PLX,Petrolimex,alias
+BSR,Lọc hóa dầu Bình Sơn,alias
+BSR,Bình Sơn,alias
+PVD,PV Drilling,alias
+PVS,PTSC,alias
+POW,PV Power,alias
+PVT,PVTrans,alias
+DPM,Đạm Phú Mỹ,alias
+DCM,Đạm Cà Mau,alias
+DGC,Hóa chất Đức Giang,alias
+GVR,Tập đoàn Công nghiệp Cao su,alias
+GVR,VRG,alias
+GMD,Gemadept,alias
+HAH,Hải An,alias
+VSC,Viconship,alias
+ACV,ACV,alias
+ACV,Tổng công ty Cảng hàng không Việt Nam,alias
+VJC,Vietjet,alias
+VJC,Vietjet Air,alias
+HVN,Vietnam Airlines,alias
+VTP,Viettel Post,alias
+CTR,Viettel Construction,alias
+VGI,Viettel Global,alias
+VCG,Vinaconex,alias
+CTD,Coteccons,alias
+HHV,Đèo Cả,alias
+PC1,PC1,alias
+REE,REE,alias
+GEX,Gelex,alias
+GEE,Gelex Electric,alias
+DBC,Dabaco,alias
+HAG,Hoàng Anh Gia Lai,alias
+HAG,HAGL,alias
+VHC,Vĩnh Hoàn,alias
+ANV,Thủy sản Nam Việt,alias
+TNG,TNG,alias
+MSH,May Sông Hồng,alias
+VGT,Vinatex,alias
+DHG,Dược Hậu Giang,alias
+IMP,Imexpharm,alias
+QNS,Đường Quảng Ngãi,alias
+KDC,Kido,alias
+KDC,KIDO,alias
+VCF,Vinacafe,alias
+SBT,TTC AgriS,alias
+HAX,Haxaco,alias
+VEA,VEAM,alias
+DGW,Digiworld,alias
+PET,Petrosetco,alias
+BMP,Nhựa Bình Minh,alias
+NTP,Nhựa Tiền Phong,alias
+HT1,Vicem Hà Tiên,alias
+BCC,Xi măng Bỉm Sơn,alias
+VGC,Viglacera,alias
+SCS,Saigon Cargo,alias
+NCT,Noibai Cargo,alias
+EVF,EVNFinance,alias
+HDG,Hà Đô,alias
+PNJ,Vàng bạc Đá quý Phú Nhuận,alias
+VTP,Bưu chính Viettel,alias
+DXS,Đất Xanh Services,alias
+TCH,Tài chính Hoàng Huy,alias
+TCH,Hoàng Huy,alias
+HQC,Hoàng Quân,alias
+SCR,TTC Land,alias
+HDC,Hodeco,alias
+NTL,Lideco,alias
+IDC,IDICO,alias
+SZC,Sonadezi Châu Đức,alias
+VPI,Văn Phú,alias
+CII,CII,alias
+FCN,Fecon,alias
+LCG,Lizen,alias
+# ---- ma trung viet tat thong dung -> can ngu canh
+CEO,,can_ngu_canh
+API,,can_ngu_canh
+HCM,,can_ngu_canh
+IPO,,can_ngu_canh
+ETF,,can_ngu_canh
+GDP,,can_ngu_canh
+CPI,,can_ngu_canh
+USD,,can_ngu_canh
+FDI,,can_ngu_canh
+SJC,,can_ngu_canh
+EVN,,can_ngu_canh
+ODA,,can_ngu_canh
+PMI,,can_ngu_canh
+ESG,,can_ngu_canh
+VAT,,can_ngu_canh
+BOT,,can_ngu_canh
+PPP,,can_ngu_canh
+LNG,,can_ngu_canh
+LPG,,can_ngu_canh
+DAP,,can_ngu_canh
+NPK,,can_ngu_canh
+PVC,,can_ngu_canh
+HRC,,can_ngu_canh
+TEU,,can_ngu_canh
+ICD,,can_ngu_canh
+BDI,,can_ngu_canh
+KCN,,can_ngu_canh
+CNN,,can_ngu_canh
+BBC,,can_ngu_canh
+ATM,,can_ngu_canh
+POS,,can_ngu_canh
+SMS,,can_ngu_canh
+AAA,,can_ngu_canh
+TOP,,can_ngu_canh
+ONE,,can_ngu_canh
+ART,,can_ngu_canh
+SUN,,can_ngu_canh
+PET,,can_ngu_canh
+CAR,,can_ngu_canh
+MED,,can_ngu_canh
+ABB,,can_ngu_canh
+FTA,,can_ngu_canh
+WTO,,can_ngu_canh
+IMF,,can_ngu_canh
+ECB,,can_ngu_canh
+DXY,,can_ngu_canh
+CCP,,can_ngu_canh
+KRX,,can_ngu_canh
+NIM,,can_ngu_canh
+LDR,,can_ngu_canh
+# ---- 11/11/2026 soat keyword_mining (sheet Ma_CK): ten tu dong trung dia danh / ten nguoi / tu thuong
+,Thăng Long,bo_alias
+,Hoàng Long,bo_alias
+,Đại Dương,bo_alias
+,An Thịnh,bo_alias
+,Thống Nhất,bo_alias
+,Hòa Bình,bo_alias
+,Hoà Bình,bo_alias
+,Hoàng Gia,bo_alias
+,Phú Quý,bo_alias
+# ---- ma trung viet tat / ten to chuc khac (soat 11/11/2026)
+VND,,can_ngu_canh
+SBV,,can_ngu_canh
+VPA,,can_ngu_canh
+MTV,,can_ngu_canh
+PGS,,can_ngu_canh
+NDT,,can_ngu_canh
+VNI,,can_ngu_canh
+VNX,,can_ngu_canh
+SSC,,can_ngu_canh
+BCG,,can_ngu_canh
+DOC,,can_ngu_canh
+SCG,,can_ngu_canh
+TTC,,can_ngu_canh
+VIP,,can_ngu_canh
+TPS,,can_ngu_canh
+TNI,,can_ngu_canh
+DBV,,can_ngu_canh
+SGC,,can_ngu_canh
+KLC,,can_ngu_canh
+IDC,,can_ngu_canh
+AMD,,can_ngu_canh
+CFM,,can_ngu_canh
+VMS,,can_ngu_canh
+DIC,,can_ngu_canh
+BSC,,can_ngu_canh
+ABS,,can_ngu_canh
+SPA,,can_ngu_canh
+HTV,,can_ngu_canh
+CTP,,can_ngu_canh
+BSP,,can_ngu_canh
+VTV,,can_ngu_canh
+VRG,,can_ngu_canh
+BSH,,can_ngu_canh
+VNG,,can_ngu_canh
+ALC,,can_ngu_canh
+VNH,,can_ngu_canh
+MAS,,can_ngu_canh
+TLP,,can_ngu_canh
+EPC,,can_ngu_canh
+STD,,can_ngu_canh
+VEC,,can_ngu_canh
+CIC,,can_ngu_canh
+HDS,,can_ngu_canh
+GSM,,can_ngu_canh
+CMC,,can_ngu_canh
+SSG,,can_ngu_canh
+AIG,,can_ngu_canh
+DTG,,can_ngu_canh
+UPS,,can_ngu_canh
+FCC,,can_ngu_canh
+NSC,,can_ngu_canh

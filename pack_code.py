@@ -35,7 +35,8 @@ HUBS = [
     (MD_SRC, "market-data", ["cloud-probe", "_pip-backup", "bond-pivot/data", "bond-pivot/output", "bond-pivot/logs",
                              "transmission-fetcher/cbtt", "transmission-fetcher/sbv_cache", "transmission-fetcher/_archive",
                              "transmission-fetcher/paste", "transmission-fetcher/lending", "nso-fetcher/monthly-reports",
-                             "app/cache", "present", "chart-pack/out", "chart-pack/ftse/out", "index-fetcher/raw/vci_foreign"]),
+                             "app/cache", "present", "chart-pack/out", "chart-pack/ftse/out", "index-fetcher/raw/vci_foreign",
+                             "news-rss/data", "news-rss/output"]),   # 11/11/2026: kho tin RSS o Drive (news.yml), khong vao repo
     (SHIP_SRC, "shipping", ["port-tracker/cache", "port-tracker/store", "cangvu-toanquoc/khao-sat", "vimawa-sanluong/downloads",
                             "vimawa-sanluong/raw"]),
     (BCTC_SRC, "bctc", ["pdf-detector/downloads", "pdf-detector/markitdown-tool/out", "fs-extractor/output",

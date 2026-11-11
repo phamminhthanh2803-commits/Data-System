@@ -1,0 +1,61 @@
+# NGUON RSS (11/11/2026, da thu tung link). goi_y = ma nganh (nganh.csv) cong +1,5 diem cho moi bai cua chuyen muc (tin hieu yeu, can them tu khoa/ma).
+# bat=0 de tat. Da thu va LOAI: nld.com.vn (ngung cap nhat tu 06/2026), laodong, baodautu, tinnhanhchungkhoan, znews, thoibaotaichinh, vir,
+# baochinhphu (404 / rong), vneconomy doanh-nghiep (rong).
+nguon,chuyen_muc,url,goi_y,bat
+CafeF,Chứng khoán,https://cafef.vn/thi-truong-chung-khoan.rss,,1
+CafeF,Bất động sản,https://cafef.vn/bat-dong-san.rss,BDS,1
+CafeF,Dự án,https://cafef.vn/tin-tuc-du-an.rss,,1
+CafeF,Doanh nghiệp,https://cafef.vn/doanh-nghiep.rss,,1
+CafeF,Tài chính ngân hàng,https://cafef.vn/tai-chinh-ngan-hang.rss,,1
+CafeF,Vĩ mô đầu tư,https://cafef.vn/vi-mo-dau-tu.rss,VIMO,1
+CafeF,Tài chính quốc tế,https://cafef.vn/tai-chinh-quoc-te.rss,TG,1
+CafeF,Thị trường hàng hoá,https://cafef.vn/thi-truong.rss,,1
+CafeF,Kinh tế số,https://cafef.vn/kinh-te-so.rss,CNTT,1
+VnExpress,Kinh doanh,https://vnexpress.net/rss/kinh-doanh.rss,,1
+VnExpress,Bất động sản,https://vnexpress.net/rss/bat-dong-san.rss,BDS,1
+VnEconomy,Chứng khoán,https://vneconomy.vn/chung-khoan.rss,TTCK,1
+VnEconomy,Tài chính,https://vneconomy.vn/tai-chinh.rss,,1
+VnEconomy,Đầu tư,https://vneconomy.vn/dau-tu.rss,,1
+VnEconomy,Thị trường,https://vneconomy.vn/thi-truong.rss,,1
+VnEconomy,Địa ốc,https://vneconomy.vn/dia-oc.rss,BDS,1
+VnEconomy,Kinh tế thế giới,https://vneconomy.vn/kinh-te-the-gioi.rss,TG,1
+Vietstock,Cổ phiếu,https://vietstock.vn/830/chung-khoan/co-phieu.rss,TTCK,1
+Vietstock,Chính sách CK,https://vietstock.vn/143/chung-khoan/chinh-sach.rss,TTCK,1
+Vietstock,Giao dịch nội bộ,https://vietstock.vn/739/chung-khoan/giao-dich-noi-bo.rss,,1
+Vietstock,Niêm yết,https://vietstock.vn/741/chung-khoan/niem-yet.rss,,1
+Vietstock,Phái sinh,https://vietstock.vn/4186/chung-khoan/chung-khoan-phai-sinh.rss,TTCK,1
+Vietstock,ETF và các quỹ,https://vietstock.vn/3358/chung-khoan/etf-va-cac-quy.rss,TTCK,1
+Vietstock,Trái phiếu,https://vietstock.vn/785/chung-khoan/thi-truong-trai-phieu.rss,TTCK,1
+Vietstock,Nhận định thị trường,https://vietstock.vn/1636/nhan-dinh-phan-tich/nhan-dinh-thi-truong.rss,TTCK,1
+Vietstock,Phân tích cơ bản,https://vietstock.vn/582/nhan-dinh-phan-tich/phan-tich-co-ban.rss,,1
+Vietstock,Hoạt động kinh doanh,https://vietstock.vn/737/doanh-nghiep/hoat-dong-kinh-doanh.rss,,1
+Vietstock,Cổ tức,https://vietstock.vn/738/doanh-nghiep/co-tuc.rss,,1
+Vietstock,Tăng vốn - M&A,https://vietstock.vn/764/doanh-nghiep/tang-von-m-a.rss,,1
+Vietstock,IPO - Cổ phần hoá,https://vietstock.vn/746/doanh-nghiep/ipo-co-phan-hoa.rss,,1
+Vietstock,Trái phiếu doanh nghiệp,https://vietstock.vn/3118/doanh-nghiep/trai-phieu-doanh-nghiep.rss,TTCK,1
+Vietstock,Vĩ mô,https://vietstock.vn/761/kinh-te/vi-mo.rss,VIMO,1
+Vietstock,Kinh tế đầu tư,https://vietstock.vn/768/kinh-te/kinh-te-dau-tu.rss,,1
+Vietstock,Ngân hàng,https://vietstock.vn/757/tai-chinh/ngan-hang.rss,NH,1
+Vietstock,Bảo hiểm,https://vietstock.vn/3113/tai-chinh/bao-hiem.rss,BH,1
+Vietstock,Thuế và ngân sách,https://vietstock.vn/758/tai-chinh/thue-va-ngan-sach.rss,VIMO,1
+Vietstock,Tài sản số,https://vietstock.vn/16312/tai-chinh/tai-san-so.rss,DVTC,1
+Vietstock,Thị trường nhà đất,https://vietstock.vn/4220/bat-dong-san/thi-truong-nha-dat.rss,BDS,1
+Vietstock,Dự án BĐS,https://vietstock.vn/4222/bat-dong-san/du-an.rss,BDS,1
+Vietstock,Quy hoạch hạ tầng,https://vietstock.vn/42221/bat-dong-san/quy-hoach-ha-tang.rss,XDVL,1
+Vietstock,Hàng hoá,https://vietstock.vn/2/hang-hoa.rss,,1
+Vietstock,Nhiên liệu,https://vietstock.vn/34/hang-hoa/nhien-lieu.rss,DK,1
+Vietstock,Kim loại,https://vietstock.vn/742/hang-hoa/kim-loai.rss,TNCB,1
+Vietstock,Nông sản thực phẩm,https://vietstock.vn/118/hang-hoa/nong-san-thuc-pham.rss,TPDU,1
+Vietstock,Vàng và kim loại quý,https://vietstock.vn/759/hang-hoa/vang-va-kim-loai-quy.rss,VIMO,1
+Vietstock,Kinh tế ngành thế giới,https://vietstock.vn/775/the-gioi/kinh-te-nganh.rss,,1
+Vietstock,Tài chính quốc tế,https://vietstock.vn/772/the-gioi/tai-chinh-quoc-te.rss,TG,1
+Vietstock,Chứng khoán thế giới,https://vietstock.vn/773/the-gioi/chung-khoan-the-gioi.rss,TG,1
+Tuổi Trẻ,Kinh doanh,https://tuoitre.vn/rss/kinh-doanh.rss,,1
+Thanh Niên,Kinh tế,https://thanhnien.vn/rss/kinh-te.rss,,1
+Dân trí,Kinh doanh,https://dantri.com.vn/rss/kinh-doanh.rss,,1
+Dân trí,Bất động sản,https://dantri.com.vn/rss/bat-dong-san.rss,BDS,1
+VietnamNet,Kinh doanh,https://vietnamnet.vn/rss/kinh-doanh.rss,,1
+VietnamBiz,Chứng khoán,https://vietnambiz.vn/chung-khoan.rss,,1
+VietnamBiz,Doanh nghiệp,https://vietnambiz.vn/doanh-nghiep.rss,,1
+Nhịp sống kinh doanh,Trang chủ,https://nhipsongkinhdoanh.vn/rss/home.rss,,1
+VietnamPlus,Kinh tế,https://www.vietnamplus.vn/rss/kinhte-311.rss,,1

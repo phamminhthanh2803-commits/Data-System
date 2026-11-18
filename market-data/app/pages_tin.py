@@ -320,8 +320,16 @@ def _alert():
                     os.environ[k] = str(v)
             except Exception:  # noqa: BLE001 - khong co secrets.toml
                 pass
+    import importlib
     import news_alert
-    return news_alert
+    import tom_tat
+    # news-alert nam ngoai thu muc app -> Streamlit KHONG tu nap lai khi code doi (push len Cloud / sua o laptop) -> tu reload theo mtime
+    for mod in (news_alert, tom_tat):
+        mt = os.path.getmtime(mod.__file__)
+        if getattr(mod, "_mt_nap", mt) != mt:
+            mod = importlib.reload(mod)
+        mod._mt_nap = mt
+    return sys.modules["news_alert"]
 
 
 def _keo_drive(na, force: bool = False) -> bool:

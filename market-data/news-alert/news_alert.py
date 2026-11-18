@@ -273,26 +273,42 @@ def gui_mail(cfg: dict, tieu: str, body_html: str) -> bool:
         LOI_MAIL = "Thiếu " + ", ".join(thieu)
         log(f"  ! email: {LOI_MAIL} -> bo qua")
         return False
+    mk = "".join(mk.split())                                 # Gmail hien mat khau ung dung dang "abcd efgh ijkl mnop"
     msg = MIMEText(body_html, "html", "utf-8")
     msg["Subject"], msg["From"], msg["To"] = tieu, user, den
-    try:
-        port = int(cfg.get("smtp_port", 465))
-        host = cfg.get("smtp_host", "smtp.gmail.com")
-        if port == 465:
-            s = smtplib.SMTP_SSL(host, port, timeout=30)
-        else:
-            s = smtplib.SMTP(host, port, timeout=30)
-            s.starttls()
-        with s:
-            s.login(user, mk)
-            s.sendmail(user, [x.strip() for x in den.split(",") if x.strip()], msg.as_string())
-        log(f"  email -> {den}: {tieu}")
-        LOI_MAIL = ""
-        return True
-    except smtplib.SMTPAuthenticationError:
-        LOI_MAIL = "Gmail từ chối đăng nhập: sai Gmail gửi hoặc mật khẩu ứng dụng (cần mật khẩu ứng dụng 16 ký tự, không phải mật khẩu Gmail)"
-    except Exception as ex:  # noqa: BLE001
-        LOI_MAIL = f"{type(ex).__name__}: {str(ex)[:200]}"
+    host = cfg.get("smtp_host", "smtp.gmail.com")
+    p0 = int(cfg.get("smtp_port", 465))
+    loi_ket_noi = []
+    # 18/11: Streamlit Cloud cat ket noi SMTP (SMTPServerDisconnected) -> thu 465 SSL roi 587 STARTTLS
+    for port in dict.fromkeys([p0, 587 if p0 == 465 else 465]):
+        try:
+            if port == 465:
+                s = smtplib.SMTP_SSL(host, port, timeout=30)
+            else:
+                s = smtplib.SMTP(host, port, timeout=30)
+                s.ehlo()
+                s.starttls()
+                s.ehlo()
+            with s:
+                s.login(user, mk)
+                s.sendmail(user, [x.strip() for x in den.split(",") if x.strip()], msg.as_string())
+            log(f"  email -> {den} (cong {port}): {tieu}")
+            LOI_MAIL = ""
+            return True
+        except smtplib.SMTPAuthenticationError:
+            LOI_MAIL = ("Gmail từ chối đăng nhập: sai Gmail gửi hoặc mật khẩu ứng dụng (cần mật khẩu ứng dụng 16 ký tự của "
+                        "đúng tài khoản Gmail gửi, không phải mật khẩu Gmail; tài khoản phải bật xác minh 2 bước)")
+            log(f"  ! email loi: {LOI_MAIL}")
+            return False
+        except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError, OSError) as ex:   # mang / cong bi chan -> thu cong kia
+            loi_ket_noi.append(f"cổng {port}: {type(ex).__name__} {str(ex)[:80]}".strip())
+        except Exception as ex:  # noqa: BLE001
+            LOI_MAIL = f"{type(ex).__name__}: {str(ex)[:200]}"
+            log(f"  ! email loi: {LOI_MAIL}")
+            return False
+    LOI_MAIL = ("Máy chủ này không kết nối được Gmail SMTP (" + "; ".join(loi_ket_noi) + "). Streamlit Cloud thường chặn "
+                "cổng gửi mail — email tự động do GitHub Actions gửi; thử bằng GitHub → Actions → News Alert → Run workflow "
+                "(tick thu), hoặc bấm Gửi thử trên app chạy ở laptop.")
     log(f"  ! email loi: {LOI_MAIL}")
     return False
 

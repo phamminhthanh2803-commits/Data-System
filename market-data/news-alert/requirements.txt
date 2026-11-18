@@ -1,0 +1,7 @@
+# news-alert tren GitHub Actions (news-alert.yml): keo RSS + phan loai (news-rss) + email + tom tat Claude Sonnet
+pandas
+pyarrow
+requests
+rapidfuzz
+anthropic
+lxml

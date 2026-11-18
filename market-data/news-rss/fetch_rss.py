@@ -153,7 +153,8 @@ def classify(master: pd.DataFrame, full: bool) -> tuple[pd.DataFrame, pd.DataFra
         for n, d in ng:
             tags.append({"id": r.id, "nganh": n, "diem": d, "chinh": n == chinh, "chu_de": "|".join(k["chu_de"].get(n, [])),
                          "tu_khoa": " · ".join(k["tu_khoa"].get(n, []))})
-    new_t = pd.DataFrame(rows)
+    new_t = pd.DataFrame(rows, columns=["id", "nganh_chinh", "nganh", "chu_de", "ma", "loai_tin", "diem", "diem_su_kien",
+                                        "tu_khoa"])                  # 0 bai moi -> van du cot (truoc day mat cot id -> KeyError)
     new_g = pd.DataFrame(tags, columns=["id", "nganh", "diem", "chinh", "chu_de", "tu_khoa"])
     cls = new_t if old_t is None else pd.concat([old_t[[c for c in new_t.columns if c in old_t.columns]], new_t], ignore_index=True)
     g = new_g if old_g is None else pd.concat([old_g, new_g], ignore_index=True)

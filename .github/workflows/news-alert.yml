@@ -1,0 +1,81 @@
+# News Alert — canh bao TIN TUC theo watchlist co phieu, chay ONLINE 15 phut/lan 07:00–22:45 gio VN (18/11/2026 PV2).
+# Keo RSS 57 feed (market-data/news-rss) -> loc tin co ma trong watchlist -> email tin moi; sau gio tom_tat_email_gio (config)
+# gui 1 email TOM TAT CUOI NGAY bang Claude Sonnet (market-data/news-alert/tom_tat.py).
+# watchlist.csv + config.json o Google Drive gdrive:pipeline-data/market-data/news-alert (sua o app Tin tuc › Watchlist) —
+# workflow CHI DOC hai file nay, chi ghi trang thai (da_gui.json, lich_su.csv, trang_thai_email.json, kho/, tom_tat/).
+# Secret: RCLONE_CONF (co san), NEWS_ALERT_SMTP_PASS (mat khau ung dung Gmail), ANTHROPIC_API_KEY (tom tat; thieu thi bo qua).
+# Gio VN = UTC + 7. Chay tay: Actions -> News Alert -> Run workflow (tick "thu" = gui thu 2 tin moi nhat).
+name: News Alert
+
+on:
+  schedule:
+    - cron: "*/15 0-15 * * *"         # 07:00 - 22:45 gio VN, moi ngay
+  workflow_dispatch:
+    inputs:
+      thu:
+        description: "Gui thu 2 tin moi nhat khop watchlist (khong ghi trang thai)"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: news-alert
+  cancel-in-progress: false
+
+env:
+  TZ: Asia/Ho_Chi_Minh
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: utf-8
+  NEWS_ALERT_REMOTE: gdrive:pipeline-data/market-data/news-alert
+  NA_DIR: market-data/news-alert
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Lay code
+        uses: actions/checkout@v4
+
+      - name: Python 3.12 (cache pip)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: market-data/news-alert/requirements.txt
+
+      - name: Cai thu vien
+        run: pip install -q -r "$NA_DIR/requirements.txt"
+
+      - name: Cai rclone
+        run: bash ci/install_rclone.sh
+
+      - name: Cau hinh rclone tu secret RCLONE_CONF (base64)
+        env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+        run: |
+          if [ -z "$RCLONE_CONF" ]; then echo "::error::Thieu secret RCLONE_CONF"; exit 1; fi
+          mkdir -p ~/.config/rclone
+          echo "$RCLONE_CONF" | base64 -d > ~/.config/rclone/rclone.conf
+          chmod 600 ~/.config/rclone/rclone.conf
+
+      - name: Keo watchlist + trang thai tu Drive
+        run: |
+          rclone copy "$NEWS_ALERT_REMOTE" "$NA_DIR" --exclude "/logs/**" --transfers 8
+          ls -la "$NA_DIR"
+
+      - name: Quet tin + gui email
+        env:
+          NEWS_ALERT_SMTP_PASS: ${{ secrets.NEWS_ALERT_SMTP_PASS }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          THU: ${{ inputs.thu }}
+        run: |
+          cd "$NA_DIR"
+          if [ "$THU" = "true" ]; then python news_alert.py --kenh email --thu; else python news_alert.py --kenh email; fi
+
+      - name: Day trang thai len Drive
+        if: always()
+        run: |
+          rclone copy "$NA_DIR" "$NEWS_ALERT_REMOTE" \
+            --include "/da_gui.json" --include "/lich_su.csv" --include "/trang_thai_email.json" \
+            --include "/kho/**" --include "/tom_tat/**" --transfers 8

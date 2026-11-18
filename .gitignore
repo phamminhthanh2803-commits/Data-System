@@ -102,3 +102,13 @@ app-cache/
 
 # GitHub Pages (trang chu + privacy cho OAuth app rclone)
 !docs/*.html
+
+# ---- 18/11/2026 news-alert: watchlist / cau hinh email / lich su / tom tat CHI o Google Drive (repo public)
+market-data/news-alert/watchlist*
+market-data/news-alert/config.json
+market-data/news-alert/da_gui*.json
+market-data/news-alert/lich_su*.csv
+market-data/news-alert/trang_thai_*.json
+market-data/news-alert/kho/
+market-data/news-alert/tom_tat/
+market-data/news-alert/logs/

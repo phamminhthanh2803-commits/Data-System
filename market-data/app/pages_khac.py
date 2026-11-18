@@ -1057,6 +1057,10 @@ def tin_tuc(ctx, sub="bctc-moi"):
         import pages_tin
         pages_tin.tin_nganh(ctx)
         return
+    if sub == "watchlist":                       # 18/11/2026: watchlist + canh bao tin (news-alert)
+        import pages_tin
+        pages_tin.watchlist(ctx)
+        return
     if sub == "noi-bo":
         ui.h2("Giao dịch nội bộ")
         ui.callout('Thẻ <b>Giao dịch nội bộ</b> (CafeF GDCoDong, live-first) đặt tại <a href="?trang=ttck/vn/dong-tien&noibo=ma" target="_self">'

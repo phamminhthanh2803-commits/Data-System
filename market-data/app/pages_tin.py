@@ -297,3 +297,218 @@ def tin_nganh(ctx):
             c4.table(fs[["Báo", "Chuyên mục", "Tin trong feed", "Tin 7 ngày", "Lỗi", "Kéo lúc"]].set_index("Báo"), ten="Nguon RSS")
         else:
             c4.empty()
+
+
+# =====================================================================================================================
+# 18/11/2026: Tin tuc › WATCHLIST - danh sach ma cho news-alert + tin khop + TOM TAT HOM NAY (Claude Sonnet).
+# Canh bao chay ONLINE: GitHub Actions news-alert.yml 15 phut/lan gui email (+ email tom tat cuoi ngay); laptop them toast.
+# watchlist.csv / config.json / lich su / tom tat dung chung qua Google Drive (gdrive:pipeline-data/market-data/news-alert):
+# mo trang -> keo ve (60 s/lan), Luu -> day len. Chay duoc ca laptop lan Streamlit Cloud (rclone do cloud_boot cai).
+# =====================================================================================================================
+ALERT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "news-alert")   # <market-data>/news-alert
+WL_SECRETS = ("ANTHROPIC_API_KEY", "NEWS_ALERT_SMTP_PASS")
+
+
+def _alert():
+    if ALERT_DIR not in sys.path:
+        sys.path.insert(0, ALERT_DIR)
+    for k in WL_SECRETS:                                   # Streamlit Cloud: secrets -> env (SDK Anthropic / SMTP doc env)
+        if not os.environ.get(k):
+            try:
+                v = st.secrets.get(k)
+                if v:
+                    os.environ[k] = str(v)
+            except Exception:  # noqa: BLE001 - khong co secrets.toml
+                pass
+    import news_alert
+    return news_alert
+
+
+def _keo_drive(na, force: bool = False) -> bool:
+    """Keo watchlist/config/trang thai/tom tat tu Drive, toi da 1 lan / 60 s / phien (force = ngay)."""
+    k = "wl_keo_luc"
+    if not force and time.time() - st.session_state.get(k, 0) < 60:
+        return st.session_state.get("wl_keo_ok", False)
+    ok = na.keo_ve(trang_thai=True)
+    st.session_state[k], st.session_state["wl_keo_ok"] = time.time(), ok
+    return ok
+
+
+def _doc_json(p: str) -> dict:
+    import json
+    try:
+        return json.load(open(p, encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def watchlist(ctx):
+    h0, h1 = st.columns([5, 1])
+    with h0:
+        ui.h2("Watchlist tin tức — cảnh báo theo mã")
+    if not os.path.exists(os.path.join(ALERT_DIR, "news_alert.py")):
+        ui.card_empty("Watchlist", "", "Thiếu thư mục news-alert trong bản code này.", key="wl_khong_co")
+        return
+    na = _alert()
+    lam_moi = h1.button("↻ Kéo tin mới", key="wl_lam_moi", help=f"Kéo lại tin RSS + watchlist/lịch sử từ Drive")
+    drive_ok = _keo_drive(na, force=lam_moi)
+    cfg = na.doc_cfg()
+    wl = na.doc_watchlist()
+    tt = _doc_json(os.path.join(ALERT_DIR, "trang_thai_email.json"))
+
+    # ---- KPI trang thai
+    lich = pd.read_csv(na.LICH_SU, encoding="utf-8-sig", parse_dates=["bao_luc", "ngay_gio"]) if os.path.exists(na.LICH_SU) \
+        else pd.DataFrame()
+    n_hn = int((lich["bao_luc"] >= pd.Timestamp.now().normalize()).sum()) if len(lich) else 0
+    lan = pd.Timestamp(tt["luc"]) if tt.get("luc") else None
+    tre = (pd.Timestamp.now() - lan).total_seconds() / 60 if lan is not None else None
+    ui.kpi_strip([
+        ("Mã theo dõi", f"{len(wl)}", ", ".join(x["ma"] for x in wl[:8]) + (" …" if len(wl) > 8 else ""), 0),
+        ("Email đã báo hôm nay", f"{n_hn}", f"tổng {len(lich)} tin đã báo qua email", 1 if n_hn else 0),
+        ("Quét online lần cuối", f"{lan:%H:%M %d/%m}" if lan is not None else "chưa chạy",
+         (f"{tt.get('khop', 0)} tin khớp · {tt.get('moi', 0)} tin mới" if tt else "GitHub Actions News Alert"),
+         (-1 if tre is not None and tre > 60 and cfg.get("gio_bat_dau", 7) <= pd.Timestamp.now().hour < cfg.get("gio_ket_thuc", 22)
+          else 0)),
+        ("Kênh", "Email" if cfg.get("email_bat") else "Email tắt",
+         f"{cfg.get('gio_bat_dau', 7)}h–{cfg.get('gio_ket_thuc', 22)}h · 15 phút/lần · tóm tắt {cfg.get('tom_tat_email_gio', '—')}h", 0),
+    ])
+    if not drive_ok:
+        ui.note('<span style="color:var(--down)">Không đồng bộ được với Google Drive — đang dùng bản local, '
+                'sửa watchlist sẽ chưa tới bộ cảnh báo online.</span>')
+
+    col1, col2 = st.columns([1.25, 1])
+    # ---- (a) SUA WATCHLIST
+    with col1:
+        with ui.card("Danh sách theo dõi", "sửa xong bấm Lưu", key="wl_ds", controls=False,
+                     help="Mã = mã CK (tự nhận cả tên DN theo news-rss\\config\\alias_ma.csv, VD 'Hòa Phát' → HPG). "
+                          "Tên gọi thêm = tên khác tự khai, cách nhau dấu ; (khớp nguyên từ trong tiêu đề / tóm tắt). "
+                          "Lưu → đẩy lên Google Drive; bộ cảnh báo online dùng ở lần quét 15 phút kế tiếp.") as c:
+            with c.body():
+                df = pd.DataFrame([{"ma": x["ma"], "ten_goi_them": "; ".join(x["ten"]), "ghi_chu": x["ghi_chu"]} for x in wl],
+                                  columns=["ma", "ten_goi_them", "ghi_chu"])
+                ed = st.data_editor(df, num_rows="dynamic", use_container_width=True, hide_index=True, key="wl_editor",
+                                    column_config={"ma": st.column_config.TextColumn("Mã", max_chars=10),
+                                                   "ten_goi_them": st.column_config.TextColumn("Tên gọi thêm (;)"),
+                                                   "ghi_chu": st.column_config.TextColumn("Ghi chú")})
+                b0, b1 = st.columns([1, 2.4])
+                if b0.button("💾 Lưu watchlist", key="wl_luu", type="primary"):
+                    moi, thay = [], set()
+                    for r in ed.fillna("").itertuples(index=False):
+                        m = str(r.ma).strip().upper()
+                        if m and m not in thay:
+                            thay.add(m)
+                            moi.append({"ma": m, "ten": [x.strip() for x in str(r.ten_goi_them).split(";") if x.strip()],
+                                        "ghi_chu": str(r.ghi_chu).strip()})
+                    ok = na.ghi_watchlist(moi)
+                    st.session_state.pop("wl_editor", None)
+                    st.toast(f"Đã lưu {len(moi)} mã" + (" · đã đồng bộ online" if ok else " · CHƯA lên Drive"))
+                    st.rerun()
+                b1.markdown('<div class="gn-note">Thêm mã: bấm ＋ cuối bảng · xoá: tick ô đầu dòng rồi bấm 🗑</div>',
+                            unsafe_allow_html=True)
+    # ---- (b) KENH THONG BAO
+    with col2:
+        with ui.card("Email thông báo", "config.json trên Drive", key="wl_kenh", controls=False,
+                     help="Bộ cảnh báo online (GitHub Actions) gửi email khi có tin mới + 1 email tóm tắt cuối ngày bằng Claude Sonnet. "
+                          "Mật khẩu ứng dụng Gmail = secret NEWS_ALERT_SMTP_PASS (GitHub), không lưu ở đây. "
+                          "Laptop (task News Alert) còn bật thông báo góc màn hình khi máy mở.") as c:
+            with c.body():
+                eb = st.toggle("Gửi email khi có tin mới", bool(cfg.get("email_bat")), key="wl_email")
+                den = st.text_input("Email nhận (nhiều địa chỉ cách dấu phẩy)", cfg.get("email_gui_den", ""), key="wl_den")
+                usr = st.text_input("Gmail gửi (tài khoản có mật khẩu ứng dụng)", cfg.get("smtp_user", ""), key="wl_user")
+                g0, g1, g2 = st.columns(3)
+                gbd = g0.number_input("Báo từ giờ", 0, 23, int(cfg.get("gio_bat_dau", 7)), key="wl_gbd")
+                gkt = g1.number_input("Đến giờ", 1, 24, int(cfg.get("gio_ket_thuc", 22)), key="wl_gkt")
+                gtt = g2.number_input("Email tóm tắt lúc", 0, 23, int(cfg.get("tom_tat_email_gio") or 17), key="wl_gtt",
+                                      help="Giờ gửi email tóm tắt diễn biến trong ngày (Claude Sonnet), 1 lần/ngày")
+                k0, k1 = st.columns(2)
+                if k0.button("💾 Lưu", key="wl_luu_kenh"):
+                    cfg.update(email_bat=eb, email_gui_den=den.strip(), smtp_user=usr.strip(), gio_bat_dau=int(gbd),
+                               gio_ket_thuc=int(gkt), tom_tat_email_gio=int(gtt))
+                    ok = na.ghi_cfg(cfg)
+                    st.toast("Đã lưu" + (" · đã đồng bộ online" if ok else " · CHƯA lên Drive"))
+                    st.rerun()
+                if k1.button("🔔 Gửi thử", key="wl_thu", help="Gửi 2 tin mới nhất khớp watchlist (email; laptop thêm toast)"):
+                    if not os.environ.get("NEWS_ALERT_SMTP_PASS"):
+                        st.warning("Phiên app này chưa có NEWS_ALERT_SMTP_PASS (Streamlit secrets / biến môi trường) nên chỉ thử được "
+                                   "toast trên laptop. Email thật do GitHub Actions gửi bằng secret của repo.")
+                    with st.spinner("Đang gửi thử ..."):
+                        try:
+                            na.chay(keo=False, thu=True, kenh="ca-hai")
+                            st.toast("Đã gửi thử")
+                        except Exception as e:  # noqa: BLE001
+                            st.error(f"{type(e).__name__}: {e}")
+
+    # ---- (c) TOM TAT HOM NAY - Claude Sonnet
+    loi = _lam_moi(force=lam_moi)
+    p, pt, _, _ = _paths()
+    today = pd.Timestamp.now().normalize()
+    if ALERT_DIR not in sys.path:
+        sys.path.insert(0, ALERT_DIR)
+    import tom_tat as tt_mod
+    with ui.card("Tóm tắt diễn biến trong ngày", f"Claude Sonnet · {tt_mod.MODEL}", key="wl_tomtat", controls=False,
+                 help="Gom tin trong ngày khớp watchlist (gộp tin trùng) → Claude Sonnet tóm tắt theo từng mã: điểm chính, diễn biến "
+                      "theo giờ, ý nghĩa với cổ phiếu, việc cần theo dõi. Chỉ dựa trên tiêu đề + tóm tắt RSS. Kết quả lưu "
+                      "news-alert/tom_tat/<ngày>.md trên Drive (laptop + app online + email cuối ngày dùng chung). "
+                      "Cần API key Anthropic: biến ANTHROPIC_API_KEY (laptop) / Streamlit secrets (online).") as c:
+        with c.body():
+            a0, a1, a2 = st.columns([1.2, 1, 3])
+            ngay = a0.date_input("Ngày", today.date(), key="wl_tt_ngay", format="DD/MM/YYYY", label_visibility="collapsed")
+            ngay_s = f"{ngay:%Y-%m-%d}"
+            cu = tt_mod.doc_ban_cu(ngay_s)
+            bam = a1.button("🤖 Tóm tắt lại" if cu else "🤖 Tóm tắt", key="wl_tt_chay", type="primary" if not cu else "secondary")
+            if bam:
+                if not os.environ.get("ANTHROPIC_API_KEY"):
+                    st.error("Chưa có API key Anthropic: đặt ANTHROPIC_API_KEY (biến môi trường User trên laptop, hoặc Streamlit "
+                             "secrets cho app online) rồi mở lại app.")
+                else:
+                    with st.spinner(f"Claude Sonnet đang đọc tin {ngay:%d/%m} ..."):
+                        try:
+                            cu = tt_mod.tom_tat(ngay_s)
+                        except RuntimeError as e:
+                            st.error(str(e))
+            if cu:
+                a2.markdown(f'<div class="gn-note">Tóm tắt lúc {cu["luc"][11:16]} {cu["luc"][8:10]}/{cu["luc"][5:7]} · '
+                            f'{cu["so_tin"]} tin · {cu["model"]} · {cu["in_tok"]:,}+{cu["out_tok"]:,} token</div>'.replace(",", "."),
+                            unsafe_allow_html=True)
+                st.markdown(cu["text"])
+                with st.expander(f"Nguồn ({cu['so_tin']} tin)"):
+                    st.markdown(cu["nguon"])
+            elif not bam:
+                st.markdown('<div class="gn-note">Chưa có bản tóm tắt cho ngày này — bấm 🤖 Tóm tắt.</div>', unsafe_allow_html=True)
+
+    # ---- (d) TIN KHOP WATCHLIST (kho tin cua app, 90 ngay)
+    if not wl or not os.path.exists(p):
+        ui.card_empty("Tin khớp watchlist", "", loi or "Watchlist rỗng / chưa có kho tin", key="wl_tin_trong")
+        return
+    t, _, _ = _news(max(dl._raw_mt(p), dl._raw_mt(pt)))
+    m = na.khop(t, wl)
+    sent = na.doc_sent("email")
+    mas = [x["ma"] for x in wl]
+    with ui.card("Tin khớp watchlist", "kho tin của app (giữ 90 ngày)",
+                 help="Cùng luật lọc với bộ cảnh báo: mã do bộ phân loại news-rss gắn + tên gọi thêm. 🔔 = tin đã gửi email.",
+                 key="wl_tin", periods=["1D", "3D", "1W", "1M", "3M", "All"], default="1W", end=today,
+                 chips=mas, chip_multi=True, chip_default=mas, chip_label="Mã") as c:
+        chon = set(c.chip or [])
+        x = m[(m["ngay_gio"] >= pd.Timestamp(c.d0)) & (m["ngay_gio"] < pd.Timestamp(c.d1) + pd.Timedelta(days=1))]
+        x = x[x["ma_wl"].str.split("|").map(lambda v: bool(set(v) & chon))] if chon else x
+        x = x.sort_values("ngay_gio", ascending=False).drop_duplicates("nhom_trung", keep="first")
+        if x.empty:
+            c.empty("Không có tin về các mã đã chọn trong khung thời gian")
+        else:
+            x = x.assign(tieu_de=[("🔔 " if (i in sent or f"g:{g}" in sent) else "") + str(td)
+                                  for i, g, td in zip(x["id"], x["nhom_trung"], x["tieu_de"])])
+            c.markdown(_html(x, TAT_CA))
+            c.export(_export(x).assign(**{"Mã watchlist": x["ma_wl"].str.replace("|", ", ").to_numpy()}), ten="Tin watchlist")
+            with c._foot:
+                st.markdown(f'<div class="gn-note">{len(x)} tin · {x["nguon"].nunique()} báo · {c.d0:%d/%m/%Y} – {c.d1:%d/%m/%Y}'
+                            f'{" · lần kéo vừa rồi lỗi: " + html.escape(loi) if loi else ""}</div>', unsafe_allow_html=True)
+
+    # ---- (e) LICH SU DA BAO
+    with ui.card("Lịch sử email đã gửi", "lich_su.csv", key="wl_lich_su", controls=False) as c:
+        if lich.empty:
+            c.empty("Chưa gửi email tin nào")
+        else:
+            ls = lich.sort_values("bao_luc", ascending=False).head(200).rename(columns={
+                "bao_luc": "Báo lúc", "ngay_gio": "Đăng lúc", "ma_wl": "Mã", "nguon": "Báo", "tieu_de": "Tiêu đề", "url": "Link"})
+            ls["Mã"] = ls["Mã"].astype(str).str.replace("|", ", ")
+            c.table(ls[["Báo lúc", "Mã", "Báo", "Tiêu đề", "Đăng lúc", "Link"]].set_index("Báo lúc"), ten="Lich su canh bao")

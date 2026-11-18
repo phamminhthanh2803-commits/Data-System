@@ -68,6 +68,7 @@ NAV = {
     }),
     "tin-tuc": ("Tin tức", {                      # 13/10/2026: BCTC moi cong bo (bctc-scan) + lien ket giao dich noi bo
         "tin-nganh": ("Tin theo ngành", {}),      # 11/11/2026: tin RSS phan loai theo nganh (news-rss), ?trang=tin-tuc/tin-nganh&nganh=...
+        "watchlist": ("Watchlist", {}),           # 18/11/2026: watchlist ma + canh bao tin (news-alert), chi laptop
         "bctc-moi": ("Báo cáo tài chính mới", {}),
         "noi-bo": ("Giao dịch nội bộ", {}),
     }),

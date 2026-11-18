@@ -198,8 +198,12 @@ def _alias_tu_ten(ten: str) -> str | None:
 
 def load_ma() -> tuple[pd.DataFrame, dict, set]:
     """(bang ICB theo ma, alias->ma, tap ma can ngu canh)."""
-    icb = pd.read_csv(ICB_CSV, dtype=str).drop_duplicates("code").set_index("code") if os.path.exists(ICB_CSV) else pd.DataFrame()
-    icb = icb[icb.index.str.fullmatch(r"[A-Z][A-Z0-9]{2}", na=False)]
+    if os.path.exists(ICB_CSV):
+        icb = pd.read_csv(ICB_CSV, dtype=str).drop_duplicates("code").set_index("code")
+    else:                                    # 18/11: runner GitHub thieu file -> truoc day AttributeError .str tren index so
+        print(f"! khong co {ICB_CSV}: chi nhan ma CK qua config\\alias_ma.csv")
+        icb = pd.DataFrame(columns=["ten", "icb2", "icb4"], index=pd.Index([], dtype=str, name="code"))
+    icb = icb[icb.index.astype(str).str.fullmatch(r"[A-Z][A-Z0-9]{2}", na=False)]
     if "icb4" in icb:
         icb = icb[icb["icb4"].fillna("") != "Quỹ đầu tư"]
     alias = {}

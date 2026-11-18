@@ -97,6 +97,12 @@ jobs:
           rclone copy "$NEWS_ALERT_REMOTE" "$NA_DIR" --exclude "/logs/**" --transfers 8
           ls -la "$NA_DIR"
 
+      # bang ma ICB (ma CK + ten DN -> nganh) cho bo phan loai news-rss: du lieu, khong nam trong repo
+      - name: Keo bang ma ICB tu Drive
+        run: |
+          rclone copy "gdrive:pipeline-data/market-data/index-fetcher/raw" market-data/index-fetcher/raw --include "/vn_icb_vci.csv"
+          wc -l market-data/index-fetcher/raw/vn_icb_vci.csv
+
       - name: Quet tin + gui email
         env:
           NEWS_ALERT_SMTP_PASS: ${{ secrets.NEWS_ALERT_SMTP_PASS }}

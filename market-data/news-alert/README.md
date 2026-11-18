@@ -1,33 +1,40 @@
 # news-alert — cảnh báo TIN TỨC theo watchlist cổ phiếu (18/11/2026)
 
-Task Windows **News Alert** chạy **15 phút/lần, 07:00–22:00** (pythonw, không hiện cửa sổ):
-kéo 57 feed RSS của news-rss (kho riêng `kho\`, không đụng kho của app) → lọc bài nhắc mã trong `watchlist.csv`
-→ bài **chưa báo** (gộp tin trùng nhiều báo, nhớ 14 ngày ở `da_gui.json`) → **toast Windows** (bấm = mở bài) + **email** tổng hợp.
+Chạy **online 24/7**, không cần mở laptop hay app:
+
+| Thành phần | Ở đâu | Làm gì |
+|---|---|---|
+| **GitHub Actions `News Alert`** (repo Data-System, `.github/workflows/news-alert.yml`) | cloud, 15 phút/lần 07:00–22:45 | kéo 57 feed RSS → lọc tin có mã trong watchlist → **email tin mới**; sau `tom_tat_email_gio` (17h) gửi **1 email tóm tắt cả ngày** do Claude Sonnet viết |
+| **App Market Data › Tin tức › Watchlist** | laptop + Streamlit Cloud | sửa watchlist, cấu hình email, bấm **🤖 Tóm tắt** (Sonnet), xem tin khớp + lịch sử email |
+| Task Windows **News Alert** | laptop, khi máy bật | thêm **thông báo góc màn hình** (toast, bấm = mở bài) |
+
+Dữ liệu dùng chung ở Google Drive `gdrive:pipeline-data/market-data/news-alert/` (KHÔNG vào repo public):
+`watchlist.csv`, `config.json` (app / CLI sửa, Actions chỉ đọc) · `da_gui.json`, `lich_su.csv`, `trang_thai_email.json`, `kho/`,
+`tom_tat/<ngày>.md|json` (Actions + app ghi). Laptop giữ riêng trạng thái toast: `da_gui_may.json`, `lich_su_may.csv`.
+
+## Cài đặt một lần (PV2 tự làm — không ai khác nhập được mật khẩu / key)
+1. **Mật khẩu ứng dụng Gmail**: bật xác minh 2 bước cho Gmail gửi → myaccount.google.com/apppasswords → tạo mật khẩu.
+2. **API key Anthropic** (tóm tắt Sonnet): platform.claude.com → API keys → tạo key.
+3. **GitHub** repo Data-System → Settings → Secrets and variables → Actions → New repository secret:
+   `NEWS_ALERT_SMTP_PASS` = mật khẩu ứng dụng Gmail · `ANTHROPIC_API_KEY` = API key.
+4. **Streamlit Cloud** (share.streamlit.io → app → Settings → Secrets) thêm 2 dòng (nút Tóm tắt / Gửi thử trên app online):
+   `ANTHROPIC_API_KEY = "..."` và `NEWS_ALERT_SMTP_PASS = "..."`.
+5. **Laptop** (nút Tóm tắt khi chạy app local), PowerShell:
+   `[Environment]::SetEnvironmentVariable('ANTHROPIC_API_KEY','<key>','User')` rồi mở lại app.
+6. App › Tin tức › Watchlist › **Email thông báo**: điền Gmail gửi + email nhận → 💾 Lưu.
+7. Thử: GitHub → Actions → News Alert → Run workflow → tick `thu`.
 
 ## Thêm / bớt mã
-- `Sua-watchlist.bat` → sửa `watchlist.csv`, lưu là xong. Cột:
-  - `ma`: mã CK (bộ phân loại news-rss tự nhận mã 3 ký tự + tên DN trong `news-rss\config\alias_ma.csv`, VD "Hòa Phát" → HPG)
-  - `ten_goi_them`: tên gọi khác tự khai, cách nhau `;` (VD `Nhựa Bình Minh;BMP`) — khớp nguyên từ trong tiêu đề/tóm tắt
-  - `ghi_chu`: tuỳ ý
-- Hoặc dòng lệnh: `python news_alert.py them VCB MWG` · `python news_alert.py xoa HPG` · `python news_alert.py ds`
+App › Tin tức › **Watchlist** → bảng *Danh sách theo dõi* → 💾 Lưu (đẩy lên Drive, lần quét kế tiếp dùng).
+Cột `ma` (mã CK; bộ phân loại news-rss tự nhận cả tên DN theo `news-rss\config\alias_ma.csv`), `ten_goi_them` (tên khác, cách `;`).
+Dòng lệnh: `python news_alert.py them VCB MWG` · `xoa HPG` · `ds`.
 
-## Cấu hình — `config.json`
-| khoá | ý nghĩa |
-|---|---|
-| `toast_bat` | thông báo góc màn hình Windows |
-| `email_bat`, `email_gui_den`, `smtp_user` | email tổng hợp mỗi lần có tin mới (Gmail SMTP 465) |
-| `gio_bat_dau`, `gio_ket_thuc` | ngoài khung giờ thì giữ tin, báo vào lần chạy sau |
-| `chi_bao_tin_moi_trong_gio` | chỉ báo bài đăng trong N giờ gần nhất (mặc định 12) |
-| `toi_da_toast_le` | > N tin một lượt → gộp 1 toast tóm tắt (chi tiết ở email / `lich_su.csv`) |
+## config.json
+`email_bat`, `email_gui_den`, `smtp_user` (Gmail SMTP 465) · `gio_bat_dau`/`gio_ket_thuc` (ngoài khung → giữ tin, báo lần sau) ·
+`chi_bao_tin_moi_trong_gio` (12) · `tom_tat_email_gio` (17; bỏ trống = không gửi email tóm tắt) · `toast_bat`, `toi_da_toast_le` (laptop).
 
-### Bật email (Gmail)
-1. Bật xác minh 2 bước cho tài khoản Gmail gửi → tạo **Mật khẩu ứng dụng** tại myaccount.google.com/apppasswords.
-2. Lưu mật khẩu vào biến môi trường User (không ghi vào file), trong PowerShell:
-   `[Environment]::SetEnvironmentVariable('NEWS_ALERT_SMTP_PASS','<mật khẩu ứng dụng>','User')`
-3. `config.json`: `"email_bat": true`, `"smtp_user": "<gmail gửi>"`, `"email_gui_den": "<email nhận, nhiều địa chỉ cách dấu phẩy>"`.
-4. Thử: `python news_alert.py --thu` (gửi 2 bài mới nhất khớp watchlist, không ghi `da_gui.json`).
-
-## File
-`news_alert.py` (lõi) · `toast.ps1` (hiện toast qua WinRT, không cần cài gói) · `lich_su.csv` (mọi tin đã báo) ·
-`logs\alert.log` · `kho\` (tin RSS 14 ngày).
-Windows: nếu không thấy toast → Settings › System › Notifications: bật cho **Windows PowerShell**, tắt Do not disturb.
+## File code
+`news_alert.py` (lõi + đồng bộ Drive bằng rclone) · `tom_tat.py` (Claude Sonnet `claude-sonnet-5-5`, effort medium,
+fallbacks "default"; chỉ dựa trên tiêu đề + tóm tắt RSS) · `toast.ps1` (WinRT) · `requirements.txt` (Actions) · `Sua-watchlist.bat`.
+Chi phí tóm tắt ~ vài nghìn token/ngày (Sonnet 5.5: $2 vào / $10 ra mỗi 1M token).
+Không thấy toast trên laptop → Settings › System › Notifications: bật cho **Windows PowerShell**, tắt Do not disturb.

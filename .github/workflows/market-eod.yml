@@ -32,7 +32,40 @@ env:
   ONLY: ${{ inputs.only }}
 
 jobs:
+  # 18/11/2026: tu 10/11 GitHub chay cron tre 6-8 gio -> kich hoat dung gio bang cron-job.org (workflow_dispatch qua API,
+  # xem HUONG-DAN-CRON-JOB-ORG.md). Lich cron o tren chi la DU PHONG: lan cron toi ma trong 12 gio qua da co lan chay tay
+  # (workflow_dispatch) thi bo qua, tranh chay trung / chay tre de len slot khac.
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      actions: read
+    outputs:
+      skip: ${{ steps.g.outputs.skip }}
+    steps:
+      - id: g
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          WF: ${{ github.workflow }}
+          GIO: "12"
+        run: |
+          if [ "$EVENT" != "schedule" ]; then echo "skip=0" >> "$GITHUB_OUTPUT"; exit 0; fi
+          moc=$(date -u -d "-$GIO hours" +%Y-%m-%dT%H:%M:%SZ)
+          n=$(gh run list --workflow "$WF" --event workflow_dispatch --limit 20 --json createdAt \
+                --jq "[.[] | select(.createdAt >= \"$moc\")] | length" 2>/dev/null || echo 0)
+          echo "Lan chay tay (workflow_dispatch) trong $GIO gio qua: ${n:-0}"
+          if [ "${n:-0}" -gt 0 ]; then
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            echo "::notice::Bo qua lich cron (tre) - workflow da duoc cron-job.org kich hoat dung gio"
+          else
+            echo "skip=0" >> "$GITHUB_OUTPUT"
+          fi
+
   run:
+    needs: guard
+    if: ${{ !cancelled() && needs.guard.outputs.skip != '1' }}   # guard loi -> van chay
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

@@ -96,6 +96,8 @@ def merge_master(new: pd.DataFrame, keep_days: int | None = None) -> tuple[pd.Da
 
 CUA_SO_GIO, NGUONG_GIONG = 36, 86      # gop tin trung: tieu de giong >= 86% (rapidfuzz ratio) trong 36 gio
 TINH_LAI_NGAY = 3                       # chi tinh lai nhom cho bai 3 ngay gan nhat (bai cu giu nhom cu); lan dau / doi tu dien: 30 ngay
+NGUONG_BAO_HAM, NGAN_TOI_THIEU = 95, 40  # 18/11: tieu de ngan (>= 40 ky tu) nam trong tieu de dai >= 95% (partial_ratio) -> trung
+_BO_NGOAC = __import__("re").compile(r"[\"'“”‘’«»]")                  # CafeF "..." vs Tuoi Tre '...' -> bo ngoac truoc khi so
 
 
 def gom_trung(t: pd.DataFrame, co_dinh: dict) -> pd.Series:
@@ -110,13 +112,22 @@ def gom_trung(t: pd.DataFrame, co_dinh: dict) -> pd.Series:
     moc = t["ngay_gio"].max() - pd.Timedelta(days=TINH_LAI_NGAY if co_dinh else 30)
     lam = t["ngay_gio"] >= moc - pd.Timedelta(hours=CUA_SO_GIO)        # cua so truoc moc lam ung vien so khop
     s = t[lam].sort_values("ngay_gio")
-    ten = s["tieu_de"].map(lambda x: nl.norm(x).lower())
+    ten = s["tieu_de"].map(lambda x: _BO_NGOAC.sub("", nl.norm(x).lower()))
     gan = []                                                          # (thoi gian, tieu de chuan, nhom)
     for idx, ts, tt in zip(s.index, s["ngay_gio"], ten):
         gan = [g for g in gan if ts - g[0] <= pd.Timedelta(hours=CUA_SO_GIO)]
         nhom = out.at[idx] if (out.at[idx] and ts < moc) else None
         if nhom is None:
-            m = process.extractOne(tt, [g[1] for g in gan], scorer=fuzz.ratio, score_cutoff=NGUONG_GIONG) if gan else None
+            cand = [g[1] for g in gan]
+            m = process.extractOne(tt, cand, scorer=fuzz.ratio, score_cutoff=NGUONG_GIONG) if gan else None
+            if m is None and gan and len(tt) >= NGAN_TOI_THIEU:
+                # 18/11: bao nay them duoi vao tieu de bao kia ('... Viet Nam Ruc Ro' vs '... Viet Nam Ruc Ro thu hut gan 1000
+                # cau chuyen') -> ratio < 86; tieu de ngan (>= 40 ky tu) nam gan tron trong tieu de dai -> cung tin
+                # loc truoc bang ratio (nhanh) 5 ung vien >= 55 roi moi partial_ratio (cham) -> khong lam cham moi lan keo
+                for _, _, j in process.extract(tt, cand, scorer=fuzz.ratio, score_cutoff=55, limit=5):
+                    if min(len(tt), len(cand[j])) >= NGAN_TOI_THIEU and fuzz.partial_ratio(tt, cand[j]) >= NGUONG_BAO_HAM:
+                        m = (cand[j], 0, j)
+                        break
             nhom = gan[m[2]][2] if m else exact.at[idx]
             out.at[idx] = nhom
         gan.append((ts, tt, nhom))

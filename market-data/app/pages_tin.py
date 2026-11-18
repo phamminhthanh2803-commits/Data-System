@@ -326,7 +326,7 @@ def _alert():
     # news-alert nam ngoai thu muc app -> Streamlit KHONG tu nap lai khi code doi (push len Cloud / sua o laptop) -> tu reload theo mtime
     for mod in (news_alert, tom_tat):
         mt = os.path.getmtime(mod.__file__)
-        if getattr(mod, "_mt_nap", mt) != mt:
+        if getattr(mod, "_mt_nap", None) != mt:                 # chua co dau (ban nap truoc khi co co che nay) -> reload 1 lan
             mod = importlib.reload(mod)
         mod._mt_nap = mt
     return sys.modules["news_alert"]

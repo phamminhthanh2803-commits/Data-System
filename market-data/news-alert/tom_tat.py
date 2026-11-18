@@ -15,6 +15,9 @@ import json
 import os
 import sys
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+VN = ZoneInfo("Asia/Ho_Chi_Minh")   # Streamlit Cloud chay gio UTC -> moi moc thoi gian theo gio VN
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(BASE, "tom_tat")
@@ -63,7 +66,7 @@ def tom_tat(ngay: str | None = None, kho: list[str] | None = None) -> dict:
     """Goi Sonnet tom tat tin watchlist ngay `ngay`. Tra dict {text, so_tin, model, luc, in_tok, out_tok}; luu tom_tat\\<ngay>.md/.json.
     Loi -> RuntimeError voi thong bao tieng Viet."""
     import anthropic
-    ngay = ngay or datetime.now().strftime("%Y-%m-%d")
+    ngay = ngay or datetime.now(VN).strftime("%Y-%m-%d")
     bai, mas = _bai_hom_nay(ngay, kho)
     if not bai:
         raise RuntimeError(f"Không có tin nào khớp watchlist ngày {ngay}")
@@ -106,7 +109,7 @@ def tom_tat(ngay: str | None = None, kho: list[str] | None = None) -> dict:
         text += "\n\n_(bị cắt do giới hạn độ dài)_"
     # chu thich nguon [n] -> link bai
     nguon = "\n".join(f"{i}. [{b['nguon']} · {b['ngay_gio']:%H:%M}] [{b['tieu_de']}]({b['url']})" for i, b in enumerate(bai, 1))
-    kq = {"ngay": ngay, "luc": datetime.now().isoformat(timespec="seconds"), "so_tin": len(bai), "model": resp.model,
+    kq = {"ngay": ngay, "luc": datetime.now(VN).replace(tzinfo=None).isoformat(timespec="seconds"), "so_tin": len(bai), "model": resp.model,
           "in_tok": resp.usage.input_tokens, "out_tok": resp.usage.output_tokens, "ma": mas,
           "text": text, "nguon": nguon}
     os.makedirs(OUT, exist_ok=True)

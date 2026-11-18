@@ -342,6 +342,11 @@ def _keo_drive(na, force: bool = False) -> bool:
     return ok
 
 
+def _now_vn() -> pd.Timestamp:
+    """Gio VN (naive) - Streamlit Cloud chay UTC."""
+    return pd.Timestamp.now(tz="Asia/Ho_Chi_Minh").tz_localize(None)
+
+
 def _doc_json(p: str) -> dict:
     import json
     try:
@@ -367,15 +372,15 @@ def watchlist(ctx):
     # ---- KPI trang thai
     lich = pd.read_csv(na.LICH_SU, encoding="utf-8-sig", parse_dates=["bao_luc", "ngay_gio"]) if os.path.exists(na.LICH_SU) \
         else pd.DataFrame()
-    n_hn = int((lich["bao_luc"] >= pd.Timestamp.now().normalize()).sum()) if len(lich) else 0
+    n_hn = int((lich["bao_luc"] >= _now_vn().normalize()).sum()) if len(lich) else 0
     lan = pd.Timestamp(tt["luc"]) if tt.get("luc") else None
-    tre = (pd.Timestamp.now() - lan).total_seconds() / 60 if lan is not None else None
+    tre = (_now_vn() - lan).total_seconds() / 60 if lan is not None else None
     ui.kpi_strip([
         ("Mã theo dõi", f"{len(wl)}", ", ".join(x["ma"] for x in wl[:8]) + (" …" if len(wl) > 8 else ""), 0),
         ("Email đã báo hôm nay", f"{n_hn}", f"tổng {len(lich)} tin đã báo qua email", 1 if n_hn else 0),
         ("Quét online lần cuối", f"{lan:%H:%M %d/%m}" if lan is not None else "chưa chạy",
          (f"{tt.get('khop', 0)} tin khớp · {tt.get('moi', 0)} tin mới" if tt else "GitHub Actions News Alert"),
-         (-1 if tre is not None and tre > 60 and cfg.get("gio_bat_dau", 7) <= pd.Timestamp.now().hour < cfg.get("gio_ket_thuc", 22)
+         (-1 if tre is not None and tre > 60 and cfg.get("gio_bat_dau", 7) <= _now_vn().hour < cfg.get("gio_ket_thuc", 22)
           else 0)),
         ("Kênh", "Email" if cfg.get("email_bat") else "Email tắt",
          f"{cfg.get('gio_bat_dau', 7)}h–{cfg.get('gio_ket_thuc', 22)}h · 15 phút/lần · tóm tắt {cfg.get('tom_tat_email_gio', '—')}h", 0),
@@ -454,7 +459,7 @@ def watchlist(ctx):
     # ---- (c) TOM TAT HOM NAY - Claude Sonnet
     loi = _lam_moi(force=lam_moi)
     p, pt, _, _ = _paths()
-    today = pd.Timestamp.now().normalize()
+    today = _now_vn().normalize()
     if ALERT_DIR not in sys.path:
         sys.path.insert(0, ALERT_DIR)
     import tom_tat as tt_mod

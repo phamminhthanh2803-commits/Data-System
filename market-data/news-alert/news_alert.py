@@ -249,11 +249,29 @@ def gui_toast(tieu_de: str, noi_dung: str, url: str = "", nguon: str = "") -> bo
             pass
 
 
+def thieu_email(cfg: dict) -> list[str]:
+    """Nhung muc con thieu de gui email (rong = du)."""
+    out = []
+    if not cfg.get("smtp_user"):
+        out.append("Gmail gửi (smtp_user)")
+    if not cfg.get("email_gui_den"):
+        out.append("Email nhận (email_gui_den)")
+    if not os.environ.get("NEWS_ALERT_SMTP_PASS"):
+        out.append("mật khẩu ứng dụng Gmail (NEWS_ALERT_SMTP_PASS)")
+    return out
+
+
+LOI_MAIL = ""                                                # loi SMTP gan nhat (app hien cho nguoi dung)
+
+
 def gui_mail(cfg: dict, tieu: str, body_html: str) -> bool:
+    global LOI_MAIL
     mk = os.environ.get("NEWS_ALERT_SMTP_PASS", "")
     user, den = cfg.get("smtp_user", ""), cfg.get("email_gui_den", "")
-    if not (mk and user and den):
-        log("  ! email: thieu smtp_user / email_gui_den (config.json) hoac bien NEWS_ALERT_SMTP_PASS -> bo qua")
+    thieu = thieu_email(cfg)
+    if thieu:
+        LOI_MAIL = "Thiếu " + ", ".join(thieu)
+        log(f"  ! email: {LOI_MAIL} -> bo qua")
         return False
     msg = MIMEText(body_html, "html", "utf-8")
     msg["Subject"], msg["From"], msg["To"] = tieu, user, den
@@ -269,10 +287,31 @@ def gui_mail(cfg: dict, tieu: str, body_html: str) -> bool:
             s.login(user, mk)
             s.sendmail(user, [x.strip() for x in den.split(",") if x.strip()], msg.as_string())
         log(f"  email -> {den}: {tieu}")
+        LOI_MAIL = ""
         return True
+    except smtplib.SMTPAuthenticationError:
+        LOI_MAIL = "Gmail từ chối đăng nhập: sai Gmail gửi hoặc mật khẩu ứng dụng (cần mật khẩu ứng dụng 16 ký tự, không phải mật khẩu Gmail)"
     except Exception as ex:  # noqa: BLE001
-        log(f"  ! email loi: {type(ex).__name__}: {str(ex)[:200]}")
-        return False
+        LOI_MAIL = f"{type(ex).__name__}: {str(ex)[:200]}"
+    log(f"  ! email loi: {LOI_MAIL}")
+    return False
+
+
+def gui_thu(t, kenh: str = "ca-hai") -> str:
+    """Gui thu 2 tin moi nhat khop watchlist tu bang tin `t` (kho cua app) - KHONG ghi trang thai. Tra thong bao ket qua."""
+    cfg = doc_cfg()
+    wl = doc_watchlist()
+    m = khop(t, wl).sort_values("ngay_gio", ascending=False) if len(t) and wl else t.iloc[0:0]
+    if m.empty:
+        return "Chưa có tin nào khớp watchlist trong kho tin để gửi thử"
+    bai = m.head(2).to_dict("records")
+    kq = []
+    if kenh in ("toast", "ca-hai") and os.name == "nt" and cfg.get("toast_bat", True):
+        kq.append("toast: " + ("đã hiện" if gui_toast(f"📰 {bai[0]['ma_wl'].replace('|', ', ')} (thử)", bai[0]["tieu_de"],
+                                                      bai[0]["url"], str(bai[0]["nguon"])) else "lỗi"))
+    if kenh in ("email", "ca-hai"):
+        kq.append("email: " + ("đã gửi tới " + cfg.get("email_gui_den", "") if gui_email_tin(cfg, bai, thu=True) else LOI_MAIL))
+    return " · ".join(kq) or "Không có kênh nào để thử"
 
 
 def _the_bai(b: dict) -> str:

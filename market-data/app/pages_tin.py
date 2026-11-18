@@ -427,14 +427,19 @@ def watchlist(ctx):
                     ok = na.ghi_cfg(cfg)
                     st.toast("Đã lưu" + (" · đã đồng bộ online" if ok else " · CHƯA lên Drive"))
                     st.rerun()
+                thieu = na.thieu_email(cfg)
+                if thieu:
+                    st.markdown('<div class="gn-note" style="color:var(--down)">Chưa gửi được email — thiếu: '
+                                + html.escape(", ".join(thieu)) + '. Điền 2 ô trên rồi bấm 💾 Lưu; mật khẩu ứng dụng Gmail đặt ở '
+                                'GitHub secret (email tự động) và Streamlit secrets / biến môi trường laptop (nút Gửi thử).</div>',
+                                unsafe_allow_html=True)
                 if k1.button("🔔 Gửi thử", key="wl_thu", help="Gửi 2 tin mới nhất khớp watchlist (email; laptop thêm toast)"):
-                    if not os.environ.get("NEWS_ALERT_SMTP_PASS"):
-                        st.warning("Phiên app này chưa có NEWS_ALERT_SMTP_PASS (Streamlit secrets / biến môi trường) nên chỉ thử được "
-                                   "toast trên laptop. Email thật do GitHub Actions gửi bằng secret của repo.")
+                    p_kho = _paths()[0]
                     with st.spinner("Đang gửi thử ..."):
                         try:
-                            na.chay(keo=False, thu=True, kenh="ca-hai")
-                            st.toast("Đã gửi thử")
+                            t_thu = pd.read_parquet(p_kho) if os.path.exists(p_kho) else pd.DataFrame()
+                            kq = na.gui_thu(t_thu, kenh="ca-hai")
+                            (st.success if ("đã gửi" in kq or "đã hiện" in kq) else st.error)(kq)
                         except Exception as e:  # noqa: BLE001
                             st.error(f"{type(e).__name__}: {e}")
 
@@ -463,9 +468,11 @@ def watchlist(ctx):
                 else:
                     with st.spinner(f"Claude Sonnet đang đọc tin {ngay:%d/%m} ..."):
                         try:
-                            cu = tt_mod.tom_tat(ngay_s)
+                            cu = tt_mod.tom_tat(ngay_s, kho=[p])          # kho tin cua app (Streamlit Cloud: dl.CACHE rieng)
                         except RuntimeError as e:
                             st.error(str(e))
+                        except Exception as e:  # noqa: BLE001
+                            st.error(f"Lỗi tóm tắt: {type(e).__name__}: {e}")
             if cu:
                 a2.markdown(f'<div class="gn-note">Tóm tắt lúc {cu["luc"][11:16]} {cu["luc"][8:10]}/{cu["luc"][5:7]} · '
                             f'{cu["so_tin"]} tin · {cu["model"]} · {cu["in_tok"]:,}+{cu["out_tok"]:,} token</div>'.replace(",", "."),

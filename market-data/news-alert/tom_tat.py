@@ -33,16 +33,20 @@ Quy tắc:
 - Viết tiếng Việt, Markdown gọn (### cho từng mã), không quá ~600 từ."""
 
 
-def _bai_hom_nay(ngay: str) -> tuple[list[dict], list[str]]:
+def _bai_hom_nay(ngay: str, kho: list[str] | None = None) -> tuple[list[dict], list[str]]:
     """Tin khop watchlist trong ngay `ngay` (YYYY-MM-DD): kho app (90 ngay, du nhat) + kho news-alert, bo trung."""
     import pandas as pd
     sys.path.insert(0, BASE)
     import news_alert as na
     wl = na.doc_watchlist()
     mas = [x["ma"] for x in wl]
-    kho = [os.path.join(os.path.dirname(BASE), "app", "cache", "news-rss", "news_tagged.parquet"),
-           os.path.join(BASE, "kho", "news_tagged.parquet")]
-    t = pd.concat([pd.read_parquet(p) for p in kho if os.path.exists(p)], ignore_index=True)
+    # 18/11: app truyen kho cua chinh no (Streamlit Cloud: dl.CACHE khong nam o <market-data>/app/cache) + kho news-alert (Actions)
+    kho = list(kho or []) + [os.path.join(os.path.dirname(BASE), "app", "cache", "news-rss", "news_tagged.parquet"),
+                             os.path.join(BASE, "kho", "news_tagged.parquet")]
+    co = [p for p in dict.fromkeys(os.path.normpath(x) for x in kho) if os.path.exists(p)]
+    if not co:
+        raise RuntimeError("Không tìm thấy kho tin RSS (news_tagged.parquet) — mở trang Tin theo ngành / bấm ↻ Kéo tin mới trước")
+    t = pd.concat([pd.read_parquet(p) for p in co], ignore_index=True)
     t = t.drop_duplicates("id")
     d0 = pd.Timestamp(ngay)
     t = t[(t["ngay_gio"] >= d0) & (t["ngay_gio"] < d0 + pd.Timedelta(days=1))]
@@ -55,12 +59,12 @@ def _bai_hom_nay(ngay: str) -> tuple[list[dict], list[str]]:
     return m.to_dict("records"), mas
 
 
-def tom_tat(ngay: str | None = None) -> dict:
+def tom_tat(ngay: str | None = None, kho: list[str] | None = None) -> dict:
     """Goi Sonnet tom tat tin watchlist ngay `ngay`. Tra dict {text, so_tin, model, luc, in_tok, out_tok}; luu tom_tat\\<ngay>.md/.json.
     Loi -> RuntimeError voi thong bao tieng Viet."""
     import anthropic
     ngay = ngay or datetime.now().strftime("%Y-%m-%d")
-    bai, mas = _bai_hom_nay(ngay)
+    bai, mas = _bai_hom_nay(ngay, kho)
     if not bai:
         raise RuntimeError(f"Không có tin nào khớp watchlist ngày {ngay}")
     dong = []

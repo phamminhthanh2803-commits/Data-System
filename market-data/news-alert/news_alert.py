@@ -193,6 +193,8 @@ def khop(t, wl: list[dict]):
     """Them cot ma_wl = cac ma watchlist trong bai (cot `ma` cua bo phan loai + ten_goi_them khop nguyen tu trong tieu de/tom tat)."""
     ma_bai = t["ma"].fillna("").map(lambda s: set(str(s).split("|")) - {""})
     text = (t["tieu_de"].fillna("").astype(str) + " \n " + t["tom_tat"].fillna("").astype(str))
+    if "doan_dau" in t:                                          # 19/11: ten goi them khop ca doan dau bai (news-rss doan_dau.py)
+        text = text + " \n " + t["doan_dau"].fillna("").astype(str)
     res = [[] for _ in range(len(t))]
     for x in wl:
         hit = ma_bai.map(lambda s, m=x["ma"]: m in s).to_numpy()
@@ -395,7 +397,7 @@ def _email_tom_tat(cfg: dict, now: datetime) -> None:
     body = (f'<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;max-width:760px">'
             f'{tt.md_html(kq["text"])}<hr><p style="font-size:12px;color:#666"><b>Nguồn ({kq["so_tin"]} tin)</b><br>'
             f'{tt.md_html(kq["nguon"])}</p><p style="color:#999;font-size:11px">{kq["model"]} · {kq["luc"][11:16]}</p></div>')
-    if gui_mail(cfg, f"[Tóm tắt watchlist {now:%d/%m}] {', '.join(kq['ma'])}", body):
+    if gui_mail(cfg, f"[Tóm tắt watchlist + vĩ mô {now:%d/%m}] {', '.join(kq['ma'])}", body):
         open(co, "w").close()
         day_len(os.path.join("tom_tat", f"{ngay}.emailed"))
 

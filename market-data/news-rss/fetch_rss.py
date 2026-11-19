@@ -7,8 +7,10 @@ r"""fetch_rss.py - keo tin RSS bao kinh te VN -> news_master + phan loai theo ng
     python fetch_rss.py --only CafeF,Vietstock
 
 Dau ra (kho = cache app <app>\cache\news-rss, doi bang --data / env NEWS_DATA):
-    news_master.parquet   1 dong = 1 bai (id = sha1 url chuan): ngay_gio (gio VN), nguon, chuyen_muc, goi_y, tieu_de, tom_tat, url, lay_luc
-    news_tagged.parquet   master + nganh_chinh, nganh (|), chu_de (|), ma (|), loai_tin (|), diem, diem_chu_y, tu_khoa, nhom_trung, so_nguon
+    news_master.parquet   1 dong = 1 bai (id = sha1 url chuan): ngay_gio (gio VN), nguon, chuyen_muc, goi_y, tieu_de, tom_tat, url, lay_luc,
+                          doan_dau (19/11: sapo day du + doan than bai dau, tai trang bai - doan_dau.py; NaN = chua lay, "" = loi)
+    news_tagged.parquet   master + nganh_chinh, nganh (|), chu_de (|), ma (|), ma_doan_dau (|: ma CHI co o doan dau), loai_tin (|), diem,
+                          diem_chu_y, tu_khoa, nhom_trung, so_nguon
     news_tags.parquet     long id x nganh (diem, chu_de, tu_khoa) -> app chon nganh la sap tin theo diem / ngay
     feed_status.csv       trang thai tung feed lan chay cuoi
 11/11/2026 (PV2): KHONG con kho dung san / lich chay rieng - app goi run() khi mo trang Tin tuc › Tin theo nganh (kho trong cache app,
@@ -30,9 +32,10 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # D:\market-data -> mdlib
 from mdlib import log, new_session, setup_stdout  # noqa: E402
 
+import doan_dau as ddl  # noqa: E402
 import newslib as nl  # noqa: E402
 
-MASTER_COLS = ["id", "ngay_gio", "nguon", "chuyen_muc", "goi_y", "tieu_de", "tom_tat", "url", "lay_luc"]
+MASTER_COLS = ["id", "ngay_gio", "nguon", "chuyen_muc", "goi_y", "tieu_de", "tom_tat", "url", "lay_luc", "doan_dau"]
 
 
 def fetch_one(row, now):
@@ -86,9 +89,12 @@ def merge_master(new: pd.DataFrame, keep_days: int | None = None) -> tuple[pd.Da
     if keep_days:                                                     # xoa bai cu (VietnamNet RSS tra ca bai tu 2022)
         allx = allx[allx["ngay_gio"] >= allx["lay_luc"].max() - pd.Timedelta(days=keep_days)]
     # 1 bai xuat hien o nhieu chuyen muc / nhieu lan keo: giu ban dau tien (ngay_gio som nhat), gop chuyen_muc + goi_y
-    agg = allx.groupby("id", sort=False).agg(chuyen_muc=("chuyen_muc", _gop_chuoi), goi_y=("goi_y", _gop_chuoi))
+    if "doan_dau" not in allx:
+        allx["doan_dau"] = None
+    agg = allx.groupby("id", sort=False).agg(chuyen_muc=("chuyen_muc", _gop_chuoi), goi_y=("goi_y", _gop_chuoi),
+                                             doan_dau=("doan_dau", "first"))       # first = gia tri khac NaN dau tien
     first = allx.sort_values(["ngay_gio", "lay_luc"]).drop_duplicates("id", keep="first").set_index("id")
-    first["chuyen_muc"], first["goi_y"] = agg["chuyen_muc"], agg["goi_y"]
+    first["chuyen_muc"], first["goi_y"], first["doan_dau"] = agg["chuyen_muc"], agg["goi_y"], agg["doan_dau"]
     out = first.reset_index()[MASTER_COLS].sort_values("ngay_gio", ascending=False).reset_index(drop=True)
     moi = len(set(out["id"]) - set(old["id"])) if len(old) else len(out)
     return out, moi
@@ -134,7 +140,43 @@ def gom_trung(t: pd.DataFrame, co_dinh: dict) -> pd.Series:
     return out.fillna(exact)
 
 
-def classify(master: pd.DataFrame, full: bool) -> tuple[pd.DataFrame, pd.DataFrame, int]:
+def bo_sung_doan_dau(master: pd.DataFrame, now, workers: int = 24, giay: float | None = None) -> set:
+    """19/11: bai chua co doan_dau trong ddl.DD_NGAY ngay (moi nhat truoc, toi da ddl.DD_TOI_DA) -> tai trang bai lay sapo day du
+    + doan than bai dau (ghi thang vao master). Gioi han thoi gian `giay` (mac dinh ddl.DD_GIAY): bai chua kip -> lan keo sau.
+    Tra tap id vua lay duoc (can phan loai lai)."""
+    if "doan_dau" not in master:
+        master["doan_dau"] = None
+    master["doan_dau"] = master["doan_dau"].astype(object)            # cot toan NaN (float) -> object truoc khi ghi chu
+    can = master[master["doan_dau"].isna() & (master["ngay_gio"] >= now - pd.Timedelta(days=ddl.DD_NGAY))]
+    can = can.sort_values("ngay_gio", ascending=False).head(ddl.DD_TOI_DA)
+    if can.empty:
+        return set()
+    try:
+        import bs4  # noqa: F401
+    except ImportError:                                               # thieu goi -> bo qua (khong danh dau "")
+        log("! thieu beautifulsoup4 -> bo qua doan dau bai (pip install beautifulsoup4)")
+        return set()
+    t0 = time.time()
+    ex = cf.ThreadPoolExecutor(workers)
+    fut = {ex.submit(ddl.lay, u, new_session("browser")): i for i, u in zip(can.index, can["url"])}
+    xong, _ = cf.wait(fut, timeout=ddl.DD_GIAY if giay is None else giay)
+    ex.shutdown(wait=False, cancel_futures=True)                      # bai dang tai do dang: bo, lan sau lay lai
+    co = set()
+    for f in xong:
+        i = fut[f]
+        try:
+            x = f.result()
+        except Exception:  # noqa: BLE001
+            x = ""
+        master.at[i, "doan_dau"] = x
+        if x:
+            co.add(master.at[i, "id"])
+    log(f"-> doan dau: {len(co)}/{len(xong)} bai lay duoc, {len(can) - len(xong)} de lan sau ({time.time() - t0:.0f} s)")
+    return co
+
+
+def classify(master: pd.DataFrame, full: bool, lai: set | None = None) -> tuple[pd.DataFrame, pd.DataFrame, int]:
+    """lai = id bai vua co doan_dau -> phan loai lai (them ma DN nhac o doan dau)."""
     h = nl.cfg_hash()
     st = {}
     if os.path.exists(nl.STATE):
@@ -148,27 +190,28 @@ def classify(master: pd.DataFrame, full: bool) -> tuple[pd.DataFrame, pd.DataFra
         todo = master
         log(f"Che do: phan loai TOAN BO {len(master)} bai (tu dien {h} {'doi' if st.get('hash') not in (None, h) else 'moi'})")
     else:
-        todo = master[~master["id"].isin(set(old_t["id"]))]
-        log(f"Che do: phan loai {len(todo)} bai moi (tu dien {h} khong doi)")
+        todo = master[~master["id"].isin(set(old_t["id"])) | master["id"].isin(lai or set())]
+        log(f"Che do: phan loai {len(todo)} bai moi / vua co doan dau (tu dien {h} khong doi)")
     pl = nl.PhanLoai()
     rows, tags = [], []
     for r in todo.itertuples(index=False):
-        k = pl.phan_loai(r.tieu_de, r.tom_tat, r.goi_y)
+        k = pl.phan_loai(r.tieu_de, r.tom_tat, r.goi_y, getattr(r, "doan_dau", "") or "")
         ng = sorted(k["nganh"].items(), key=lambda x: -x[1])
         chinh = ng[0][0] if ng else nl.KHAC
         rows.append({"id": r.id, "nganh_chinh": chinh, "nganh": "|".join(n for n, _ in ng),
                      "chu_de": "|".join(dict.fromkeys(c for n, _ in ng for c in k["chu_de"].get(n, []))),
-                     "ma": "|".join(k["ma"]), "loai_tin": "|".join(k["loai_tin"]), "diem": ng[0][1] if ng else 0.0,
+                     "ma": "|".join(k["ma"]), "ma_doan_dau": "|".join(k["ma_dd"]), "loai_tin": "|".join(k["loai_tin"]), "diem": ng[0][1] if ng else 0.0,
                      "diem_su_kien": k["diem_su_kien"],
                      "tu_khoa": " · ".join(dict.fromkeys(t for n, _ in ng for t in k["tu_khoa"].get(n, [])))})
         for n, d in ng:
             tags.append({"id": r.id, "nganh": n, "diem": d, "chinh": n == chinh, "chu_de": "|".join(k["chu_de"].get(n, [])),
                          "tu_khoa": " · ".join(k["tu_khoa"].get(n, []))})
-    new_t = pd.DataFrame(rows, columns=["id", "nganh_chinh", "nganh", "chu_de", "ma", "loai_tin", "diem", "diem_su_kien",
+    new_t = pd.DataFrame(rows, columns=["id", "nganh_chinh", "nganh", "chu_de", "ma", "ma_doan_dau", "loai_tin", "diem", "diem_su_kien",
                                         "tu_khoa"])                  # 0 bai moi -> van du cot (truoc day mat cot id -> KeyError)
     new_g = pd.DataFrame(tags, columns=["id", "nganh", "diem", "chinh", "chu_de", "tu_khoa"])
     cls = new_t if old_t is None else pd.concat([old_t[[c for c in new_t.columns if c in old_t.columns]], new_t], ignore_index=True)
-    g = new_g if old_g is None else pd.concat([old_g, new_g], ignore_index=True)
+    # 19/11: bai phan loai lai (vua co doan dau) -> bo tag nganh cu truoc khi ghep, tranh nhan doi
+    g = new_g if old_g is None else pd.concat([old_g[~old_g["id"].isin(set(todo["id"]))], new_g], ignore_index=True)
     cls = cls.drop_duplicates("id", keep="last")
     # ghep lai master (cot master luon lay ban moi nhat: chuyen_muc gop them) + tin trung tieu de giua cac bao
     t = master.merge(cls, on="id", how="left")
@@ -184,9 +227,12 @@ def classify(master: pd.DataFrame, full: bool) -> tuple[pd.DataFrame, pd.DataFra
     return t, g, len(todo)
 
 
-def run(fetch: bool = True, reclass: bool = False, only: str = "", workers: int = 12, keep_days: int | None = None) -> dict:
+def run(fetch: bool = True, reclass: bool = False, only: str = "", workers: int = 12, keep_days: int | None = None,
+        doan_dau: bool | None = None) -> dict:
     """Keo RSS (fetch) -> gop kho -> phan loai bai moi (hoac toan bo neu doi tu dien / reclass) -> ghi parquet. Tra tom tat.
     Goi tu app (pages_tin) va CLI. Loi toan bo feed -> RuntimeError (kho cu giu nguyen)."""
+    if doan_dau is None:                                              # env NEWS_DOAN_DAU=0 -> tat tai trang bai
+        doan_dau = os.environ.get("NEWS_DOAN_DAU", "1") != "0"
     os.makedirs(nl.DATA, exist_ok=True)
     now = datetime.now(nl.VN_TZ).replace(tzinfo=None, microsecond=0)
     kq = {"luc": now, "doc": 0, "moi": 0, "feed_loi": 0, "so_feed": 0}
@@ -211,6 +257,7 @@ def run(fetch: bool = True, reclass: bool = False, only: str = "", workers: int 
         sts.to_csv(nl.FEED_STATUS, index=False, encoding="utf-8-sig")
         new = pd.DataFrame(rows, columns=MASTER_COLS)
         master, n_moi = merge_master(new, keep_days)
+        lai = bo_sung_doan_dau(master, now) if doan_dau else set()
         master.to_parquet(nl.MASTER, index=False)
         kq.update(doc=len(new), moi=n_moi, feed_loi=loi, so_feed=len(sts))
         log(f"-> {len(new)} bai doc duoc, {n_moi} bai MOI · kho {len(master)} bai · feed loi {loi}/{len(sts)}")
@@ -218,9 +265,13 @@ def run(fetch: bool = True, reclass: bool = False, only: str = "", workers: int 
         if not os.path.exists(nl.MASTER):
             raise RuntimeError("chua co news_master.parquet")
         master = pd.read_parquet(nl.MASTER)
-    t, g, n = classify(master, reclass)
+        if "doan_dau" not in master:
+            master["doan_dau"] = None
+        lai = set()
+    t, g, n = classify(master, reclass, lai)
     # tom tat cat 400 ky tu cho app (ban day du o news_master) + danh sach nganh (thu tu hien thi)
-    t.assign(tom_tat=t["tom_tat"].str.slice(0, 400)).to_parquet(nl.TAGGED, index=False)
+    t.assign(tom_tat=t["tom_tat"].str.slice(0, 400), doan_dau=t["doan_dau"].fillna("").astype(str).str.slice(0, 700)) \
+        .to_parquet(nl.TAGGED, index=False)
     g.to_parquet(nl.TAGS, index=False)
     nl.danh_sach_nganh()[["ma", "nganh", "loai", "thu_tu", "mo_ta"]].to_csv(os.path.join(nl.DATA, "nganh.csv"), index=False,
                                                                             encoding="utf-8-sig")
@@ -237,13 +288,14 @@ def main():
     ap.add_argument("--reclass", action="store_true")
     ap.add_argument("--only", default="")
     ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--no-doan-dau", action="store_true", help="khong tai trang bai lay doan dau")
     ap.add_argument("--keep-days", type=int, default=0, help="xoa bai cu hon N ngay (0 = giu het)")
     ap.add_argument("--data", default="", help=r"thu muc kho (mac dinh = kho cua app <app>\cache\news-rss, hoac env NEWS_DATA)")
     a = ap.parse_args()
     if a.data:
         nl.set_data_dir(a.data)
     try:
-        run(not a.no_fetch, a.reclass, a.only, a.workers, a.keep_days or None)
+        run(not a.no_fetch, a.reclass, a.only, a.workers, a.keep_days or None, doan_dau=not a.no_doan_dau)
     except RuntimeError as e:
         log(f"X LOI: {e}")
         sys.exit(2)

@@ -5,3 +5,4 @@ requests
 rapidfuzz
 anthropic
 lxml
+beautifulsoup4                 # 19/11 news-rss doan_dau.py: doan dau bai -> ma DN

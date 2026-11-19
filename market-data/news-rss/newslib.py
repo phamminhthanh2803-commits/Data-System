@@ -47,6 +47,7 @@ set_data_dir(os.environ.get("NEWS_DATA") or os.path.join(os.environ.get("APP_CAC
 NGUONG = 3.0             # diem toi thieu de gan 1 nganh
 W_TIEU_DE, W_TOM_TAT = 2.0, 1.0
 W_MA_TD, W_MA_TT = 4.0, 3.0           # ma CK o tieu de / tom tat (bai nhac >5 ma: x0,5)
+W_MA_DD = 1.5                         # 19/11: ma CK chi co o DOAN DAU bai (doan_dau.py: sapo day du + doan than bai dau)
 W_GOI_Y = 1.5
 VIN = ("VIC", "VHM", "VRE", "VPL")
 KHAC = "Chưa phân loại"
@@ -270,7 +271,22 @@ class PhanLoai:
         alt = "|".join(re.escape(k) for k in sorted(d, key=len, reverse=True))
         return re.compile(rf"(?<!\w)({alt})(?!\w)")
 
-    def _ma_trong(self, s: str) -> set:
+    # 19/11: luat CHAT cho doan than bai (nhieu chu viet tat hon tieu de / sapo: CNA hang tin, CVT hop so, BCH Ban chap hanh,
+    # ATC phien dong cua, APC/SCA ten to chuc...): ma 3 chu chi nhan khi co ngu canh chung khoan / ten cong ty
+    _CT = re.compile(r"(công ty|ctcp|tập đoàn|tổng công ty|ngân hàng|chứng khoán|cty|tổng cty|doanh nghiệp)", re.I)
+    _GIA = re.compile(r"^\s*(tăng|giảm|đứng giá|giữ giá|tím|trần|sàn|là mã|được mua|bị bán|bị xả|chiếm|đóng góp|\(\s*[+\-−]?\d)", re.I)
+    _KHONG_DN = re.compile(r"(đại học|trường|hiệp hội|bệnh viện|học viện|báo|thông tấn|ủy ban|uỷ ban)\s[^,.;()]*$", re.I)
+
+    def _ma_chat(self, s: str, i0: int, i1: int) -> bool:
+        """Ma 3 chu tai s[i0:i1] trong doan than bai co ngu canh DN / chung khoan khong."""
+        truoc, sau = s[max(0, i0 - 90):i0], s[i1:i1 + 25]
+        if self.re_ctx.search(truoc[-14:]):                           # 'mã CMG', 'HoSE: BSR', 'cổ phiếu TCB'
+            return True
+        if truoc.endswith("(") and sau.startswith(")") and self._CT.search(truoc):   # 'Công ty Chứng khoán Dầu khí (PSI)'
+            return True
+        return bool(self._GIA.match(sau))                             # 'VIC giảm 2,04%', 'HPG là mã ...'
+
+    def _ma_trong(self, s: str, chat: bool = False) -> set:
         out = set()
         for m in self.re_ma.finditer(s):
             c = m.group(1)
@@ -279,14 +295,23 @@ class PhanLoai:
             if c in self.mo_ho:                                      # (CPI), (FDI) la dinh nghia viet tat -> chi nhan 'ma CEO', 'HNX: CEO'
                 if not self.re_ctx.search(s[max(0, m.start() - 14):m.start()]):
                     continue
+            elif chat and not self._ma_chat(s, m.start(), m.end()):
+                continue
             out.add(c)
         if self.re_alias is not None:
             for m in self.re_alias.finditer(s):
-                out.add(self.alias[m.group(1)])
+                a = m.group(1)
+                if chat and re.fullmatch(r"[A-Z0-9]{3}", a):            # alias = chinh ma (ACV, SHS) -> cung luat chat
+                    if not self._ma_chat(s, m.start(), m.end()):
+                        continue
+                elif chat and self._KHONG_DN.search(s[max(0, m.start() - 40):m.start()]):   # 'Trường Đại học Hoa Sen' != HSG
+                    continue
+                out.add(self.alias[a])
         return out
 
-    def phan_loai(self, tieu_de: str, tom_tat: str, goi_y: str = "") -> dict:
+    def phan_loai(self, tieu_de: str, tom_tat: str, goi_y: str = "", doan_dau: str = "") -> dict:
         td, tt = norm(tieu_de), norm(tom_tat)
+        dd = norm(doan_dau) if isinstance(doan_dau, str) else ""
         if tt.startswith(td) and td:
             tt = tt[len(td):]
         diem = defaultdict(float)
@@ -309,8 +334,9 @@ class PhanLoai:
                         tukhoa[ng].append(k)
         ma_td, ma_tt = self._ma_trong(td), self._ma_trong(tt)
         ma_tt -= ma_td
-        nhieu = len(ma_td | ma_tt) > 5                                 # bai liet ke nhieu ma (diem tin, top CP) -> giam trong so ma
-        for ds, w in ((ma_td, W_MA_TD), (ma_tt, W_MA_TT)):
+        ma_dd = (self._ma_trong(dd, chat=True) - ma_td - ma_tt) if dd else set()   # DN nhac o doan dau bai (khong co o tieu de / sapo RSS)
+        nhieu = len(ma_td | ma_tt | ma_dd) > 5                         # bai liet ke nhieu ma (diem tin, top CP) -> giam trong so ma
+        for ds, w in ((ma_td, W_MA_TD), (ma_tt, W_MA_TT), (ma_dd, W_MA_DD)):
             for c in ds:
                 ng = "Vingroup" if c in VIN else self.ma_nganh.get(c)
                 if not ng or (isinstance(ng, float)):
@@ -337,4 +363,5 @@ class PhanLoai:
                             d_lt += ws * w
         return {"nganh": nganh, "chu_de": {k: sorted(v) for k, v in chu_de.items() if k in nganh},
                 "tu_khoa": {k: list(dict.fromkeys(v)) for k, v in tukhoa.items() if k in nganh},
-                "ma": sorted(ma_td) + sorted(ma_tt), "loai_tin": loai, "diem_su_kien": d_lt}
+                "ma": sorted(ma_td) + sorted(ma_tt) + sorted(ma_dd), "ma_dd": sorted(ma_dd), "loai_tin": loai,
+                "diem_su_kien": d_lt}

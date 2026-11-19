@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import html
 import os
+import re
 import sys
 import threading
 import time
@@ -22,7 +23,7 @@ TAT_CA = "Tất cả ngành"
 KHAC = "Chưa phân loại"
 SAP = {"Mới nhất": "moi", "Liên quan nhất": "lienquan", "Đáng chú ý": "chuy"}
 COLS = ["id", "ngay_gio", "nguon", "chuyen_muc", "tieu_de", "tom_tat", "url", "nganh_chinh", "nganh", "chu_de", "ma", "loai_tin",
-        "diem", "diem_chu_y", "tu_khoa", "nhom_trung", "so_nguon"]
+        "diem", "diem_chu_y", "tu_khoa", "nhom_trung", "so_nguon", "ma_doan_dau", "doan_dau"]
 NGUON_MAU = {"CafeF": "#b3551c", "Vietstock": "#1f6fb2", "VnEconomy": "#0f7b6c", "VnExpress": "#9b1c31", "Dân trí": "#2e7d32",
              "VietnamNet": "#c62828", "Tuổi Trẻ": "#1565c0", "Thanh Niên": "#00695c", "VietnamBiz": "#6a1b9a",
              "Nhịp sống kinh doanh": "#ef6c00", "VietnamPlus": "#37474f"}
@@ -82,7 +83,7 @@ def _news(mt: float):
     t = t[t["ngay_gio"] >= t["ngay_gio"].max() - pd.Timedelta(days=400)].reset_index(drop=True)
     for c in ("nguon", "chuyen_muc", "nganh_chinh"):
         t[c] = t[c].astype("category")
-    for c in ("nganh", "chu_de", "ma", "loai_tin", "tu_khoa"):
+    for c in [x for x in ("nganh", "chu_de", "ma", "loai_tin", "tu_khoa", "ma_doan_dau", "doan_dau") if x in t]:
         t[c] = t[c].fillna("")
     g = pd.read_parquet(pt) if os.path.exists(pt) else pd.DataFrame(columns=["id", "nganh", "diem", "chinh", "chu_de", "tu_khoa"])
     g = g[g["id"].isin(set(t["id"]))].reset_index(drop=True)
@@ -128,7 +129,9 @@ def _html(t: pd.DataFrame, nganh: str, limit: int = 300) -> str:
         trung = f' <small style="display:inline;color:var(--ink-3)">· {int(r.so_nguon)} báo đưa tin</small>' if r.so_nguon > 1 else ""
         ngs = [x for x in str(r.nganh).split("|") if x]
         chips = "".join(_chip(x, strong=(x == nganh or (nganh == TAT_CA and x == r.nganh_chinh))) for x in ngs[:4]) or _chip(KHAC)
-        ma = " ".join(f'<b style="font-size:11.5px">{m}</b>' for m in str(r.ma).split("|")[:6] if m)
+        dd = set(str(getattr(r, "ma_doan_dau", "") or "").split("|")) - {""}     # 19/11: ma chi nhac o doan dau bai -> chu nhat
+        ma = " ".join((f'<span style="font-size:11.5px;font-weight:600;color:var(--ink-3)" title="nhắc ở đoạn đầu bài">{m}</span>'
+                       if m in dd else f'<b style="font-size:11.5px">{m}</b>') for m in str(r.ma).split("|")[:8] if m)
         lt = "".join(_chip(x) for x in str(r.loai_tin).split("|")[:3] if x)
         diem = getattr(r, "diem_ng", r.diem)
         h.append(f'<tr><td style="vertical-align:top">{_ngay(r.ngay_gio, today)}</td>'
@@ -456,59 +459,96 @@ def watchlist(ctx):
                         except Exception as e:  # noqa: BLE001
                             st.error(f"{type(e).__name__}: {e}")
 
-    # ---- (c) TOM TAT HOM NAY - Claude Sonnet
+    # ---- (c) TOM TAT THEO KHUNG THOI GIAN - Claude Sonnet: 2 hang muc Vi mo + Tin doanh nghiep (19/11)
     loi = _lam_moi(force=lam_moi)
     p, pt, _, _ = _paths()
-    today = _now_vn().normalize()
+    now = _now_vn()
+    today = now.normalize()
     if ALERT_DIR not in sys.path:
         sys.path.insert(0, ALERT_DIR)
     import tom_tat as tt_mod
-    with ui.card("Tóm tắt diễn biến trong ngày", f"Claude Sonnet · {tt_mod.MODEL}", key="wl_tomtat", controls=False,
-                 help="Gom tin trong ngày khớp watchlist (gộp tin trùng) → Claude Sonnet tóm tắt theo từng mã: điểm chính, diễn biến "
-                      "theo giờ, ý nghĩa với cổ phiếu, việc cần theo dõi. Chỉ dựa trên tiêu đề + tóm tắt RSS. Kết quả lưu "
-                      "news-alert/tom_tat/<ngày>.md trên Drive (laptop + app online + email cuối ngày dùng chung). "
+    # thanh tim kiem: xem tin / tom tat rieng tung ma (thay vi chia muc theo ma trong ban tom tat)
+    tim_s = st.text_input("🔎 Tìm theo mã", key="wl_tim", placeholder="Mã hoặc tên DN, cách dấu phẩy — VD: HPG, VCB, Hòa Phát. "
+                          "Để trống = cả watchlist", help="Áp dụng cho mục Tin doanh nghiệp của bản tóm tắt và bảng Tin khớp bên "
+                          "dưới. Mã ngoài watchlist cũng tìm được; chữ khác mã 3 ký tự được khớp nguyên cụm trong tiêu đề / tóm tắt.")
+    tim = tt_mod.tach_tim(tim_s)
+    KHUNG = ["Trong ngày", "24 giờ", "3 ngày", "7 ngày", "Tuỳ chọn"]
+    with ui.card("Tóm tắt tin", f"Vĩ mô + Tin doanh nghiệp · Claude Sonnet · {tt_mod.MODEL}", key="wl_tomtat", controls=False,
+                 help="Chọn khung thời gian + hạng mục → Claude Sonnet tóm tắt đúng 2 mục: Vĩ mô (tin Vĩ mô & chính sách / Kinh tế "
+                      "thế giới, theo chủ đề + tác động tới thị trường) và Tin doanh nghiệp (tin khớp watchlist, hoặc các mã trong ô "
+                      "🔎 Tìm theo mã; gom theo loại sự kiện, không chia theo mã). Chỉ dựa trên tiêu đề + tóm tắt RSS. Kết quả lưu "
+                      "news-alert/tom_tat/ trên Drive (laptop + app online dùng chung; email 17h = bản Trong ngày, cả watchlist). "
                       "Cần API key Anthropic: biến ANTHROPIC_API_KEY (laptop) / Streamlit secrets (online).") as c:
         with c.body():
-            a0, a1, a2 = st.columns([1.2, 1, 3])
-            ngay = a0.date_input("Ngày", today.date(), key="wl_tt_ngay", format="DD/MM/YYYY", label_visibility="collapsed")
-            ngay_s = f"{ngay:%Y-%m-%d}"
-            cu = tt_mod.doc_ban_cu(ngay_s)
-            bam = a1.button("🤖 Tóm tắt lại" if cu else "🤖 Tóm tắt", key="wl_tt_chay", type="primary" if not cu else "secondary")
+            a0, a1, _ = st.columns([3, 1.8, 2.2])                 # hang 1: khung thoi gian | hang 2: hang muc + nut
+            a2, a3, _ = st.columns([2.2, 1.3, 3.5])
+            khung = a0.segmented_control("Khung", KHUNG, default="Trong ngày", key="wl_tt_khung",
+                                         label_visibility="collapsed") or "Trong ngày"
+            if khung == "Trong ngày":
+                ngay = a1.date_input("Ngày", today.date(), key="wl_tt_ngay", format="DD/MM/YYYY", label_visibility="collapsed")
+                tu = pd.Timestamp(ngay)
+                den = tu + pd.Timedelta(days=1)
+            elif khung == "Tuỳ chọn":
+                kc = a1.date_input("Từ – đến", (today.date() - pd.Timedelta(days=6), today.date()), key="wl_tt_khoang",
+                                   format="DD/MM/YYYY", label_visibility="collapsed", max_value=today.date())
+                kc = kc if isinstance(kc, (list, tuple)) else (kc,)
+                tu = pd.Timestamp(kc[0])
+                den = pd.Timestamp(kc[-1]) + pd.Timedelta(days=1)
+            else:
+                gio = {"24 giờ": 24, "3 ngày": 72, "7 ngày": 168}[khung]
+                den = now.floor("min")
+                tu = den - pd.Timedelta(hours=gio)
+                a1.markdown(f'<div class="gn-note">{tu:%d/%m %H:%M} → bây giờ</div>', unsafe_allow_html=True)
+            hm = a2.pills("Hạng mục", ["Vĩ mô", "Doanh nghiệp"], selection_mode="multi", default=["Vĩ mô", "Doanh nghiệp"],
+                          key="wl_tt_hm", label_visibility="collapsed") or []
+            vimo, dn = "Vĩ mô" in hm, "Doanh nghiệp" in hm
+            # khoa luu: khung truot (24 gio / 3 / 7 ngay) theo ten khung + ngay hom nay -> mo lai trang van thay ban vua chay
+            if khung in ("Trong ngày", "Tuỳ chọn"):
+                khoa = tt_mod.khoa_mac_dinh(tu, den, tim, vimo, dn)
+            else:                                                  # vd "72h_2026-11-19_HPG_dn"
+                khoa = f"{gio}h_" + tt_mod.khoa_mac_dinh(today, today + pd.Timedelta(days=1), tim, vimo, dn)
+            cu = tt_mod.doc_ban_cu(khoa)
+            bam = a3.button("🤖 Tóm tắt lại" if cu else "🤖 Tóm tắt", key="wl_tt_chay", type="primary" if not cu else "secondary",
+                            disabled=not (vimo or dn))
             if bam:
                 if not os.environ.get("ANTHROPIC_API_KEY"):
                     st.error("Chưa có API key Anthropic: đặt ANTHROPIC_API_KEY (biến môi trường User trên laptop, hoặc Streamlit "
                              "secrets cho app online) rồi mở lại app.")
                 else:
-                    with st.spinner(f"Claude Sonnet đang đọc tin {ngay:%d/%m} ..."):
+                    with st.spinner(f"Claude Sonnet đang đọc tin {tu:%d/%m %H:%M} – {den:%d/%m %H:%M} ..."):
                         try:
-                            cu = tt_mod.tom_tat(ngay_s, kho=[p])          # kho tin cua app (Streamlit Cloud: dl.CACHE rieng)
+                            cu = tt_mod.tom_tat(kho=[p], tu=tu, den=den, tim=tim, vimo=vimo, dn=dn, khoa=khoa)
                         except RuntimeError as e:
                             st.error(str(e))
                         except Exception as e:  # noqa: BLE001
                             st.error(f"Lỗi tóm tắt: {type(e).__name__}: {e}")
             if cu:
-                a2.markdown(f'<div class="gn-note">Tóm tắt lúc {cu["luc"][11:16]} {cu["luc"][8:10]}/{cu["luc"][5:7]} · '
-                            f'{cu["so_tin"]} tin · {cu["model"]} · {cu["in_tok"]:,}+{cu["out_tok"]:,} token</div>'.replace(",", "."),
-                            unsafe_allow_html=True)
-                st.markdown(cu["text"])
+                st.markdown(f'<div class="gn-note">Khung {cu.get("khung") or cu.get("ngay", "")}'
+                            f'{" · tìm: " + html.escape(", ".join(cu["tim"])) if cu.get("tim") else ""} · tóm tắt lúc '
+                            f'{cu["luc"][11:16]} {cu["luc"][8:10]}/{cu["luc"][5:7]} · {cu["so_tin"]} tin '
+                            f'({cu.get("so_tin_vimo", 0)} vĩ mô · {cu.get("so_tin_wl", cu["so_tin"])} doanh nghiệp) · {cu["model"]} · '
+                            f'{cu["in_tok"]:,}+{cu["out_tok"]:,} token</div>'.replace(",", "."), unsafe_allow_html=True)
+                st.markdown(re.sub(r"(?m)^#{1,3}\s", "#### ", cu["text"]))   # "## Vĩ mô" -> tieu de vua co trong the
                 with st.expander(f"Nguồn ({cu['so_tin']} tin)"):
                     st.markdown(cu["nguon"])
             elif not bam:
-                st.markdown('<div class="gn-note">Chưa có bản tóm tắt cho ngày này — bấm 🤖 Tóm tắt.</div>', unsafe_allow_html=True)
+                st.markdown('<div class="gn-note">Chưa có bản tóm tắt cho khung / bộ lọc này — bấm 🤖 Tóm tắt.</div>',
+                            unsafe_allow_html=True)
 
     # ---- (d) TIN KHOP WATCHLIST (kho tin cua app, 90 ngay)
-    if not wl or not os.path.exists(p):
+    wl_loc = tt_mod._wl_tim(tim, wl) if tim else wl              # o 🔎 Tim theo ma -> loc bang tin theo ma tim
+    if not wl_loc or not os.path.exists(p):
         ui.card_empty("Tin khớp watchlist", "", loi or "Watchlist rỗng / chưa có kho tin", key="wl_tin_trong")
         return
     t, _, _ = _news(max(dl._raw_mt(p), dl._raw_mt(pt)))
-    m = na.khop(t, wl)
+    m = na.khop(t, wl_loc)
     sent = na.doc_sent("email")
-    mas = [x["ma"] for x in wl]
-    with ui.card("Tin khớp watchlist", "kho tin của app (giữ 90 ngày)",
+    mas = [x["ma"] for x in wl_loc]
+    with ui.card("Tin khớp " + (", ".join(tim) if tim else "watchlist"), "kho tin của app (giữ 90 ngày)",
                  help="Cùng luật lọc với bộ cảnh báo: mã do bộ phân loại news-rss gắn + tên gọi thêm. 🔔 = tin đã gửi email.",
                  key="wl_tin", periods=["1D", "3D", "1W", "1M", "3M", "All"], default="1W", end=today,
-                 chips=mas, chip_multi=True, chip_default=mas, chip_label="Mã") as c:
-        chon = set(c.chip or [])
+                 chips=None if tim else mas, chip_multi=True, chip_default=mas, chip_label="Mã") as c:
+        chon = set() if tim else set(c.chip or [])
         x = m[(m["ngay_gio"] >= pd.Timestamp(c.d0)) & (m["ngay_gio"] < pd.Timestamp(c.d1) + pd.Timedelta(days=1))]
         x = x[x["ma_wl"].str.split("|").map(lambda v: bool(set(v) & chon))] if chon else x
         x = x.sort_values("ngay_gio", ascending=False).drop_duplicates("nhom_trung", keep="first")
